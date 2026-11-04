@@ -7,7 +7,7 @@
 
 > Ghi đè mục này mỗi cuối buổi làm việc. AI đọc phần này trước tiên.
 
-- Cập nhật lần cuối: (chưa có)
+- Ngày cập nhật lần cuối: (chưa có)
 - Đang làm: (chưa bắt đầu)
 - Đã xong: (chưa có)
 - Việc tiếp theo: bắt đầu bước 4.1 trong `docs/tasks/task-m4.md`
@@ -16,6 +16,3 @@
 
 ## NHẬT KÝ
 
-> Mục mới nhất ở trên cùng. Định dạng mỗi mục xem `logs/README.md`.
-
-(chưa có mục nào)

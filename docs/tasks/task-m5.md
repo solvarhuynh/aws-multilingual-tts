@@ -18,16 +18,16 @@ Comprehend, Translate, SQS, SNS, CloudWatch, X-Ray, Lambda
 
 ## Danh sách việc
 
-| | Bước | Việc phải làm | Loại | Giải thích |
-|---|---|---|---|---|
-| [ ] | 5.1 | Lambda tts-submit: nhận yêu cầu từ API Gateway, kiểm tra hợp lệ, tạo job PENDING | Cơ bản | Điểm vào của toàn bộ xử lý |
-| [ ] | 5.2 | Làm sạch văn bản và tách thành các đoạn nhỏ theo câu | Cơ bản | Mỗi lần gọi Polly bị giới hạn độ dài |
-| [ ] | 5.3 | Amazon Comprehend tự nhận diện ngôn ngữ nếu người dùng không chọn | Mở rộng | Người dùng không cần chọn ngôn ngữ |
-| [ ] | 5.4 | Amazon Translate dịch trước khi đọc (nhập tiếng Việt, đọc tiếng Anh) | Mở rộng | Làm rõ nghĩa đa ngôn ngữ |
-| [ ] | 5.5 | Văn bản ngắn: gọi tts-synthesize ngay. Văn bản dài: đưa vào SQS xử lý nền; việc lỗi chuyển vào hàng đợi lỗi (DLQ) | Cơ bản | Web không bị treo khi đọc văn bản dài |
-| [ ] | 5.6 | CloudWatch: log, dashboard (số lần gọi, lỗi, thời gian xử lý, số ký tự đã đọc), cảnh báo gửi email qua SNS | Cơ bản | Biết hệ thống đang chạy ra sao |
-| [ ] | 5.7 | X-Ray theo dõi một yêu cầu đi qua các dịch vụ nào, chậm ở đâu | Mở rộng | Tìm điểm nghẽn |
-| [ ] | 5.8 | Bộ kiểm thử: Postman và script chạy cả luồng, thử đa ngôn ngữ, văn bản dài, ký tự đặc biệt | Cơ bản | Bằng chứng hệ thống hoạt động đúng |
+| Bước | Việc phải làm | Loại | Giải thích |
+|---|---|---|---|
+| 5.1 | Lambda tts-submit: nhận yêu cầu từ API Gateway, kiểm tra hợp lệ, tạo job PENDING | Cơ bản | Điểm vào của toàn bộ xử lý |
+| 5.2 | Làm sạch văn bản và tách thành các đoạn nhỏ theo câu | Cơ bản | Mỗi lần gọi Polly bị giới hạn độ dài |
+| 5.3 | Amazon Comprehend tự nhận diện ngôn ngữ nếu người dùng không chọn | Mở rộng | Người dùng không cần chọn ngôn ngữ |
+| 5.4 | Amazon Translate dịch trước khi đọc (nhập tiếng Việt, đọc tiếng Anh) | Mở rộng | Làm rõ nghĩa đa ngôn ngữ |
+| 5.5 | Văn bản ngắn: gọi tts-synthesize ngay. Văn bản dài: đưa vào SQS xử lý nền; việc lỗi chuyển vào hàng đợi lỗi (DLQ) | Cơ bản | Web không bị treo khi đọc văn bản dài |
+| 5.6 | CloudWatch: log, dashboard (số lần gọi, lỗi, thời gian xử lý, số ký tự đã đọc), cảnh báo gửi email qua SNS | Cơ bản | Biết hệ thống đang chạy ra sao |
+| 5.7 | X-Ray theo dõi một yêu cầu đi qua các dịch vụ nào, chậm ở đâu | Mở rộng | Tìm điểm nghẽn |
+| 5.8 | Bộ kiểm thử: Postman và script chạy cả luồng, thử đa ngôn ngữ, văn bản dài, ký tự đặc biệt | Cơ bản | Bằng chứng hệ thống hoạt động đúng |
 
 ## Ghi chú kỹ thuật riêng
 
@@ -50,6 +50,3 @@ M1: route API. M3: thư viện common. M2: tts-synthesize.
 
 M2: job đã chuẩn hóa. Cả nhóm: dashboard, log, bộ kiểm thử chạy cả luồng.
 
-## Khi báo cáo nói được
-
-Dịch vụ AI về ngôn ngữ của AWS, xử lý bất đồng bộ bằng SQS và DLQ, giám sát và cảnh báo.

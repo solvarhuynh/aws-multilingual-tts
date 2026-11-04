@@ -18,17 +18,17 @@ API Gateway, IAM, Cognito, CloudFormation/SAM, CloudTrail
 
 ## Danh sách việc
 
-| | Bước | Việc phải làm | Loại | Giải thích |
-|---|---|---|---|---|
-| [ ] | 1.1 | Tạo IAM user cho 5 người, bật MFA | Cơ bản | Mỗi người có tài khoản riêng, không dùng chung root |
-| [ ] | 1.2 | Chạy prompt tạo repo, kiểm tra cấu trúc, hướng dẫn cả nhóm clone và cài AWS CLI, SAM CLI | Cơ bản | Ai clone về cũng biết bắt đầu từ đâu |
-| [ ] | 1.3 | API Gateway: tạo đủ các route trong danh sách API, bật CORS, kiểm tra dữ liệu gửi lên, giới hạn số lần gọi | Cơ bản | Cửa vào duy nhất của hệ thống |
-| [ ] | 1.4 | Mỗi Lambda một IAM role riêng, chỉ cấp đúng quyền cần thiết (xem bảng quyền ở mục 5) | Cơ bản | Ví dụ tts-history chỉ được đọc/xóa dữ liệu, không được gọi Polly |
-| [ ] | 1.5 | Cognito: đăng ký, đăng nhập; API Gateway chỉ cho người đã đăng nhập vào | Mở rộng | Mỗi người dùng có lịch sử riêng |
-| [ ] | 1.6 | SAM/CloudFormation: template.yaml gốc nối 5 file con trong infra/, dựng cả hệ thống bằng sam build và sam deploy | Cơ bản | Xóa đi dựng lại được trong vài phút, không bấm tay trên console |
-| [ ] | 1.7 | Viết docs/01-guides/DEPLOY.md; tổ chức buổi hướng dẫn nội bộ, mỗi người tự deploy thử một bản | Cơ bản | Mục tiêu: ai cũng hiểu repo và deploy được |
-| [ ] | 1.8 | CloudTrail ghi lại ai đã làm gì trong tài khoản | Mở rộng | Truy vết khi có sự cố |
-| [ ] | 1.9 | AWS Budgets cảnh báo chi phí | Cơ bản | Làm nhanh, không cần đưa vào báo cáo |
+| Bước | Việc phải làm | Loại | Giải thích |
+|---|---|---|---|
+| 1.1 | Tạo IAM user cho 5 người, bật MFA | Cơ bản | Mỗi người có tài khoản riêng, không dùng chung root |
+| 1.2 | Chạy prompt tạo repo, kiểm tra cấu trúc, hướng dẫn cả nhóm clone và cài AWS CLI, SAM CLI | Cơ bản | Ai clone về cũng biết bắt đầu từ đâu |
+| 1.3 | API Gateway: tạo đủ các route trong danh sách API, bật CORS, kiểm tra dữ liệu gửi lên, giới hạn số lần gọi | Cơ bản | Cửa vào duy nhất của hệ thống |
+| 1.4 | Mỗi Lambda một IAM role riêng, chỉ cấp đúng quyền cần thiết (xem bảng quyền ở mục 5) | Cơ bản | Ví dụ tts-history chỉ được đọc/xóa dữ liệu, không được gọi Polly |
+| 1.5 | Cognito: đăng ký, đăng nhập; API Gateway chỉ cho người đã đăng nhập vào | Mở rộng | Mỗi người dùng có lịch sử riêng |
+| 1.6 | SAM/CloudFormation: template.yaml gốc nối 5 file con trong infra/, dựng cả hệ thống bằng sam build và sam deploy | Cơ bản | Xóa đi dựng lại được trong vài phút, không bấm tay trên console |
+| 1.7 | Viết docs/01-guides/DEPLOY.md; tổ chức buổi hướng dẫn nội bộ, mỗi người tự deploy thử một bản | Cơ bản | Mục tiêu: ai cũng hiểu repo và deploy được |
+| 1.8 | CloudTrail ghi lại ai đã làm gì trong tài khoản | Mở rộng | Truy vết khi có sự cố |
+| 1.9 | AWS Budgets cảnh báo chi phí | Cơ bản | Làm nhanh, không cần đưa vào báo cáo |
 
 ## Ghi chú kỹ thuật riêng
 
@@ -50,6 +50,3 @@ M2-M5: mỗi người gửi file hạ tầng của mình (infra/mX-*.yaml) và d
 
 M4: địa chỉ API. M2, M3, M5: IAM role. Cả nhóm: khung repo, hướng dẫn deploy.
 
-## Khi báo cáo nói được
-
-Cửa vào của hệ thống, ai được vào bằng cách nào (Cognito, token), phân quyền tối thiểu cho từng Lambda, triển khai bằng mã thay vì bấm tay.
