@@ -10,6 +10,36 @@
 - `tts-synthesize` dùng Polly hoặc nhà cung cấp ngoài cho tiếng Việt, lưu mp3 lên S3 và cập nhật DynamoDB qua thư viện chung (M2, M3).
 - CloudWatch ghi log và cảnh báo; SAM dùng để dựng hạ tầng (M5, M1).
 
+## Luồng xử lý chính
+
+```text
+Người dùng (trình duyệt / app)
+  → App/Web trên S3 + CloudFront (M4)
+  → API Gateway + Cognito đăng nhập (M1)
+  → Lambda tts-submit (M5)
+      kiểm tra đầu vào, tạo job PENDING trong DynamoDB
+      Comprehend nhận diện ngôn ngữ (MR), Translate dịch (MR)
+      làm sạch văn bản và tách thành các đoạn
+      ├─ Văn bản ngắn → gọi thẳng tts-synthesize → trả kết quả ngay
+      └─ Văn bản dài  → SQS + DLQ → tts-synthesize chạy nền
+  → Lambda tts-synthesize (M2)
+      đọc job từ DynamoDB
+      ├─ Amazon Polly cho các ngôn ngữ được hỗ trợ
+      └─ Nhà cung cấp ngoài cho tiếng Việt, khóa lưu trong Secrets Manager
+      ghép các đoạn mp3 → lưu file riêng tư vào S3
+      cập nhật trạng thái và tiến độ trong DynamoDB (M3)
+  → Presigned URL tạm thời → web phát hoặc tải file mp3
+
+Các API dữ liệu đi riêng:
+  GET /voices                 → tts-voices (M2)
+  GET /jobs/{id}, /history    → tts-history (M3)
+  DELETE /history/{id}        → tts-history (M3)
+  GET /stats                  → tts-stats (M3)
+
+Trong suốt luồng: CloudWatch + SNS + X-Ray ghi log, dashboard và cảnh báo (M5).
+SAM / CloudFormation + IAM dùng để dựng hạ tầng và cấp quyền tối thiểu (M1).
+```
+
 ## Các module
 
 | Mã | Tên | Dịch vụ AWS chính | Người phụ trách |
