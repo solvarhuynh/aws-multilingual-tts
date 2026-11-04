@@ -1,5 +1,5 @@
 # Module: M5 — Đa ngôn ngữ, xử lý nền và giám sát
-# Người phụ trách: <TÊN THÀNH VIÊN>
+# Người phụ trách: Trung Nghĩa
 # Tài nguyên dự kiến khai báo ở đây:
 # - Lambda tts-submit
 # - Hàng đợi SQS và DLQ

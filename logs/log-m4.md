@@ -1,6 +1,6 @@
 # Nhật ký M4: Giao diện App/Web và hosting
 
-**Người phụ trách:** `<TÊN THÀNH VIÊN>`
+**Người phụ trách:** Nguyên Khang
 **Danh sách việc:** `docs/tasks/task-m4.md`
 
 ## TRẠNG THÁI NHANH

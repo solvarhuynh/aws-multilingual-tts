@@ -1,6 +1,6 @@
 # Nhật ký M2: Lõi chuyển giọng
 
-**Người phụ trách:** `<TÊN THÀNH VIÊN>`
+**Người phụ trách:** Trung Khang
 **Danh sách việc:** `docs/tasks/task-m2.md`
 
 ## TRẠNG THÁI NHANH

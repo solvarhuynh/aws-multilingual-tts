@@ -1,6 +1,6 @@
 # Nhật ký M3: Lưu trữ và dữ liệu
 
-**Người phụ trách:** `<TÊN THÀNH VIÊN>`
+**Người phụ trách:** Trung Đức
 **Danh sách việc:** `docs/tasks/task-m3.md`
 
 ## TRẠNG THÁI NHANH

@@ -1,6 +1,6 @@
 # M4: Giao diện App/Web và đưa lên cloud
 
-**Người phụ trách:** `<TÊN THÀNH VIÊN>`  |  **Nhật ký:** `logs/log-m4.md`
+**Người phụ trách:** Nguyên Khang  |  **Nhật ký:** `logs/log-m4.md`
 
 > Tick `[x]` ngay khi xong từng bước. Mỗi lần làm việc, đọc file này cùng với nhật ký của module.
 

@@ -1,6 +1,6 @@
 # Nhật ký M5: Đa ngôn ngữ, văn bản dài và giám sát
 
-**Người phụ trách:** `<TÊN THÀNH VIÊN>`
+**Người phụ trách:** Trung Nghĩa
 **Danh sách việc:** `docs/tasks/task-m5.md`
 
 ## TRẠNG THÁI NHANH

@@ -10,7 +10,7 @@
 
 | Người phụ trách |
 |---|
-| `<TÊN THÀNH VIÊN>` |
+| Minh Lý |
 
 ## Chương 4. Lõi chuyển giọng (M2)
 
@@ -18,7 +18,7 @@
 
 | Người phụ trách |
 |---|
-| `<TÊN THÀNH VIÊN>` |
+| Trung Khang |
 
 ## Chương 5. Lưu trữ và dữ liệu (M3)
 
@@ -26,7 +26,7 @@
 
 | Người phụ trách |
 |---|
-| `<TÊN THÀNH VIÊN>` |
+| Trung Đức |
 
 ## Chương 6. Giao diện App/Web và hosting (M4)
 
@@ -34,7 +34,7 @@
 
 | Người phụ trách |
 |---|
-| `<TÊN THÀNH VIÊN>` |
+| Nguyên Khang |
 
 ## Chương 7. Đa ngôn ngữ, xử lý nền và giám sát (M5)
 
@@ -42,7 +42,7 @@
 
 | Người phụ trách |
 |---|
-| `<TÊN THÀNH VIÊN>` |
+| Trung Nghĩa |
 
 ## Chương 8. Kiểm thử và kết quả
 

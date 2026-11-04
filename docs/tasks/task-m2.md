@@ -1,6 +1,6 @@
 # M2: Lõi chuyển giọng
 
-**Người phụ trách:** `<TÊN THÀNH VIÊN>`  |  **Nhật ký:** `logs/log-m2.md`
+**Người phụ trách:** Trung Khang  |  **Nhật ký:** `logs/log-m2.md`
 
 > Tick `[x]` ngay khi xong từng bước. Mỗi lần làm việc, đọc file này cùng với nhật ký của module.
 

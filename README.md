@@ -14,11 +14,11 @@
 
 | Mã | Tên | Dịch vụ AWS chính | Người phụ trách |
 |---|---|---|---|
-| M1 | Cửa vào, bảo mật, triển khai | API Gateway, IAM, Cognito, SAM | `<TÊN THÀNH VIÊN>` |
-| M2 | Lõi chuyển giọng | Lambda, Polly, Secrets Manager | `<TÊN THÀNH VIÊN>` |
-| M3 | Lưu trữ và dữ liệu | S3, DynamoDB, Lambda Layer | `<TÊN THÀNH VIÊN>` |
-| M4 | Giao diện và hosting | S3, CloudFront, Cognito | `<TÊN THÀNH VIÊN>` |
-| M5 | Đa ngôn ngữ, xử lý nền, giám sát | Comprehend, Translate, SQS, CloudWatch | `<TÊN THÀNH VIÊN>` |
+| M1 | Cửa vào, bảo mật, triển khai | API Gateway, IAM, Cognito, SAM | Minh Lý |
+| M2 | Lõi chuyển giọng | Lambda, Polly, Secrets Manager | Trung Khang |
+| M3 | Lưu trữ và dữ liệu | S3, DynamoDB, Lambda Layer | Trung Đức |
+| M4 | Giao diện và hosting | S3, CloudFront, Cognito | Nguyên Khang |
+| M5 | Đa ngôn ngữ, xử lý nền, giám sát | Comprehend, Translate, SQS, CloudWatch | Trung Nghĩa |
 
 ## Bắt đầu nhanh
 

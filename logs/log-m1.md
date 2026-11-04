@@ -1,6 +1,6 @@
 # Nhật ký M1: Cửa vào, bảo mật và triển khai
 
-**Người phụ trách:** `<TÊN THÀNH VIÊN>`
+**Người phụ trách:** Minh Lý
 **Danh sách việc:** `docs/tasks/task-m1.md`
 
 ## TRẠNG THÁI NHANH

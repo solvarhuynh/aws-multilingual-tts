@@ -1,6 +1,6 @@
 # M5: Đa ngôn ngữ thông minh, văn bản dài và giám sát
 
-**Người phụ trách:** `<TÊN THÀNH VIÊN>`  |  **Nhật ký:** `logs/log-m5.md`
+**Người phụ trách:** Trung Nghĩa  |  **Nhật ký:** `logs/log-m5.md`
 
 > Tick `[x]` ngay khi xong từng bước. Mỗi lần làm việc, đọc file này cùng với nhật ký của module.
 

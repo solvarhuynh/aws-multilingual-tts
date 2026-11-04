@@ -1,6 +1,6 @@
 # M3: Lưu trữ và dữ liệu
 
-**Người phụ trách:** `<TÊN THÀNH VIÊN>`  |  **Nhật ký:** `logs/log-m3.md`
+**Người phụ trách:** Trung Đức  |  **Nhật ký:** `logs/log-m3.md`
 
 > Tick `[x]` ngay khi xong từng bước. Mỗi lần làm việc, đọc file này cùng với nhật ký của module.
 
