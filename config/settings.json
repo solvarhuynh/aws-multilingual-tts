@@ -1,0 +1,13 @@
+{
+  "region": "ap-southeast-1",
+  "stackName": "tts-dev",
+  "chunkSize": 2500,
+  "syncMaxChars": 2500,
+  "maxChars": 20000,
+  "presignTtlSeconds": 3600,
+  "jobTtlDays": 30,
+  "audioLifecycleDays": 30,
+  "defaultSpeed": 1.0,
+  "minSpeed": 0.5,
+  "maxSpeed": 2.0
+}

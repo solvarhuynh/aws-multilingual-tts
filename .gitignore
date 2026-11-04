@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+build/
+
+# SAM
+.aws-sam/
+
+# Bí mật
+.env
+.env.*
+*.pem
+*.key
+.aws/
+credentials
+
+# Kết quả test
+*.mp3
+tests/**/out/
+
+# IDE và hệ điều hành
+.idea/
+.DS_Store
+Thumbs.db

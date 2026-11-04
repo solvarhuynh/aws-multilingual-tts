@@ -1,0 +1,7 @@
+{
+  "_note": "Ví dụ khởi đầu. M2 kiểm tra bằng describe_voices của Polly và chốt nhà cung cấp tiếng Việt.",
+  "en-US": { "provider": "polly", "engine": "neural", "voices": [ {"id": "Joanna", "gender": "F"}, {"id": "Matthew", "gender": "M"} ] },
+  "ja-JP": { "provider": "polly", "engine": "neural", "voices": [ {"id": "Takumi", "gender": "M"} ] },
+  "ko-KR": { "provider": "polly", "engine": "neural", "voices": [ {"id": "Seoyeon", "gender": "F"} ] },
+  "vi-VN": { "provider": "external", "engine": null, "voices": [] }
+}

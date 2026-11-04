@@ -1,0 +1,7 @@
+# Module: M3 — Lưu trữ và dữ liệu
+# Người phụ trách: <TÊN THÀNH VIÊN>
+# Tài nguyên dự kiến khai báo ở đây:
+# - Bảng DynamoDB tts-jobs-dev, chỉ mục textHash-index và TTL
+# - Bucket tts-audio-dev, lifecycle và CORS
+# - Lambda Layer common
+# - Lambda tts-history và tts-stats

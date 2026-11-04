@@ -1,0 +1,6 @@
+# Module: M2 — Lõi chuyển giọng
+# Người phụ trách: <TÊN THÀNH VIÊN>
+# Tài nguyên dự kiến khai báo ở đây:
+# - Lambda tts-synthesize
+# - Lambda tts-voices
+# - Secret cho nhà cung cấp tiếng Việt
