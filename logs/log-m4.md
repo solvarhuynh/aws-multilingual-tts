@@ -5,8 +5,6 @@
 
 ## TRẠNG THÁI NHANH
 
-> Ghi đè mục này mỗi cuối buổi làm việc. AI đọc phần này trước tiên.
-
 - Ngày cập nhật lần cuối: (chưa có)
 - Đang làm: (chưa bắt đầu)
 - Đã xong: (chưa có)

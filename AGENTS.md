@@ -13,7 +13,7 @@ Làm đủ 5 việc dưới đây **trước khi viết bất kỳ dòng code n�
 2. Xác định người dùng đang làm **module nào** (M1 đến M5, xem mục 3). Nếu chưa rõ, hỏi: *"Bạn là thành viên module nào (M1, M2, M3, M4 hay M5)?"*
 3. Đọc **nhật ký** của module đó: `logs/log-m<số>.md`. Đọc khối **TRẠNG THÁI NHANH** ở đầu file và 3 mục nhật ký gần nhất.
 4. Đọc **danh sách việc** của module đó: `docs/tasks/task-m<số>.md`, đối chiếu những bước đã tick và chưa tick.
-5. Nếu việc sắp làm chạm tới chỗ nối với module khác (API, bảng dữ liệu, tên biến, quyền IAM), đọc thêm `docs/00-overview/QUY-UOC-CHUNG.md`.
+5. Nếu việc sắp làm chạm tới chỗ nối với module khác (API, bảng dữ liệu, tên biến, quyền IAM), đọc thêm `docs/overview/QUY-UOC-CHUNG.md`.
 
 Sau đó chạy `git pull` và `git status`, rồi **tóm tắt cho người dùng trong 3 đến 5 dòng**: đã làm gì, đang dở gì, việc tiếp theo là gì. Chờ người dùng xác nhận rồi mới làm.
 
@@ -31,7 +31,7 @@ Yêu cầu cơ bản của giảng viên:
 - API Gateway gọi Lambda, Lambda kích hoạt Amazon Polly tạo file `.mp3`.
 - Lưu file vào S3, lưu metadata vào DynamoDB, trả link phát âm thanh trực tiếp trên web.
 
-Nhóm làm thêm (đánh dấu **MR** = mở rộng, đã ghép sẵn vào module của từng người): tiếng Việt qua nhà cung cấp ngoài (vì Amazon Polly không có tiếng Việt), văn bản dài chạy nền qua SQS, lịch sử, đăng nhập Cognito, chống trùng, nhận diện ngôn ngữ, dịch trước khi đọc, giám sát CloudWatch, deploy bằng SAM.
+Nhóm làm thêm (đánh dấu **MR** = mở rộng): tiếng Việt qua nhà cung cấp ngoài, văn bản dài chạy nền qua SQS, lịch sử, đăng nhập Cognito, chống trùng, nhận diện/dịch ngôn ngữ, sửa chính tả tùy chọn qua Gemini, giám sát CloudWatch/X-Ray và deploy bằng SAM.
 
 **Mục tiêu chấm điểm:** hệ thống chạy thật, mỗi thành viên hiểu và trình bày được phần AWS của mình, ai cũng deploy được repo lên AWS.
 
@@ -43,6 +43,9 @@ Nhóm làm thêm (đánh dấu **MR** = mở rộng, đã ghép sẵn vào modul
 Người dùng
   → App/Web (S3 + CloudFront)                          [M4]
   → API Gateway (+ Cognito)                            [M1]
+  → (tùy chọn) POST /text/correct → tts-submit → Gemini trả bản sửa để người dùng duyệt [M5]
+  → người dùng xác nhận nội dung
+  → POST /synthesize
   → Lambda tts-submit                                  [M5]
         kiểm tra đầu vào, tạo job PENDING trong DynamoDB
         Comprehend nhận diện ngôn ngữ (MR), Translate dịch (MR)
@@ -53,10 +56,11 @@ Người dùng
         Polly (đa số ngôn ngữ) hoặc nhà cung cấp ngoài (tiếng Việt)
         ghép mp3 → lưu S3 → cập nhật DynamoDB (DONE)   [M3 qua thư viện common]
   → trả presigned URL → web phát trực tiếp, có nút tải
-Suốt quá trình: CloudWatch log + cảnh báo [M5]; hạ tầng dựng bằng SAM [M1]
+Suốt quá trình: M5 ghi log/metric; M1 cấu hình CloudWatch dashboard, SNS alarm và X-Ray
+Hạ tầng dựng bằng SAM [M1]; M1 cấp IAM OIDC role, M4 viết workflow deploy frontend
 ```
 
-Các API đọc dữ liệu đi riêng: `GET /voices` (M2), `GET /jobs/{id}`, `GET /history`, `DELETE /history/{id}`, `GET /stats` (M3).
+Các API phụ đi riêng: `GET /voices` (M2), `GET /jobs/{id}`, `GET /history`, `DELETE /history/{id}` (M3), `GET /stats` (M5).
 
 ---
 
@@ -64,26 +68,28 @@ Các API đọc dữ liệu đi riêng: `GET /voices` (M2), `GET /jobs/{id}`, `G
 
 | Module | Tên | Người phụ trách | Thư mục / file **chỉ module này được sửa** |
 |---|---|---|---|
-| **M1** | Cửa vào, bảo mật, triển khai | `<TÊN THÀNH VIÊN>` | `template.yaml`, `samconfig.toml`, `infra/m1-api-security.yaml`, `scripts/`, `config/settings.json`, `docs/00-overview/`, `docs/01-guides/`, `README.md`, `.github/PULL_REQUEST_TEMPLATE.md` |
-| **M2** | Lõi chuyển giọng | `<TÊN THÀNH VIÊN>` | `backend/synthesize/`, `backend/voices/`, `config/voices.json`, `infra/m2-tts-core.yaml` |
-| **M3** | Lưu trữ và dữ liệu | `<TÊN THÀNH VIÊN>` | `backend/common/`, `backend/history/`, `backend/stats/`, `infra/m3-storage-data.yaml` |
-| **M4** | Giao diện App/Web và hosting | `<TÊN THÀNH VIÊN>` | `frontend/`, `infra/m4-frontend-hosting.yaml`, `.github/workflows/` |
-| **M5** | Đa ngôn ngữ, văn bản dài, giám sát | `<TÊN THÀNH VIÊN>` | `backend/submit/`, `tests/`, `infra/m5-language-async-monitor.yaml` |
+| **M1** | API, tích hợp và vận hành | Minh Lý | `template.yaml`, `samconfig.toml`, `infra/m1-api-security.yaml`, `scripts/`, `config/settings.json`, `docs/overview/`, `docs/guides/`, `README.md`, `.github/PULL_REQUEST_TEMPLATE.md` |
+| **M2** | Lõi chuyển giọng | Trung Khang | `backend/synthesize/`, `backend/voices/`, `config/voices.json`, `infra/m2-tts-core.yaml` |
+| **M3** | Lưu trữ và dữ liệu | Trung Đức | `backend/common/`, `backend/history/`, `infra/m3-storage-data.yaml` |
+| **M4** | Giao diện App/Web và hosting | Nguyên Khang | `frontend/`, `infra/m4-frontend-hosting.yaml`, `.github/workflows/` |
+| **M5** | Điều phối TTS, xử lý ngôn ngữ và kiểm thử | Trung Nghĩa | `backend/submit/`, `backend/stats/`, `tests/`, `infra/m5-language-async-monitor.yaml` |
 
 Dịch vụ AWS chính của từng module:
 
-- **M1:** API Gateway, IAM, Cognito (MR), CloudFormation/SAM, CloudTrail (MR)
+- **M1:** API Gateway, Lambda integrations, IAM, CloudFormation/SAM, CloudWatch, SNS, X-Ray; Cognito, CloudTrail, Budgets (MR)
 - **M2:** Lambda, Polly, Secrets Manager
 - **M3:** S3, DynamoDB, S3 Lifecycle, DynamoDB TTL, Lambda Layer
-- **M4:** S3 (hosting), CloudFront, Cognito phía web (MR), IAM cho CI/CD (MR), CloudWatch RUM (MR)
-- **M5:** Comprehend (MR), Translate (MR), SQS/DLQ, SNS, CloudWatch, X-Ray (MR)
+- **M4:** S3 (hosting), CloudFront, Cognito phía web (MR), GitHub Actions, CloudWatch RUM (MR)
+- **M5:** Lambda, Comprehend/Translate (MR), SQS/DLQ, Gemini API (MR), CloudWatch Logs/Metrics
 
 Điểm nối giữa các module (ai giao gì cho ai):
 
-- **M4** gọi API do **M1** dựng. **M1** nối route tới Lambda của M2, M3, M5.
+- **M4** gọi API do **M1** dựng. M1 nối route tới Lambda của M2, M3, M5, bao gồm endpoint xem trước sửa chính tả.
 - **M5** (`tts-submit`) giao job cho **M2** (`tts-synthesize`) bằng gọi trực tiếp hoặc qua SQS.
-- **M2, M5, M1** (route history/stats) đều đọc/ghi dữ liệu qua thư viện **`backend/common`** của **M3**.
-- **M1** cấp IAM role cho mọi Lambda và gom `infra/m*.yaml` của 4 người còn lại vào `template.yaml`.
+- **M2, M5** đọc/ghi dữ liệu qua thư viện **`backend/common`** của **M3**. M3 sở hữu history; M5 sở hữu stats.
+- **M1** cấp IAM role cho Lambda, dashboard/SNS alarm, bật X-Ray và gom `infra/m*.yaml` của các module vào `template.yaml`.
+- **M1** tạo IAM OIDC role cho deploy; **M4** sở hữu workflow GitHub Actions dùng role đó.
+- **M5** chỉ gọi Gemini để sửa chính tả sau khi người dùng yêu cầu; **M4** hiển thị bản sửa để người dùng duyệt.
 - **M2** cung cấp `config/voices.json` cho M4 (ô chọn giọng) và M5 (chọn ngôn ngữ).
 
 ---
@@ -103,17 +109,16 @@ aws-multilingual-tts/
 │  ├─ synthesize/             tts-synthesize (M2)
 │  ├─ voices/                 tts-voices (M2)
 │  ├─ history/                tts-history (M3)
-│  └─ stats/                  tts-stats (M3)
+│  └─ stats/                  tts-stats (M5)
 ├─ frontend/                  App/Web (M4)
 ├─ config/                    settings.json (M1), voices.json (M2)
 ├─ tests/                     unit, e2e, postman (M5)
 ├─ scripts/                   lệnh tiện ích (M1)
 ├─ logs/                      nhật ký từng thành viên: log-m1.md ... log-m5.md
 └─ docs/
-   ├─ 00-overview/            ARCHITECTURE.md, QUY-UOC-CHUNG.md
-   ├─ 01-guides/              DEPLOY.md, GIT-VA-LOGS.md
+   ├─ overview/               ARCHITECTURE.md, QUY-UOC-CHUNG.md
+   ├─ guides/                 DEPLOY.md, GIT-VA-LOGS.md
    ├─ tasks/                  danh sách việc từng thành viên: task-m1.md ... task-m5.md
-   └─ 03-report/              KHUNG-BAO-CAO.md
 ```
 
 **Hỏi nhanh: cần biết gì thì đọc file nào?**
@@ -122,17 +127,16 @@ aws-multilingual-tts/
 |---|---|
 | Mình đang làm đến đâu | `logs/log-m<số>.md` |
 | Việc của mình gồm những gì | `docs/tasks/task-m<số>.md` |
-| Tên API, bảng, biến môi trường, định dạng dữ liệu | `docs/00-overview/QUY-UOC-CHUNG.md` |
-| Kiến trúc tổng thể | `docs/00-overview/ARCHITECTURE.md` |
-| Cách deploy lên AWS | `docs/01-guides/DEPLOY.md` |
-| Cách dùng Git và ghi log | `docs/01-guides/GIT-VA-LOGS.md` |
-| Khung báo cáo | `docs/03-report/KHUNG-BAO-CAO.md` |
+| Tên API, bảng, biến môi trường, định dạng dữ liệu | `docs/overview/QUY-UOC-CHUNG.md` |
+| Kiến trúc tổng thể | `docs/overview/ARCHITECTURE.md` |
+| Cách deploy lên AWS | `docs/guides/DEPLOY.md` |
+| Cách dùng Git và ghi log | `docs/guides/GIT-VA-LOGS.md` |
 
 ---
 
 ## 5. Quy ước chung (tóm tắt)
 
-Chi tiết đầy đủ nằm ở `docs/00-overview/QUY-UOC-CHUNG.md`. Không tự đổi các mục dưới đây.
+Chi tiết đầy đủ nằm ở `docs/overview/QUY-UOC-CHUNG.md`. Không tự đổi các mục dưới đây.
 
 | Hạng mục | Giá trị |
 |---|---|
@@ -145,7 +149,7 @@ Chi tiết đầy đủ nằm ở `docs/00-overview/QUY-UOC-CHUNG.md`. Không t�
 | Trạng thái job | `PENDING` → `PROCESSING` → `DONE` hoặc `FAILED` |
 | Định dạng lỗi | `{"error": {"code": "...", "message": "..."}}` |
 | Backend | Python 3.12, boto3 |
-| API | `POST /synthesize`, `GET /jobs/{id}`, `GET /history`, `DELETE /history/{id}`, `GET /voices`, `GET /stats` |
+| API | `POST /text/correct`, `POST /synthesize`, `GET /jobs/{id}`, `GET /history`, `DELETE /history/{id}`, `GET /voices`, `GET /stats` |
 
 ---
 
@@ -168,7 +172,7 @@ Làm theo **mục 0**. Không bỏ bước nào, kể cả khi người dùng n�
 
 1. Cập nhật **khối TRẠNG THÁI NHANH** và thêm **một mục nhật ký mới** vào `logs/log-m<số>.md` (định dạng ở mục 7).
 2. Tick các bước đã xong trong `docs/tasks/task-m<số>.md`.
-3. Commit với tên bắt đầu bằng module: `[M2] mô tả ngắn` (xem `docs/01-guides/GIT-VA-LOGS.md`).
+3. Commit với tên bắt đầu bằng module: `[M2] mô tả ngắn` (xem `docs/guides/GIT-VA-LOGS.md`).
 4. Nhắc người dùng push và mở Pull Request nếu việc đã xong một phần hoàn chỉnh.
 5. Nhắc người dùng những gì cần báo cho module khác (nếu có).
 
@@ -246,7 +250,7 @@ aws polly describe-voices --query "Voices[].{Id:Id,Lang:LanguageCode,Engines:Sup
 sam delete --stack-name tts-dev
 ```
 
-Chi tiết từng bước: `docs/01-guides/DEPLOY.md`.
+Chi tiết từng bước: `docs/guides/DEPLOY.md`.
 
 ---
 

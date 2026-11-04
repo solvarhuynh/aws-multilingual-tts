@@ -3,5 +3,6 @@
 # Tài nguyên dự kiến khai báo ở đây:
 # - Bucket lưu trữ web
 # - CloudFront với Origin Access Control (OAC)
-# - IAM role cho GitHub Actions (MR)
+# - Hosting và CloudFront invalidation cho workflow deploy frontend
+# - Dùng IAM OIDC role do M1 cấp trong GitHub Actions (MR)
 # - CloudWatch RUM (MR)

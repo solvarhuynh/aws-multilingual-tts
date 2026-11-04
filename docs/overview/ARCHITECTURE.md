@@ -8,8 +8,12 @@ Hệ thống chuyển văn bản thành giọng nói đa ngôn ngữ bằng các
 Người dùng
   → App/Web (S3 + CloudFront)                          [M4]
   → API Gateway (+ Cognito)                            [M1]
+  → (tùy chọn) POST /text/correct → tts-submit → Gemini trả bản sửa để người dùng duyệt [M5]
+  → người dùng xác nhận nội dung
+  → POST /synthesize
   → Lambda tts-submit                                  [M5]
       kiểm tra đầu vào, tạo job PENDING trong DynamoDB
+      chỉ sửa chính tả qua Gemini khi người dùng yêu cầu (MR)
       Comprehend nhận diện ngôn ngữ (MR), Translate dịch (MR)
       làm sạch, tách đoạn; chống trùng (MR, M3)
       ├─ văn bản ngắn → gọi thẳng Lambda tts-synthesize
@@ -18,20 +22,21 @@ Người dùng
       Polly (đa số ngôn ngữ) hoặc nhà cung cấp ngoài (tiếng Việt)
       ghép mp3 → lưu S3 → cập nhật DynamoDB (DONE)     [M3 qua thư viện common]
   → trả presigned URL → web phát trực tiếp, có nút tải
-Suốt quá trình: CloudWatch log + cảnh báo [M5]; hạ tầng dựng bằng SAM [M1]
+Suốt quá trình: M5 ghi log/metric; M1 cấu hình CloudWatch dashboard, SNS alarm và X-Ray
+Hạ tầng dựng bằng SAM [M1]; M1 cấp IAM OIDC role, M4 viết workflow frontend
 ```
 
-Các API đọc dữ liệu đi riêng: `GET /voices` (M2), `GET /jobs/{id}`, `GET /history`, `DELETE /history/{id}`, `GET /stats` (M3).
+Các API phụ đi riêng: `GET /voices` (M2), `GET /jobs/{id}`, `GET /history`, `DELETE /history/{id}` (M3), `GET /stats` (M5).
 
 ## Dịch vụ AWS
 
 | Dịch vụ | Dùng để làm gì | Module |
 |---|---|---|
-| API Gateway, Cognito, IAM, SAM, CloudTrail | Nhận yêu cầu, kiểm soát truy cập và dựng hạ tầng | M1 |
+| API Gateway, IAM, SAM, CloudWatch, SNS, X-Ray | Nhận/nối request TTS, dựng hạ tầng và theo dõi luồng | M1 |
 | Lambda, Polly, Secrets Manager | Chuyển văn bản thành âm thanh | M2 |
 | S3, DynamoDB, Lambda Layer | Lưu file, dữ liệu job và mã dùng chung | M3 |
-| S3, CloudFront, Cognito, CloudWatch RUM | Phục vụ giao diện web | M4 |
-| Comprehend, Translate, SQS, SNS, CloudWatch, X-Ray | Nhận diện, dịch, xử lý nền và giám sát | M5 |
+| S3, CloudFront, Cognito, CloudWatch RUM, GitHub Actions | Phục vụ và triển khai giao diện web | M4 |
+| Comprehend, Translate, SQS/DLQ, Gemini API | Xử lý ngôn ngữ, sửa chính tả theo yêu cầu và xử lý nền | M5 |
 
 ## Quyết định thiết kế
 

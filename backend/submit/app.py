@@ -1,7 +1,9 @@
-"""Lambda tts-submit nhận và kiểm tra yêu cầu chuyển văn bản từ API Gateway.
+"""Lambda tts-submit nhận yêu cầu TTS và sửa chính tả tùy chọn từ API Gateway.
 
-Hàm này được API Gateway gọi; khi hoàn thiện sẽ phối hợp thư viện tts_common,
-Lambda tts-synthesize và SQS. Module sở hữu: M5.
+Hàm này được API Gateway gọi cho POST /synthesize và POST /text/correct. Khi
+người dùng yêu cầu sửa, hàm gọi Gemini và trả bản xem trước; sau khi người dùng
+xác nhận, giao diện gửi văn bản đã chọn tới POST /synthesize. Hàm phối hợp
+tts_common, Lambda tts-synthesize, SQS và các dịch vụ ngôn ngữ. Module sở hữu: M5.
 """
 
 from tts_common.errors import error_response

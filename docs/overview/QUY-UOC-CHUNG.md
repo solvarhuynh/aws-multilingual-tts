@@ -24,6 +24,7 @@
 | `QUEUE_URL` | địa chỉ hàng đợi SQS | M5 | M5 (tts-submit) |
 | `SYNTH_FUNCTION_NAME` | tên Lambda tts-synthesize | M2 | M5 (tts-submit) |
 | `EXTERNAL_TTS_SECRET_NAME` | tên secret chứa key nhà cung cấp tiếng Việt | M2 | M2 |
+| `GEMINI_API_SECRET_NAME` | tên secret chứa Gemini API key cho sửa chính tả (MR) | M5 | M5 (`tts-submit`); M1 cấp IAM đọc secret |
 | `PRESIGN_TTL_SECONDS` | thời hạn link nghe, mặc định `3600` | M1 | M3 |
 | `SYNC_MAX_CHARS` | ngưỡng văn bản ngắn xử lý ngay, mặc định `2500` | M1 | M5 |
 | `CHUNK_SIZE` | độ dài tối đa mỗi đoạn, mặc định `2500` | M1 | M2, M5 |
@@ -63,6 +64,28 @@ Phản hồi khi chạy nền (`202`):
 ```json
 { "jobId": "1731234567890-a1b2c3d4", "status": "PENDING", "audioUrl": null, "cached": false }
 ```
+
+### POST /text/correct (MR, trả `200`)
+
+Chỉ gọi khi người dùng chủ động chọn sửa chính tả. Văn bản được gửi tới Gemini bên ngoài AWS; giao diện hiển thị cả bản gốc lẫn bản sửa để người dùng duyệt. Sau khi xác nhận, giao diện gửi nội dung đã chọn tới `POST /synthesize`.
+
+Yêu cầu:
+
+```json
+{ "text": "Toi muon nghe mot cau chuyen" }
+```
+
+Phản hồi:
+
+```json
+{
+  "originalText": "Toi muon nghe mot cau chuyen",
+  "correctedText": "Tôi muốn nghe một câu chuyện.",
+  "changes": [ {"from": "Toi", "to": "Tôi"} ]
+}
+```
+
+Chỉ sửa lỗi chính tả và dấu câu rõ ràng; giữ nguyên ý nghĩa, tên riêng, số và thuật ngữ. Nếu Gemini lỗi, trả `502 PROVIDER_ERROR`; giao diện giữ nguyên văn bản gốc để người dùng tự quyết định.
 
 ### GET /jobs/{id}
 
@@ -188,10 +211,10 @@ Cùng một nội dung cho cả hai đường:
 
 | Lambda | Quyền |
 |---|---|
-| `tts-submit` | DynamoDB: PutItem, UpdateItem, Query; Lambda: InvokeFunction trên `tts-synthesize`; SQS: SendMessage; Comprehend: DetectDominantLanguage; Translate: TranslateText |
+| `tts-submit` | DynamoDB: PutItem, UpdateItem, Query; Lambda: InvokeFunction trên `tts-synthesize`; SQS: SendMessage; Comprehend: DetectDominantLanguage; Translate: TranslateText; Secrets Manager: GetSecretValue trên Gemini secret |
 | `tts-synthesize` | DynamoDB: GetItem, UpdateItem; S3: PutObject trên `audio/*`; Polly: SynthesizeSpeech; Secrets Manager: GetSecretValue; SQS: nhận và xóa message |
 | `tts-voices` | chỉ ghi log |
 | `tts-history` | DynamoDB: Query, GetItem, DeleteItem; S3: GetObject, DeleteObject |
-| `tts-stats` | DynamoDB: Query |
+| `tts-stats` (M5) | DynamoDB: Query |
 
 Tất cả Lambda đều có quyền ghi log CloudWatch.

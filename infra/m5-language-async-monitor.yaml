@@ -1,8 +1,7 @@
-# Module: M5 — Đa ngôn ngữ, xử lý nền và giám sát
+# Module: M5 — Điều phối TTS, xử lý ngôn ngữ và kiểm thử
 # Người phụ trách: Trung Nghĩa
 # Tài nguyên dự kiến khai báo ở đây:
 # - Lambda tts-submit
+# - Lambda tts-stats
 # - Hàng đợi SQS và DLQ
-# - SNS topic cảnh báo
-# - CloudWatch dashboard và alarm
-# - X-Ray (MR)
+# - Secrets Manager secret cho Gemini API key (MR); không lưu key trong repo
