@@ -1,5 +1,6 @@
 import {
   Button as LiquidButton,
+  Glass as LiquidGlass,
   Slider as LiquidSlider,
   Switch,
   type ButtonProps,
@@ -84,6 +85,7 @@ const icons: Record<string, LucideIcon> = {
   close: X,
 };
 const StableLiquidButton = memo(LiquidButton);
+export const Glass = memo(LiquidGlass);
 
 function sameContent(first: unknown, second: unknown): boolean {
   if (Object.is(first, second)) return true;
@@ -103,7 +105,7 @@ function sameContent(first: unknown, second: unknown): boolean {
   );
 }
 
-// Chỉ nút chính chạy khúc xạ; giữ component ổn định khi người dùng gõ chữ.
+// Giữ lớp kính ổn định khi người dùng gõ; chỉ dùng cho các nút có bề mặt.
 export function Button({
   className = "",
   variant,
@@ -124,7 +126,8 @@ export function Button({
   const content = useRef(children);
   if (!sameContent(content.current, children)) content.current = children;
   const primary = /(?:^|\s)(primary-button|player-play)(?:\s|$)/.test(className);
-  if (!primary)
+  const glass = /(?:^|\s)(secondary-button|speaker-chip|header-search)(?:\s|$)/.test(className);
+  if (!primary && !glass)
     return (
       <button {...props} type={type} className={className} onClick={onClick}>
         {icon}
@@ -136,7 +139,7 @@ export function Button({
       {...props}
       type={type}
       className={className}
-      variant={variant || "filled"}
+      variant={variant || (primary ? "filled" : "glass")}
       destructive={destructive || className.includes("destructive")}
       tint={tint}
       icon={icon}

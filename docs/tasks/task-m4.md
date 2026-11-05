@@ -36,6 +36,7 @@ S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M
 ## Ghi chú kỹ thuật riêng
 
 - [x] Đặt tên “TTS Studio” trên giao diện, menu điện thoại, tiêu đề tab và mô tả trang theo lựa chọn của người dùng. Đã build thành công ngày 2026-11-05; chưa đánh dấu hoàn tất toàn bộ bước 4.1.
+- [x] Mở rộng Liquid Glass bằng Glisse MIT sẵn có cho điều hướng, thanh trên, trình phát và nút bấm; dùng chung nền tĩnh và CSS. Build thành công ngày 2026-11-05; còn kiểm tra trực quan trên máy tính/điện thoại, chưa hoàn tất bước 4.11.
 
 - Địa chỉ API đọc từ cấu hình frontend, không ghi cứng trong logic và **không chứa key bí mật**.
 - Dùng danh sách API cố định trong `docs/overview/QUY-UOC-CHUNG.md`. Khi backend chưa sẵn sàng, dùng dữ liệu giả đúng định dạng đó để làm trước.
