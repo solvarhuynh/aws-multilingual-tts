@@ -6,13 +6,23 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-05
-- Đang làm: hoàn thiện giao diện kính, sóng 3D và các điều khiển theo phản hồi trực tiếp của người dùng.
-- Đã xong: giữ và chỉnh sóng 3D, nền chuyển động chậm, hai khung kính mờ vừa phải; sửa lỗi kéo nút gạt; thay bốn select mặc định bằng menu cùng phong cách. Build và 10 kiểm thử DOM đạt.
-- Việc tiếp theo: người dùng tải lại trang, kiểm tra menu và kéo nút gạt trên máy thật; chưa đo FPS hoặc kiểm tra trực quan lần cuối qua công cụ.
+- Đang làm: tinh giản các khung trang trí quanh icon theo phản hồi của người dùng.
+- Đã xong: bỏ nền và viền bọc icon Dịch và đọc/Đọc tài liệu; bỏ vòng viền trang trí của icon trong danh sách bản thu gần đây. Giữ bộ Framework7 và điểm nhấn sóng 3D.
+- Việc tiếp theo: người dùng tải lại trang để đối chiếu icon đứng trực tiếp trên card; còn kiểm tra trực quan trên máy thật.
 - Đang bị chặn bởi: (không)
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-05: Bỏ khung trang trí bọc icon
+- Đã làm: bỏ span bọc cùng nền/viền/bo góc của hai icon Dịch và đọc, Đọc tài liệu; hiển thị SVG trực tiếp trên card và chỉnh lại selector căn chữ/mũi tên. Bỏ vòng viền trang trí quanh icon bản thu gần đây.
+- File đã đổi: `frontend/web/src/views/Dashboard.tsx`, `frontend/web/src/styles.css`, `logs/log-m4.md`, `docs/tasks/task-m4.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Quyết định và lý do: giảm các lớp trang trí theo ảnh người dùng gửi, giữ bộ icon hiện tại, tông xanh slate và sóng 3D.
+- Kiểm tra: `npm.cmd run build` và `git diff --check` thành công. Chưa kiểm tra trực quan trên trình duyệt qua công cụ.
+- Lỗi gặp / đang dở: không có lỗi build; cần người dùng đối chiếu hình ảnh cuối.
+- Việc tiếp theo: tải lại trang Tổng quan để xem icon trực tiếp trên card.
+- Cần báo module khác: không.
 
 ### 2026-11-05: Hoàn thiện sóng 3D, kính và sửa các điều khiển
 - Đã làm: rà giao diện từ code và ảnh người dùng cung cấp. Giữ sóng 3D làm điểm nhấn theo yêu cầu, chỉnh góc nhìn, cạnh vát, phản sáng, bóng nền và chuyển động nhỏ hơn. Thêm nền xanh slate chuyển động chậm bằng transform; điều chỉnh độ trong sidebar/khung nội dung và giữ blur vừa phải, có fallback và chế độ tương phản cao/giảm chuyển động. Rút gọn copy bị lặp, thêm hành động cho lịch sử trống và bỏ kéo giãn hàng card dưới.

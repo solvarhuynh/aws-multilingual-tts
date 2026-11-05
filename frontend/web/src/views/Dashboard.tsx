@@ -84,9 +84,7 @@ export default function Dashboard({
             },
           ].map((tool) => (
             <Button className="companion-tool" key={tool.id} onClick={() => navigate(tool.id)}>
-              <span className="companion-icon">
-                <Icon name={tool.icon} size={22} />
-              </span>
+              <Icon name={tool.icon} size={26} className="companion-icon" />
               <span>
                 <strong>{tool.title}</strong>
                 <small>{tool.description}</small>

@@ -234,7 +234,7 @@ select { cursor: pointer; }
 .recent-records strong { display: block; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-records small { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
 .recent-records > button > svg { margin-left: auto; color: #a4aeba; }
-.recent-play { display: grid; place-items: center; width: 33px; height: 33px; border: 1px solid var(--line); border-radius: 50%; color: #738194; flex-shrink: 0; }
+.recent-play { display: grid; place-items: center; width: 28px; height: 28px; color: var(--blue); flex-shrink: 0; }
 .activity-empty { flex: 1; min-height: 160px; display: flex; align-items: center; justify-content: center; color: #8a96a6; }
 .activity-empty p { font-size: 13px; color: var(--muted); }
 .activity-chart { flex: 1; display: flex; justify-content: space-between; align-items: stretch; gap: 12px; min-height: 190px; margin-top: 26px; }
@@ -528,11 +528,11 @@ select { cursor: pointer; }
 .companion-tools { display: grid; grid-template-rows: 1fr 1fr; gap: 14px; }
 .companion-tool { display: flex; align-items: center; gap: 15px; width: 100%; min-width: 0; padding: 22px; text-align: left; border: 1px solid var(--card-border); border-radius: 16px; background: var(--surface); box-shadow: inset 0 1px 0 white; }
 .companion-tool:hover { border-color: #bdcbdc; background: #fbfdff; }
-.companion-icon { width: 42px; height: 42px; display: grid; place-items: center; flex-shrink: 0; border: 1px solid #dde5ef; border-radius: 12px; color: #526b8d; background: #ecf1f6; }
-.companion-tool > span:nth-child(2) { min-width: 0; }
+.companion-icon { color: var(--blue); }
+.companion-tool > span { min-width: 0; }
 .companion-tool strong { display: block; font-size: 15px; font-weight: 500; color: #344054; line-height: 1.5; }
 .companion-tool small { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; line-height: 1.8; }
-.companion-tool > svg { margin-left: auto; color: #9aafc1; }
+.companion-tool > svg:last-child { margin-left: auto; color: #9aafc1; }
 .overview-stat { padding: 0 28px; }
 .overview-stat:first-child { padding-left: 8px; }
 .overview-stat:last-child { border-right: 0; }
