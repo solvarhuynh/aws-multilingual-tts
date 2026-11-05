@@ -36,7 +36,7 @@ button, a, input, select { transition: background-color .18s, color .18s, border
 .brand-lockup .hcmute-logo { width: 60px; height: 72px; }
 .brand-lockup .aws-logo { width: 66px; height: 48px; }
 .brand-lockup > span { color: #a2a8b0; font-size: 23px; font-weight: 400; line-height: 1; text-align: center; }
-.product-name { margin-top: 12px; font-size: 18px; font-weight: 600; letter-spacing: -.5px; color: #252b34; }
+.product-name { max-width: 190px; margin-top: 12px; font-size: 16px; font-weight: 600; line-height: 1.5; letter-spacing: -.5px; color: #252b34; text-align: center; }
 .sidebar nav { position: relative; }
 .nav-item { width: 100%; display: flex; align-items: center; gap: 10px; height: 45px; margin-bottom: 4px; padding: 0 12px; border-radius: 18px; font-size: 14px; text-align: left; color: #626f7f; position: relative; z-index: 1; white-space: nowrap; transition: color .18s, background-color .18s, transform .2s; }
 .nav-item.active { color: var(--blue); font-weight: 500; }

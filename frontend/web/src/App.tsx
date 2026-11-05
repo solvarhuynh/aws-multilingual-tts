@@ -339,7 +339,7 @@ export default function App() {
         <aside className="sidebar" aria-label="Điều hướng chính">
           <div className="sidebar-brand">
             <Brand />
-            <span className="product-name">Phòng thu</span>
+            <span className="product-name">Chuyển văn bản thành giọng nói</span>
           </div>
 
           <nav
@@ -979,7 +979,7 @@ export default function App() {
       )}
 
       {dialog === "menu" && (
-        <Modal title="Phòng thu" onClose={closeDialog} className="mobile-nav-modal">
+        <Modal title="Chuyển văn bản thành giọng nói" onClose={closeDialog} className="mobile-nav-modal">
           <div className="mobile-brand">
             <Brand />
           </div>

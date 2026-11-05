@@ -35,6 +35,8 @@ S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M
 
 ## Ghi chú kỹ thuật riêng
 
+- [x] Đổi nhãn “Phòng thu” thành “Chuyển văn bản thành giọng nói” trên giao diện và menu điện thoại; bỏ khỏi mô tả trang. Đã build thành công ngày 2026-11-05; chưa đánh dấu hoàn tất toàn bộ bước 4.1.
+
 - Địa chỉ API đọc từ cấu hình frontend, không ghi cứng trong logic và **không chứa key bí mật**.
 - Dùng danh sách API cố định trong `docs/overview/QUY-UOC-CHUNG.md`. Khi backend chưa sẵn sàng, dùng dữ liệu giả đúng định dạng đó để làm trước.
 - Hosting: bucket S3 riêng tư + CloudFront (Origin Access Control), trang lỗi 404 trả về `index.html` nếu là ứng dụng một trang.
