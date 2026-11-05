@@ -35,6 +35,8 @@ S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M
 
 ## Ghi chú kỹ thuật riêng
 
+- [x] Đổi thành Nhóm 5, lời chào tiếng Việt theo buổi không hiển thị giờ, avatar đám mây và logo/lời chào lớn hơn. Tìm kiếm inline gợi ý theo ký tự/không dấu, không mở Modal/hiện nhãn phím tắt; không tác động bộ lọc từng trang.
+- [x] Đồng bộ palette lấy từ logo HCMUTE/AWS (#0072BC, #252F3E, #FF9900), giữ kính và màu trạng thái có mục đích. 55 kiểm thử mô phỏng và build đạt ngày 2026-11-05; còn đối chiếu trực quan trên máy thật.
 - [x] Bỏ hoàn toàn khung/nền/viền/blur/bóng của header theo ảnh; tách tiêu đề trang thành H1 riêng bên dưới, 28px desktop/24px mobile. Kiểm thử ứng dụng 8/8 đạt ngày 2026-11-05; còn đối chiếu trực quan trên máy thật.
 - [x] Header ShipCODE theo ảnh mới: HCMUTE ở header, AWS ở sidebar, tên trang bên dưới lời chào và nút Xuất báo cáo CSV từ lịch sử đã tải. Dashboard dùng lưới/spacing chung, KPI bằng nhau và card dưới cùng chiều cao theo nội dung.
 - [x] Tối ưu thu/mở sidebar bằng FLIP/Web Animations API, bỏ layout mỗi frame, SVG viền nav và blur chữ; xử lý đảo chiều, resize/unmount, giảm chuyển động và fallback. 47 kiểm thử mô phỏng đạt ngày 2026-11-05; vẫn cần đo FPS/đối chiếu trực quan trên máy thật, chưa hoàn tất 4.11.

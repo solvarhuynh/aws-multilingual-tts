@@ -16,6 +16,13 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
   api.stats = async () => ({ totalJobs: 1, totalChars: 17, byLang: { "vi-VN": 1 }, cacheHits: 0 });
   env.win.HTMLMediaElement.prototype.pause = () => {};
   async function click(element) { assert.ok(element); await act(async () => { element.click(); await settle(); }); }
+  async function type(input, value) {
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(env.win.HTMLInputElement.prototype, "value").set.call(input, value);
+      input.dispatchEvent(new env.win.Event("input", { bubbles: true }));
+      await settle();
+    });
+  }
   try {
     await act(async () => { env.root.render(React.createElement(App)); await settle(); });
     await suite.test("tám màn hình render và giữ tên sản phẩm trên tab", async () => {
@@ -30,10 +37,11 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       await click(env.mount.querySelector('[aria-label="Hướng dẫn"]'));
       assert.equal(env.mount.querySelector("h1").textContent, "Hướng dẫn sử dụng");
     });
-    await suite.test("thanh trên chào ShipCODE, đặt tên trang bên dưới và xuất báo cáo CSV", async () => {
+    await suite.test("thanh trên chào Nhóm 5, đặt tên trang bên dưới và xuất báo cáo CSV", async () => {
       const header = env.mount.querySelector('.page-header');
-      assert.match(header.querySelector('.header-greeting').textContent, /Hey, ShipCODE/);
-      assert.equal(header.querySelector('.header-greeting strong').textContent, "ShipCODE");
+      assert.match(header.querySelector('.header-greeting').textContent, /Chào buổi (sáng|chiều|tối), Nhóm 5/);
+      assert.equal(header.querySelector('.header-greeting strong').textContent, "Nhóm 5");
+      assert.ok(header.querySelector('.header-avatar[role="img"] svg'));
       assert.equal(header.querySelector('h1'), null);
       assert.equal(header.nextElementSibling.tagName, "H1");
       assert.ok(header.nextElementSibling.classList.contains('page-title'));
@@ -72,20 +80,32 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       assert.equal(env.mount.querySelector('[role="tooltip"]').textContent, "Tạo giọng đọc");
       await act(() => link.blur());
       assert.equal(env.mount.querySelector('[role="tooltip"]'), null);
-      await click(env.mount.querySelector('.header-search'));
-      const dialog = document.querySelector('dialog[aria-label="Tìm kiếm"]');
-      assert.ok(dialog?.open);
-      await act(() => dialog.dispatchEvent(new env.win.Event("cancel", { cancelable: true })));
+      const search = env.mount.querySelector('.header-search input');
+      await act(() => search.focus());
+      await type(search, "dich");
+      assert.ok(env.mount.querySelector('.header-search-menu'));
+      assert.equal(document.querySelector('dialog[aria-label="Tìm kiếm"]'), null);
+      await act(() => search.dispatchEvent(new env.win.KeyboardEvent("keydown", { bubbles: true, key: "Escape" })));
+      assert.equal(env.mount.querySelector('.header-search-menu'), null);
       for (let i = 0; i < 5; i++) await click(env.mount.querySelector('.sidebar-toggle'));
       assert.equal(env.mount.querySelector('.sidebar-toggle').getAttribute("aria-expanded"), "true");
       assert.equal(localStorage.getItem("tts.sidebar.collapsed"), "false");
     });
-    await suite.test("Ctrl K mở tìm kiếm; Escape đóng qua state và phục hồi focus", async () => {
-      await act(async () => { window.dispatchEvent(new env.win.KeyboardEvent("keydown", { key: "k", ctrlKey: true })); await settle(); });
-      const dialog = document.querySelector('dialog[aria-label="Tìm kiếm"]');
-      assert.ok(dialog?.open);
-      await act(async () => { dialog.dispatchEvent(new env.win.Event("cancel", { cancelable: true })); await settle(); });
-      assert.equal(document.querySelector('dialog[aria-label="Tìm kiếm"]'), null);
+    await suite.test("gõ tìm kiếm lọc gợi ý ngay dưới ô nhập và mở đúng công cụ", async () => {
+      await click(env.mount.querySelector('.sidebar a[href="#library"]'));
+      const search = env.mount.querySelector('.header-search input');
+      await act(() => search.focus());
+      await type(search, "doc tai");
+      const options = env.mount.querySelectorAll('.header-search-menu [role="option"]');
+      assert.equal(options.length, 1);
+      assert.match(options[0].textContent, /Đọc tài liệu/);
+      assert.equal(env.mount.querySelectorAll('.record-row').length, 1);
+      assert.equal(env.mount.querySelector('.page-header kbd'), null);
+      assert.equal(env.mount.querySelector('.page-header [aria-keyshortcuts]'), null);
+      await click(options[0]);
+      assert.equal(env.mount.querySelector('h1').textContent, "Đọc tài liệu");
+      assert.equal(env.mount.querySelector('.header-search-menu'), null);
+      assert.equal(search.value, "");
     });
     await suite.test("không báo trống khi lịch sử đang tải hoặc tải lỗi", async () => {
       let reject;

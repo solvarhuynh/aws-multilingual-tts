@@ -3,6 +3,7 @@ import { DEMO } from "./lib/api";
 import AudioPlayer from "./components/AudioPlayer";
 import Sidebar from "./components/Sidebar";
 import PageHeader from "./components/PageHeader";
+import HeaderSearch from "./components/HeaderSearch";
 import Select from "./components/Select";
 import CorrectionReview from "./components/CorrectionReview";
 import {
@@ -36,7 +37,7 @@ import { useSidebarMotion } from "./hooks/useSidebarMotion";
 import Dashboard from "./views/Dashboard";
 import type { HistoryItem, Page, Preferences } from "./lib/types";
 
-type Dialog = "voices" | "search" | "menu" | null;
+type Dialog = "voices" | "menu" | null;
 const pages = [
   ...navigation,
   { id: "settings" as Page, title: "Cài đặt", icon: "settings" },
@@ -82,8 +83,6 @@ export default function App() {
   const [target, setTarget] = useState("en-US");
   const isStudio = ["studio", "translation", "documents"].includes(page);
   const studio = useStudio(notify, page === "translation" ? target : null);
-  const modalBlocking = useRef(false);
-  modalBlocking.current = !!deleteItem || !!studio.review;
   useEffect(() => {
     if (studio.languages.length)
       setTarget((previous) =>
@@ -118,19 +117,9 @@ export default function App() {
       setQuery("");
       setLanguageFilter("all");
     };
-    const shortcut = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        if (modalBlocking.current) return;
-        setDialog((value) => (value === "search" ? null : "search"));
-        setQuery("");
-      }
-    };
     window.addEventListener("hashchange", change);
-    window.addEventListener("keydown", shortcut);
     return () => {
       window.removeEventListener("hashchange", change);
-      window.removeEventListener("keydown", shortcut);
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
   }, []);
@@ -170,14 +159,6 @@ export default function App() {
       : 0;
   const title =
     navigation.find((n) => n.id === page)?.title || (page === "settings" ? "Cài đặt" : "Hướng dẫn sử dụng");
-  const matchingNavigation = pages.filter((n) =>
-    n.title.toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi")),
-  );
-  const matchingRecords = query
-    ? studio.history
-        .filter((i) => i.text.toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi")))
-        .slice(0, 5)
-    : [];
 
   function selectVoice(lang: string, id: string) {
     if (page === "translation") {
@@ -372,8 +353,10 @@ export default function App() {
           onToggle={sidebarMotion.toggleWithMotion}
           onNavigate={navigate} />
         <div className="workspace">
-          <PageHeader onMenu={() => openDialog("menu")}
-            onSearch={() => openDialog("search")} onExport={exportReport} />
+          <PageHeader onMenu={() => openDialog("menu")} onExport={exportReport}>
+            <HeaderSearch pages={pages} history={studio.history} onNavigate={navigate}
+              onRecording={(item) => { navigate("library"); void playRecording(item); }} />
+          </PageHeader>
           <h1 className="page-title">{title}</h1>
           <main id="main-content" key={page} className={`route-view ${isStudio ? "studio-route" : ""}`}>
             {page === "dashboard" && (
@@ -928,45 +911,6 @@ export default function App() {
                 <Icon name="arrow" size={15} />
               </Button>
             ))}
-          </div>
-        </Modal>
-      )}
-      {dialog === "search" && (
-        <Modal title="Tìm kiếm" onClose={closeDialog} className="search-modal">
-          <label className="command-search">
-            <Icon name="search" size={18} />
-            <input
-              autoFocus
-              aria-label="Tìm màn hình hoặc bản thu"
-              placeholder="Tìm màn hình hoặc bản thu…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </label>
-          <div className="command-results">
-            {matchingNavigation.map((n) => (
-              <Button key={n.id} onClick={() => navigate(n.id)}>
-                <Icon name={n.icon} size={18} />
-                <span>{n.title}</span>
-                <Icon name="arrow" size={14} />
-              </Button>
-            ))}
-            {matchingRecords.map((item) => (
-              <Button
-                key={item.jobId}
-                onClick={() => {
-                  navigate("library");
-                  void playRecording(item);
-                }}
-              >
-                <Icon name="wave" size={18} />
-                <span>{item.text.slice(0, 60)}</span>
-                <Icon name="play" size={14} />
-              </Button>
-            ))}
-            {!matchingNavigation.length && !matchingRecords.length && (
-              <p className="no-results">Không tìm thấy kết quả.</p>
-            )}
           </div>
         </Modal>
       )}
