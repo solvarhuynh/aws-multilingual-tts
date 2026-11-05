@@ -37,7 +37,6 @@ export default function Compose() {
   const pendingInput = useRef<Input | null>(null);
   const pdfTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const importName = useRef('');
-  const field = useRef<TextInput>(null);
   const draftRef = useRef(draft);
   useLayoutEffect(() => { draftRef.current = draft; }, [draft]);
   const title = mode === 'translation' ? 'Dịch và đọc' : mode === 'document' ? 'Đọc tài liệu' : 'Tạo giọng đọc';
@@ -126,7 +125,7 @@ export default function Compose() {
           <View style={{ flex: 1 }}><Label weight="500" size={16}>{(mode === 'translation' ? selectedTargetVoice : voice) || 'Chọn giọng đọc'}</Label><Label size={12} muted>{languageNames[mode === 'translation' ? target : lang]}</Label></View>
           <Icon name="next" size={16} color={colors.secondary} /></Pressable>
         {mode === 'document' && <Action icon="upload" disabled={busy || importing} onPress={() => void importFile()}>{importing ? 'Đang đọc tài liệu…' : documentName || 'Chọn PDF, Word hoặc TXT'}</Action>}
-        <TextInput ref={field} accessibilityLabel="Nội dung cần đọc" value={draft} onChangeText={text => { setDraft(text); setError(''); }} editable={!busy && !importing}
+        <TextInput accessibilityLabel="Nội dung cần đọc" value={draft} onChangeText={text => { setDraft(text); setError(''); }} editable={!busy && !importing}
           multiline scrollEnabled={false} placeholder="Nhập hoặc dán nội dung…" placeholderTextColor={colors.faint}
           textAlignVertical="top" style={[styles.editor, { color: colors.text }]} selectionColor={colors.blue} />
         <View style={styles.editorMeta}><Label size={12} muted>{number(draft.length)} / {number(MAX_CHARS)} ký tự</Label>

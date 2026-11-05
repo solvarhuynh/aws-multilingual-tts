@@ -29,7 +29,7 @@ function TabItem({ index, position, selected, onPress }: { index: number; positi
   </Pressable>;
 }
 
-export default function TabBar({ state, navigation }: TabBarProps) {
+export default function TabBar({ state, emitter, navigateToTab }: TabBarProps) {
   const { colors, isDark, haptic, reducedMotion } = useStudio();
   const { current, playing, toggle } = usePlayback();
   const insets = useSafeAreaInsets();
@@ -41,9 +41,9 @@ export default function TabBar({ state, navigation }: TabBarProps) {
   const choose = useCallback((index: number) => {
     const route = state.routes[index];
     if (!route) return;
-    const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-    if (!event.defaultPrevented && state.index !== index) { haptic(); navigation.navigate(route.name, route.params); }
-  }, [haptic, navigation, state]);
+    const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+    if (!event.defaultPrevented && state.index !== index) { haptic(); navigateToTab(route.key); }
+  }, [haptic, emitter, navigateToTab, state]);
   useEffect(() => {
     if (!dragging.get()) position.set(reducedMotion ? state.index : withSpring(state.index, spring));
     return () => { cancelAnimation(pressed); };

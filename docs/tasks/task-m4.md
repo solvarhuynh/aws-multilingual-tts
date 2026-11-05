@@ -35,6 +35,7 @@ S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M
 
 ## Ghi chú kỹ thuật riêng
 
+- [x] Nâng app lên Expo SDK 58 khớp Expo Go trên iPhone ngày 2026-11-06; đồng bộ React/React Native/thư viện, sửa thanh tab theo Router 58, yêu cầu Node 22+ và xác nhận manifest iOS 58.0.0. TypeScript/lint, 12 kiểm thử, đóng gói iOS, Expo Doctor 20/20 và luồng trình duyệt đạt; vẫn cần xác nhận chạy thực trên iPhone.
 - [x] Tạo app Expo SDK 57 tại frontend/app với bốn tab, nút tạo riêng, kính native/blur dự phòng, kéo chọn tab, hai logo không nền trắng AWS, sáng/tối/hệ thống và nhãn tiếng Việt ngắn. Có nghe thử trên máy, nháp, giọng yêu thích, lịch sử và trình phát.
 - [x] App giữ hợp đồng API kiểm tra/duyệt nội dung, synthesize một lần và polling; đọc PDF/DOCX/TXT cục bộ. Cài mới, lint/TypeScript, 12 kiểm thử, đóng gói iOS, Expo Doctor 21/21 và luồng trình duyệt/API mô phỏng đạt ngày 2026-11-05. Còn kiểm tra iPhone/Expo Go và API AWS thật trước khi đánh dấu hoàn tất 4.11/4.12.
 - [x] Gộp nút Tạo giọng đọc vào đáy ô nhập, bỏ hàng/khoảng trống bên ngoài; nháp/lỗi/tiến độ nằm cùng composer và điều khiển tự xuống dòng khi hẹp. Kiểm thử ứng dụng 9/9 đạt ngày 2026-11-05, gồm chống submit trùng và lỗi văn bản rỗng.

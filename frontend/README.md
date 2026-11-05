@@ -1,6 +1,6 @@
 # Giao diện
 
-App iOS nằm trong `app/`, web nằm trong `web/`. App dùng Node.js 22 LTS (22.13 trở lên) hoặc 20 LTS (20.19.4 trở lên).
+App iOS nằm trong `app/`, web nằm trong `web/`. App dùng Node.js 22 LTS (22.13 trở lên) hoặc 24 LTS (24.3 trở lên).
 
 ```sh
 cd frontend/app
@@ -8,7 +8,9 @@ npm ci
 npm start
 ```
 
-Quét QR bằng Camera iPhone để mở bằng Expo Go (SDK 57). Điện thoại và máy tính dùng cùng Wi-Fi. `npm run ios` chỉ dùng khi đã cài iOS Simulator.
+Quét QR bằng Camera iPhone để mở bằng Expo Go (SDK 58). Điện thoại và máy tính dùng cùng Wi-Fi. `npm run ios` chỉ dùng khi đã cài iOS Simulator.
+
+Nếu dùng nvm, chạy `nvm use` trong `app/`. Trên Mac này, nếu `node -v` vẫn là 20, dùng Node 22 đã cài bằng `export PATH="/opt/homebrew/opt/node@22/bin:$PATH"` trước khi chạy lệnh.
 
 Nếu Expo Go yêu cầu đăng nhập, chạy `npx expo login` và đăng nhập cùng tài khoản trong Expo Go.
 

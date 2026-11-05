@@ -5,14 +5,24 @@
 
 ## TRẠNG THÁI NHANH
 
-- Ngày cập nhật lần cuối: 2026-11-05
+- Ngày cập nhật lần cuối: 2026-11-06
 - Đang làm: đối chiếu app Expo trên iPhone thật và nối máy chủ của nhóm.
-- Đã xong: app tiếng Việt tại frontend/app với Expo SDK 57, sáng/tối/hệ thống, hai logo, thanh kính hỗ trợ kéo chọn bằng Reanimated, tạo giọng, đọc PDF/DOCX/TXT, giọng yêu thích, trình phát và lịch sử. Đã bỏ slogan/mô tả lặp và nền trắng quanh AWS. Cài mới, lint, TypeScript, 12 kiểm thử, đóng gói iOS và 21 kiểm tra Expo Doctor đạt.
+- Đã xong: app tiếng Việt tại frontend/app đã lên Expo SDK 58 để khớp Expo Go trên iPhone. Sáng/tối/hệ thống, hai logo, kéo chọn tab, tạo giọng, đọc tài liệu, giọng yêu thích, trình phát và lịch sử. TypeScript/lint, 12 kiểm thử, đóng gói iOS và Expo Doctor 20/20 đạt sau nâng cấp; máy chủ cổng 8081 trả sdkVersion 58.0.0.
 - Việc tiếp theo: mở Expo Go trên iPhone để kiểm tra kính/chuyển động/âm thanh/bàn phím thực; đặt EXPO_PUBLIC_API_BASE_URL khi M1/M5 cung cấp API.
 - Đang bị chặn bởi: chưa có iOS Simulator hoặc iPhone kết nối trong môi trường; luồng AWS thật vẫn chờ backend. Các kiểm tra giao diện dùng bản web của chính app và API mô phỏng, không thay thế kiểm tra iPhone.
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-06: Khớp Expo SDK 58 với Expo Go trên iPhone
+- Nguyên nhân: ảnh thiết bị báo Expo Go chỉ hỗ trợ SDK 58, dự án đang dùng SDK 57.
+- Đã làm: nâng Expo, React 19.3, React Native 0.88.1 và các thư viện theo danh sách tương thích SDK 58; dựng lại package-lock, thêm .nvmrc 22 và sửa hướng dẫn chạy. Dùng Node 22 đã có trong /opt/homebrew/opt/node@22/bin, không thay liên kết Node mặc định của máy.
+- Tương thích: chuyển thanh tab sang emitter/navigateToTab của Expo Router 58; bỏ ref TextInput không sử dụng; khai báo generic unknown cho WebView 14 để tránh giao props với undefined thành never. Không đổi giao diện, khóa lưu trữ hoặc hợp đồng API.
+- Kiểm tra: TypeScript/lint và 12/12 kiểm thử đạt; Expo Doctor 20/20; đóng gói iOS thành công. Chrome kiểm tra điều hướng, kéo chọn, sáng/tối, giọng yêu thích, tốc độ, tạo giọng không trùng, lịch sử/lưu qua reload và nhập TXT/DOCX/PDF/lỗi PDF hỏng đều đạt, không có lỗi JavaScript. Máy chủ đã khởi động lại ở cổng 8081 và manifest iOS trả sdkVersion 58.0.0.
+- File đã đổi: frontend/app/{package.json,package-lock.json,.nvmrc,src/app/compose.tsx,src/components/{PdfReader.tsx,TabBar.tsx}}, frontend/README.md, logs/log-m4.md, docs/tasks/task-m4.md.
+- Tài nguyên AWS đã tạo/sửa: không.
+- Đang dở / việc tiếp theo: người dùng bấm Go home trong Expo Go rồi mở lại dự án; còn cần xác nhận kính và âm thanh trên iPhone thật. Node mặc định đang là 20, lần tự chạy sau cần nvm use hoặc thêm Node 22 vào PATH theo README.
+- Cần báo module khác: không.
 
 ### 2026-11-05: App Expo tiếng Việt và thanh kính theo ảnh tham chiếu
 - Đã làm: tạo frontend/app riêng, không thay đổi mã web. Bốn tab Trang chủ/Giọng đọc/Công cụ/Bản thu và nút + mở trang soạn thảo; có trang trình phát, cài đặt và hướng dẫn. Dùng logo hiện có HCMUTE | AWS, bỏ khung trắng AWS; chế độ tối đổi màu phần chữ bằng lớp tint, giữ mũi tên cam và ảnh gốc.
