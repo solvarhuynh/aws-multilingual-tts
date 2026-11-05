@@ -12,14 +12,18 @@ export default function AudioPlayer({
   volume,
   onVolume,
   notify,
+  playbackRequest,
+  onPlayingChange,
 }: {
   item: HistoryItem | null;
   queue: HistoryItem[];
-  onSelect: (item: HistoryItem) => Promise<void>;
+  onSelect: (item: HistoryItem) => Promise<unknown>;
   onLibrary: () => void;
   volume: number;
   onVolume: (volume: number) => void;
   notify: (message: string, error?: boolean) => void;
+  playbackRequest?: { jobId: string; serial: number } | null;
+  onPlayingChange?: (jobId: string | null) => void;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -38,6 +42,7 @@ export default function AudioPlayer({
   const currentIndex = recordings.findIndex((recording) => recording.jobId === item?.jobId);
   const session = useRef(0);
   const volumeRef = useRef(volume);
+  const previousVolume = useRef(volume || .8);
   volumeRef.current = volume;
   const notifyRef = useRef(notify);
   notifyRef.current = notify;
@@ -62,6 +67,7 @@ export default function AudioPlayer({
   }, [item?.jobId, stop]);
 
   useEffect(() => {
+    if (volume > 0) previousVolume.current = volume;
     if (audioRef.current) audioRef.current.volume = volume;
     if (utteranceRef.current) utteranceRef.current.volume = volume;
   }, [volume]);
@@ -161,6 +167,17 @@ export default function AudioPlayer({
     speakNext();
   }
 
+  const toggleRef = useRef(togglePlayback);
+  toggleRef.current = togglePlayback;
+  useEffect(() => { onPlayingChange?.(playing ? item?.jobId || null : null); }, [playing, item?.jobId, onPlayingChange]);
+  useEffect(() => () => onPlayingChange?.(null), [onPlayingChange]);
+  useEffect(() => {
+    if (!playbackRequest || playbackRequest.jobId !== item?.jobId) return;
+    // Cho effect đổi bản thu dừng phiên cũ trước khi phát yêu cầu mới.
+    const timer = window.setTimeout(() => void toggleRef.current(), 0);
+    return () => window.clearTimeout(timer);
+  }, [playbackRequest, item?.jobId]);
+
   async function download() {
     if (!item) return;
     if (DEMO || !item.audioUrl) {
@@ -183,7 +200,7 @@ export default function AudioPlayer({
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } catch {
-      notify("Chưa tải được MP3. Hãy làm mới link nghe từ thư viện và kiểm tra quyền CORS của S3.", true);
+      notify("Chưa tải được MP3. Hãy mở lại bản thu trong thư viện rồi thử lại.", true);
     } finally {
       setDownloading(false);
     }
@@ -288,7 +305,7 @@ export default function AudioPlayer({
         <Button
           className="icon-button"
           aria-label={volume === 0 ? "Bật âm thanh" : "Tắt âm thanh"}
-          onClick={() => onVolume(volume === 0 ? 0.8 : 0)}
+          onClick={() => onVolume(volume === 0 ? previousVolume.current : 0)}
         >
           <Icon name={volume === 0 ? "muted" : "volume"} size={19} />
         </Button>
@@ -303,7 +320,8 @@ export default function AudioPlayer({
         />
         <Button
           className="download-button"
-          disabled={!item || downloading}
+          disabled={!item || downloading || DEMO || !item.audioUrl}
+          title={DEMO ? "Nghe thử trên thiết bị chưa có tệp MP3" : "Tải bản thu MP3"}
           onClick={download}
           aria-label="Tải MP3"
         >

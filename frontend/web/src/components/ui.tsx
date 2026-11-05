@@ -1,150 +1,92 @@
 import {
-  Button as LiquidButton,
   Slider as LiquidSlider,
-  Switch,
-  type ButtonProps,
   type SliderProps,
 } from "glisse";
 import {
-  isValidElement,
   memo,
   useCallback,
   useEffect,
   useRef,
+  useId,
   type CSSProperties,
+  type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
-import {
-  AudioLines,
-  ArrowLeftRight,
-  BookOpen,
-  LayoutDashboard,
-  ArrowRight,
-  Check,
-  ChevronDown,
-  CircleHelp,
-  Clock3,
-  Download,
-  FileText,
-  Headphones,
-  Layers3,
-  LoaderCircle,
-  Menu,
-  Mic2,
-  Pause,
-  Play,
-  Plus,
-  RotateCcw,
-  SkipBack,
-  SkipForward,
-  Repeat2,
-  ListMusic,
-  Search,
-  Settings2,
-  Trash2,
-  TriangleAlert,
-  Upload,
-  Volume2,
-  VolumeX,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import PreferenceSwitch from "./PreferenceSwitch";
+import Arrow2Circlepath from "framework7-icons/react/esm/Arrow2Circlepath.js";
+import ArrowCounterclockwise from "framework7-icons/react/esm/ArrowCounterclockwise.js";
+import ArrowDownToLine from "framework7-icons/react/esm/ArrowDownToLine.js";
+import ArrowRight from "framework7-icons/react/esm/ArrowRight.js";
+import BackwardEndFill from "framework7-icons/react/esm/BackwardEndFill.js";
+import BookFill from "framework7-icons/react/esm/BookFill.js";
+import Checkmark from "framework7-icons/react/esm/Checkmark.js";
+import ChevronDown from "framework7-icons/react/esm/ChevronDown.js";
+import Clock from "framework7-icons/react/esm/Clock.js";
+import DocText from "framework7-icons/react/esm/DocText.js";
+import ExclamationmarkTriangleFill from "framework7-icons/react/esm/ExclamationmarkTriangleFill.js";
+import ForwardEndFill from "framework7-icons/react/esm/ForwardEndFill.js";
+import GearAltFill from "framework7-icons/react/esm/GearAltFill.js";
+import Headphones from "framework7-icons/react/esm/Headphones.js";
+import LayersAltFill from "framework7-icons/react/esm/LayersAltFill.js";
+import LineHorizontal3 from "framework7-icons/react/esm/LineHorizontal3.js";
+import MicFill from "framework7-icons/react/esm/MicFill.js";
+import MusicNoteList from "framework7-icons/react/esm/MusicNoteList.js";
+import PauseFill from "framework7-icons/react/esm/PauseFill.js";
+import PlayFill from "framework7-icons/react/esm/PlayFill.js";
+import Plus from "framework7-icons/react/esm/Plus.js";
+import QuestionCircle from "framework7-icons/react/esm/QuestionCircle.js";
+import Repeat from "framework7-icons/react/esm/Repeat.js";
+import Search from "framework7-icons/react/esm/Search.js";
+import Speaker2Fill from "framework7-icons/react/esm/Speaker2Fill.js";
+import SpeakerSlashFill from "framework7-icons/react/esm/SpeakerSlashFill.js";
+import SquareArrowUp from "framework7-icons/react/esm/SquareArrowUp.js";
+import SquareGrid2x2Fill from "framework7-icons/react/esm/SquareGrid2x2Fill.js";
+import TextBubbleFill from "framework7-icons/react/esm/TextBubbleFill.js";
+import Trash from "framework7-icons/react/esm/Trash.js";
+import Waveform from "framework7-icons/react/esm/Waveform.js";
+import Xmark from "framework7-icons/react/esm/Xmark.js";
+import CloudFill from "framework7-icons/react/esm/CloudFill.js";
 
-const icons: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  translate: ArrowLeftRight,
-  book: BookOpen,
-  wave: AudioLines,
+// Dùng chung một bộ biểu tượng iOS; chỉ import các SVG đang sử dụng.
+const icons: Record<string, typeof Waveform> = {
+  dashboard: SquareGrid2x2Fill,
+  translate: TextBubbleFill,
+  book: BookFill,
+  wave: Waveform,
   arrow: ArrowRight,
-  check: Check,
+  check: Checkmark,
   chevron: ChevronDown,
-  help: CircleHelp,
-  clock: Clock3,
-  download: Download,
-  file: FileText,
+  help: QuestionCircle,
+  clock: Clock,
+  download: ArrowDownToLine,
+  file: DocText,
   headphones: Headphones,
-  layers: Layers3,
-  menu: Menu,
-  mic: Mic2,
-  pause: Pause,
-  play: Play,
+  layers: LayersAltFill,
+  menu: LineHorizontal3,
+  mic: MicFill,
+  pause: PauseFill,
+  play: PlayFill,
   plus: Plus,
-  reset: RotateCcw,
-  previous: SkipBack,
-  next: SkipForward,
-  repeat: Repeat2,
-  queue: ListMusic,
+  reset: ArrowCounterclockwise,
+  previous: BackwardEndFill,
+  next: ForwardEndFill,
+  repeat: Repeat,
+  queue: MusicNoteList,
   search: Search,
-  settings: Settings2,
-  trash: Trash2,
-  alert: TriangleAlert,
-  upload: Upload,
-  volume: Volume2,
-  muted: VolumeX,
-  close: X,
+  settings: GearAltFill,
+  trash: Trash,
+  alert: ExclamationmarkTriangleFill,
+  upload: SquareArrowUp,
+  volume: Speaker2Fill,
+  muted: SpeakerSlashFill,
+  close: Xmark,
+  loading: Arrow2Circlepath,
+  cloud: CloudFill,
 };
-const StableLiquidButton = memo(LiquidButton);
 
-function sameContent(first: unknown, second: unknown): boolean {
-  if (Object.is(first, second)) return true;
-  if (Array.isArray(first) && Array.isArray(second))
-    return first.length === second.length && first.every((value, i) => sameContent(value, second[i]));
-  if (!isValidElement<Record<string, unknown>>(first) || !isValidElement<Record<string, unknown>>(second))
-    return false;
-  if (first.type !== second.type || first.key !== second.key) return false;
-  const keys = Object.keys(first.props);
-  return (
-    keys.length === Object.keys(second.props).length &&
-    keys.every((key) =>
-      key === "children"
-        ? sameContent(first.props[key], second.props[key])
-        : Object.is(first.props[key], second.props[key]),
-    )
-  );
-}
-
-// Chỉ nút chính chạy khúc xạ; giữ component ổn định khi người dùng gõ chữ.
-export function Button({
-  className = "",
-  variant,
-  children,
-  icon,
-  onClick,
-  type = "button",
-  destructive,
-  tint,
-  ...props
-}: ButtonProps) {
-  const clickRef = useRef(onClick);
-  clickRef.current = onClick;
-  const handleClick = useCallback<NonNullable<ButtonProps["onClick"]>>(
-    (event) => clickRef.current?.(event),
-    [],
-  );
-  const content = useRef(children);
-  if (!sameContent(content.current, children)) content.current = children;
-  const primary = /(?:^|\s)(primary-button|player-play)(?:\s|$)/.test(className);
-  if (!primary)
-    return (
-      <button {...props} type={type} className={className} onClick={onClick}>
-        {icon}
-        {children}
-      </button>
-    );
-  return (
-    <StableLiquidButton
-      {...props}
-      type={type}
-      className={className}
-      variant={variant || "filled"}
-      destructive={destructive || className.includes("destructive")}
-      tint={tint}
-      icon={icon}
-      onClick={onClick ? handleClick : undefined}
-    >
-      {content.current}
-    </StableLiquidButton>
-  );
+// Mặc định không gửi form; hình thức nút được quản lý bằng CSS.
+export function Button({ type = "button", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button type={type} {...props} />;
 }
 
 const StableSlider = memo(LiquidSlider);
@@ -164,11 +106,12 @@ export function Icon({
   size?: number;
   className?: string;
 }) {
-  const Component = icons[name] || AudioLines;
+  const Component = icons[name] || Waveform;
   return (
     <Component
-      size={size}
-      strokeWidth={1.7}
+      width={size}
+      height={size}
+      focusable="false"
       style={{ width: size, height: size }}
       className={className}
       aria-hidden="true"
@@ -176,16 +119,10 @@ export function Icon({
   );
 }
 export function Spinner() {
-  return <LoaderCircle size={17} className="spinner" aria-hidden="true" />;
+  return <Icon name="loading" size={17} className="spinner" />;
 }
 export function Brand() {
-  return (
-    <div className="brand-lockup" aria-label="HCMUTE | AWS">
-      <img className="hcmute-logo" src="/brand/hcmute.png" alt="HCMUTE" />
-      <span aria-hidden="true">|</span>
-      <img className="aws-logo" src="/brand/aws.webp" alt="AWS" />
-    </div>
-  );
+  return <img className="brand-logo" src="/brand/aws.webp" alt="AWS" />;
 }
 export function ToolArt() {
   const artRef = useRef<HTMLDivElement>(null);
@@ -256,11 +193,13 @@ export function Modal({
   children,
   onClose,
   className = "",
+  dismissible = true,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   className?: string;
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -280,16 +219,16 @@ export function Modal({
       ref={ref}
       className={`modal ${className}`}
       aria-label={title}
-      onCancel={onClose}
+      onCancel={(event) => { event.preventDefault(); if (dismissible) onClose(); }}
       onClick={(e) => {
-        if (e.target !== e.currentTarget) return;
+        if (!dismissible || e.target !== e.currentTarget) return;
         const r = e.currentTarget.getBoundingClientRect();
         if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose();
       }}
     >
       <div className="modal-heading">
         <h2>{title}</h2>
-        <Button className="icon-button" aria-label="Đóng cửa sổ" onClick={onClose}>
+        <Button className="icon-button" aria-label="Đóng cửa sổ" disabled={!dismissible} onClick={onClose}>
           <Icon name="close" size={19} />
         </Button>
       </div>
@@ -308,13 +247,14 @@ export function Toggle({
   checked: boolean;
   onChange: (value: boolean) => void;
 }) {
+  const descriptionId = useId();
   return (
     <div className="preference-row">
       <span>
         <strong>{label}</strong>
-        <small>{description}</small>
+        <small id={descriptionId}>{description}</small>
       </span>
-      <Switch aria-label={label} checked={checked} onCheckedChange={onChange} />
+      <PreferenceSwitch label={label} descriptionId={descriptionId} checked={checked} onChange={onChange} />
     </div>
   );
 }

@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEMO } from "./lib/api";
 import AudioPlayer from "./components/AudioPlayer";
+import Sidebar from "./components/Sidebar";
+import PageHeader from "./components/PageHeader";
+import HeaderSearch from "./components/HeaderSearch";
+import Select from "./components/Select";
+import CorrectionReview from "./components/CorrectionReview";
 import {
   Button,
   Brand,
@@ -17,6 +22,7 @@ import {
   estimateDuration,
   formatNumber,
   formatTime,
+  historyCsv,
   languageNames,
   MAX_CHARS,
   navigation,
@@ -27,10 +33,11 @@ import {
   samples,
 } from "./lib/data";
 import { useStudio } from "./hooks/useStudio";
+import { useSidebarMotion } from "./hooks/useSidebarMotion";
 import Dashboard from "./views/Dashboard";
 import type { HistoryItem, Page, Preferences } from "./lib/types";
 
-type Dialog = "voices" | "search" | "menu" | null;
+type Dialog = "voices" | "menu" | null;
 const pages = [
   ...navigation,
   { id: "settings" as Page, title: "Cài đặt", icon: "settings" },
@@ -57,6 +64,11 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [preferences, setPreferences] = useState(getPreferences);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStored<boolean>("tts.sidebar.collapsed", false) === true);
+  const sidebarMotion = useSidebarMotion(() => setSidebarCollapsed((value) => !value), preferences.reducedMotion);
+  const [playbackRequest, setPlaybackRequest] = useState<{ jobId: string; serial: number } | null>(null);
+  const [playingJobId, setPlayingJobId] = useState<string | null>(null);
+  const playbackSerial = useRef(0);
   const [deleteItem, setDeleteItem] = useState<HistoryItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const deleteLock = useRef(false);
@@ -105,29 +117,26 @@ export default function App() {
       setQuery("");
       setLanguageFilter("all");
     };
-    const shortcut = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setDialog((value) => (value === "search" ? null : "search"));
-        setQuery("");
-      }
-    };
     window.addEventListener("hashchange", change);
-    window.addEventListener("keydown", shortcut);
     return () => {
       window.removeEventListener("hashchange", change);
-      window.removeEventListener("keydown", shortcut);
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
   }, []);
   useEffect(() => {
-    document.title = `${navigation.find((n) => n.id === page)?.title || (page === "settings" ? "Cài đặt" : "Hướng dẫn")} · HCMUTE | AWS`;
+    document.title = `${navigation.find((n) => n.id === page)?.title || (page === "settings" ? "Cài đặt" : "Hướng dẫn")} · TTS Studio`;
   }, [page]);
   useEffect(() => {
     storeValue("voxa.preferences.v1", preferences);
     document.documentElement.dataset.motion = preferences.reducedMotion ? "reduced" : "auto";
     document.documentElement.dataset.contrast = preferences.highContrast ? "high" : "normal";
   }, [preferences]);
+  useEffect(() => { storeValue("tts.sidebar.collapsed", sidebarCollapsed); }, [sidebarCollapsed]);
+
+  async function playRecording(item: HistoryItem) {
+    const selected = studio.currentAudio?.jobId === item.jobId ? item : await studio.openRecording(item);
+    if (selected?.status === "DONE") setPlaybackRequest({ jobId: selected.jobId, serial: ++playbackSerial.current });
+  }
 
   const visibleVoices = studio.languages
     .flatMap((l) => l.voices.map((v) => ({ ...v, lang: l.lang, provider: l.provider })))
@@ -150,14 +159,6 @@ export default function App() {
       : 0;
   const title =
     navigation.find((n) => n.id === page)?.title || (page === "settings" ? "Cài đặt" : "Hướng dẫn sử dụng");
-  const matchingNavigation = pages.filter((n) =>
-    n.title.toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi")),
-  );
-  const matchingRecords = query
-    ? studio.history
-        .filter((i) => i.text.toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi")))
-        .slice(0, 5)
-    : [];
 
   function selectVoice(lang: string, id: string) {
     if (page === "translation") {
@@ -184,12 +185,33 @@ export default function App() {
     }
   }
 
+  function exportReport() {
+    if (studio.loadingHistory && !studio.history.length) {
+      notify("Đang tải lịch sử để xuất báo cáo. Vui lòng thử lại sau.");
+      return;
+    }
+    if (!studio.history.length) {
+      navigate("library");
+      notify(studio.historyError || "Báo cáo sẽ sẵn sàng khi bạn có bản thu đầu tiên.", !!studio.historyError);
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([historyCsv(studio.history)], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `tts-studio-report-${new Date().toLocaleDateString("sv-SE")}.csv`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notify(`Đã xuất ${formatNumber(studio.history.length)} bản thu.${studio.nextCursor ? " Tải thêm lịch sử để xuất các bản thu còn lại." : ""}`);
+  }
+
   function renderPreferences() {
     return (
       <div className="preferences-content">
         <Toggle
           label="Giảm chuyển động"
-          description="Tắt hiệu ứng chuyển động."
+          description="Ngừng chuyển động của nền và sóng âm."
           checked={preferences.reducedMotion}
           onChange={(value) => setPreferences((p) => ({ ...p, reducedMotion: value }))}
         />
@@ -248,18 +270,8 @@ export default function App() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </label>
-          <select
-            aria-label="Lọc ngôn ngữ giọng đọc"
-            value={languageFilter}
-            onChange={(e) => setLanguageFilter(e.target.value)}
-          >
-            <option value="all">Tất cả ngôn ngữ</option>
-            {studio.languages.map((l) => (
-              <option key={l.lang} value={l.lang}>
-                {languageNames[l.lang] || l.lang}
-              </option>
-            ))}
-          </select>
+          <Select label="Lọc ngôn ngữ giọng đọc" value={languageFilter} onValueChange={setLanguageFilter}
+            options={[{ value: "all", label: "Tất cả ngôn ngữ" }, ...studio.languages.map((l) => ({ value: l.lang, label: languageNames[l.lang] || l.lang }))]} />
         </div>
         {studio.voiceError ? (
           <div className="inline-error" role="alert">
@@ -335,88 +347,29 @@ export default function App() {
       >
         Chuyển đến ô nhập văn bản
       </a>
-      <div className="app-shell">
-        <aside className="sidebar" aria-label="Điều hướng chính">
-          <div className="sidebar-brand">
-            <Brand />
-            <span className="product-name">Phòng thu</span>
-          </div>
-
-          <nav
-            aria-label="Công cụ"
-            style={
-              {
-                "--nav-index": Math.max(
-                  0,
-                  navigation.findIndex((n) => n.id === page),
-                ),
-              } as React.CSSProperties
-            }
-          >
-            <span
-              className={`nav-selection ${navigation.some((n) => n.id === page) ? "" : "hidden"}`}
-              aria-hidden="true"
-            />
-            {navigation.map((n) => (
-              <a
-                key={n.id}
-                className={`nav-item ${page === n.id ? "active" : ""}`}
-                href={`#${n.id}`}
-                aria-current={page === n.id ? "page" : undefined}
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate(n.id);
-                }}
-              >
-                <Icon name={n.icon} size={19} />
-                <span>{n.title}</span>
-                {n.id === "library" && studio.history.length > 0 && (
-                  <span className="nav-count">{studio.history.length}</span>
-                )}
-              </a>
-            ))}
-          </nav>
-          <div className="sidebar-bottom">
-            <Button
-              className={`nav-item ${page === "help" ? "active" : ""}`}
-              onClick={() => navigate("help")}
-            >
-              <Icon name="help" size={19} />
-              Hướng dẫn
-            </Button>
-            <Button
-              className={`nav-item ${page === "settings" ? "active" : ""}`}
-              onClick={() => navigate("settings")}
-            >
-              <Icon name="settings" size={19} />
-              Cài đặt
-            </Button>
-          </div>
-        </aside>
+      <div ref={sidebarMotion.ref} className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+        <div className="glass-backdrop" aria-hidden="true" />
+        <Sidebar page={page} collapsed={sidebarCollapsed} count={studio.history.length}
+          onToggle={sidebarMotion.toggleWithMotion}
+          onNavigate={navigate} />
         <div className="workspace">
-          <header className="page-header">
-            <div className="page-heading">
-              <Button
-                className="icon-button mobile-menu"
-                aria-label="Mở menu điều hướng"
-                onClick={() => openDialog("menu")}
-              >
-                <Icon name="menu" />
-              </Button>
-              <h1>{title}</h1>
-            </div>
-            <Button className="header-search" aria-label="Tìm kiếm" onClick={() => openDialog("search")}>
-              <Icon name="search" size={17} />
-              <span>Tìm kiếm mọi thứ…</span>
-            </Button>
-          </header>
+          <PageHeader onMenu={() => openDialog("menu")} onExport={exportReport}>
+            <HeaderSearch pages={pages} history={studio.history} onNavigate={navigate}
+              onRecording={(item) => { navigate("library"); void playRecording(item); }} />
+          </PageHeader>
+          <h1 className="page-title">{title}</h1>
           <main id="main-content" key={page} className={`route-view ${isStudio ? "studio-route" : ""}`}>
             {page === "dashboard" && (
               <Dashboard
                 history={studio.history}
                 languages={studio.languages}
                 navigate={navigate}
-                openRecording={studio.openRecording}
+                openRecording={playRecording}
+                playingJobId={playingJobId}
+                loadingHistory={studio.loadingHistory}
+                historyError={studio.historyError}
+                reloadHistory={studio.loadHistory}
+                hasMoreHistory={!!studio.nextCursor}
               />
             )}
             {page === "settings" && (
@@ -481,7 +434,7 @@ export default function App() {
               </div>
             )}
             {isStudio && (
-              <div className={`studio-layout mode-${page}`}>
+              <div className="studio-layout">
                 <section className="editor-panel" aria-label="Soạn thảo văn bản">
                   {page === "documents" && (
                     <Button
@@ -555,7 +508,7 @@ export default function App() {
                       maxLength={MAX_CHARS + 1}
                       spellCheck={false}
                       aria-invalid={!!studio.error}
-                      aria-describedby="text-count form-error"
+                      aria-describedby={studio.error ? "text-count form-error" : "text-count"}
                       onKeyDown={(e) => {
                         if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                           e.preventDefault();
@@ -588,10 +541,41 @@ export default function App() {
                         </div>
                       </div>
                     )}
+                    {(page !== "studio" || studio.error || studio.busy) && (
+                      <div className="editor-footer">
+                        {page !== "studio" && (
+                          <Button className="secondary-button" disabled={studio.busy} onClick={studio.useSample}>
+                            <Icon name="file" size={15} />
+                            Văn bản mẫu
+                          </Button>
+                        )}
+                        {studio.error && (
+                          <div id="form-error" role="alert" className="form-error">
+                            <Icon name="alert" size={16} />
+                            <span>{studio.error}</span>
+                          </div>
+                        )}
+                        {studio.busy && (
+                          <div className="job-progress" role="status">
+                            <div>
+                              <Spinner />
+                              <span>
+                                {studio.checking ? "Đang kiểm tra lỗi đánh máy…" : studio.job?.status === "PENDING" ? "Đang chuẩn bị…" : "Đang tạo giọng nói…"}
+                              </span>
+                              {studio.job?.progress && <strong>{progress}%</strong>}
+                            </div>
+                            <progress aria-label="Tiến độ tạo giọng nói" value={studio.job?.progress ? progress : undefined} max={100} />
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="editor-status">
                       <span id="text-count" className={studio.text.length > MAX_CHARS ? "over-limit" : ""}>
                         {formatNumber(studio.text.length)}
                         <span> / {formatNumber(MAX_CHARS)} ký tự</span>
+                        {studio.text && studio.draftSaved && (
+                          <span className="draft-state"><Icon name="check" size={12} />Đã lưu nháp</span>
+                        )}
                       </span>
                       <div>
                         <span className="duration-estimate">
@@ -612,73 +596,27 @@ export default function App() {
                         >
                           <Icon name="trash" size={15} />
                         </Button>
+                        <Button
+                          type="submit"
+                          className="primary-button"
+                          disabled={
+                            studio.busy ||
+                            studio.readingFile ||
+                            studio.loadingVoices ||
+                            !!studio.voiceError ||
+                            !studio.voice
+                          }
+                        >
+                          {studio.busy ? <Spinner /> : <Icon name="wave" size={17} />}
+                          {studio.busy
+                            ? "Đang tạo âm thanh…"
+                            : page === "translation"
+                              ? "Dịch và tạo giọng đọc"
+                              : "Tạo giọng đọc"}
+                        </Button>
                       </div>
                     </div>
                   </form>
-                  <div className="editor-footer">
-                    <div className="editor-footer-tools">
-                      {page !== "studio" && (
-                        <Button
-                          className="secondary-button sample-button"
-                          disabled={studio.busy}
-                          onClick={studio.useSample}
-                        >
-                          <Icon name="file" size={15} />
-                          Văn bản mẫu
-                        </Button>
-                      )}
-                      {studio.text && studio.draftSaved && (
-                        <span className="draft-state">
-                          <Icon name="check" size={12} />
-                          Đã lưu nháp
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      id="form-error"
-                      role={studio.error ? "alert" : undefined}
-                      className={studio.error ? "form-error" : ""}
-                    >
-                      {studio.error && (
-                        <>
-                          <Icon name="alert" size={16} />
-                          <span>{studio.error}</span>
-                        </>
-                      )}
-                    </div>
-                    {studio.busy && (
-                      <div className="job-progress" role="status">
-                        <div>
-                          <Spinner />
-                          <span>
-                            {studio.job?.status === "PENDING" ? "Đang chuẩn bị…" : "Đang tạo giọng nói…"}
-                          </span>
-                          <strong>{progress}%</strong>
-                        </div>
-                        <progress aria-label="Tiến độ tạo giọng nói" value={progress} max={100} />
-                      </div>
-                    )}
-                    <div className="generate-row">
-                      <Button
-                        className="primary-button generate-button"
-                        disabled={
-                          studio.busy ||
-                          studio.readingFile ||
-                          studio.loadingVoices ||
-                          !!studio.voiceError ||
-                          !studio.voice
-                        }
-                        onClick={() => void studio.generate()}
-                      >
-                        {studio.busy ? <Spinner /> : <Icon name="wave" size={17} />}
-                        {studio.busy
-                          ? "Đang tạo âm thanh…"
-                          : page === "translation"
-                            ? "Dịch và tạo giọng đọc"
-                            : "Tạo giọng đọc"}
-                      </Button>
-                    </div>
-                  </div>
                 </section>
                 <aside className="voice-settings surface" aria-label="Cài đặt giọng đọc">
                   <div className="settings-heading">
@@ -686,42 +624,16 @@ export default function App() {
                   </div>
                   <div className="setting-field">
                     <label htmlFor="language">{page === "translation" ? "Ngôn ngữ gốc" : "Ngôn ngữ"}</label>
-                    <div className="select-wrap">
-                      <select
-                        id="language"
-                        value={studio.lang}
-                        disabled={studio.busy || studio.loadingVoices}
-                        onChange={(e) => studio.setLang(e.target.value)}
-                      >
-                        {studio.languages.map((l) => (
-                          <option key={l.lang} value={l.lang}>
-                            {languageNames[l.lang] || l.lang}
-                          </option>
-                        ))}
-                      </select>
-                      <Icon name="chevron" size={15} />
-                    </div>
+                    <Select id="language" label={page === "translation" ? "Ngôn ngữ gốc" : "Ngôn ngữ"}
+                      value={studio.lang} onValueChange={studio.setLang} disabled={studio.busy || studio.loadingVoices}
+                      options={studio.languages.map((l) => ({ value: l.lang, label: languageNames[l.lang] || l.lang }))} />
                   </div>
                   {page === "translation" && (
                     <div className="setting-field">
                       <label htmlFor="target-language">Dịch sang</label>
-                      <div className="select-wrap">
-                        <select
-                          id="target-language"
-                          value={target}
-                          disabled={studio.busy || studio.loadingVoices}
-                          onChange={(e) => setTarget(e.target.value)}
-                        >
-                          {studio.languages
-                            .filter((l) => l.voices.length)
-                            .map((l) => (
-                              <option key={l.lang} value={l.lang}>
-                                {languageNames[l.lang] || l.lang}
-                              </option>
-                            ))}
-                        </select>
-                        <Icon name="chevron" size={15} />
-                      </div>
+                      <Select id="target-language" label="Dịch sang" value={target} onValueChange={setTarget}
+                        disabled={studio.busy || studio.loadingVoices}
+                        options={studio.languages.filter((l) => l.voices.length).map((l) => ({ value: l.lang, label: languageNames[l.lang] || l.lang }))} />
                     </div>
                   )}
                   <div className="setting-field">
@@ -825,18 +737,8 @@ export default function App() {
                       onChange={(e) => setQuery(e.target.value)}
                     />
                   </label>
-                  <select
-                    aria-label="Lọc ngôn ngữ bản thu"
-                    value={languageFilter}
-                    onChange={(e) => setLanguageFilter(e.target.value)}
-                  >
-                    <option value="all">Tất cả ngôn ngữ</option>
-                    {Array.from(new Set(studio.history.map((i) => i.lang))).map((code) => (
-                      <option key={code} value={code}>
-                        {languageNames[code] || code}
-                      </option>
-                    ))}
-                  </select>
+                  <Select label="Lọc ngôn ngữ bản thu" value={languageFilter} onValueChange={setLanguageFilter}
+                    options={[{ value: "all", label: "Tất cả ngôn ngữ" }, ...Array.from(new Set(studio.history.map((i) => i.lang))).map((code) => ({ value: code, label: languageNames[code] || code }))]} />
                   <Button
                     className="icon-button"
                     aria-label="Làm mới lịch sử"
@@ -865,10 +767,11 @@ export default function App() {
                       <article className="record-row" key={item.jobId}>
                         <Button
                           className="record-play"
-                          aria-label={`Mở bản thu: ${item.text.slice(0, 30)}`}
-                          onClick={() => void studio.openRecording(item)}
+                          aria-label={`${playingJobId === item.jobId ? "Tạm dừng" : item.status === "DONE" ? "Phát" : "Xem trạng thái"}: ${item.text.slice(0, 30)}`}
+                          aria-pressed={item.status === "DONE" ? playingJobId === item.jobId : undefined}
+                          onClick={() => void playRecording(item)}
                         >
-                          <Icon name={item.status === "DONE" ? "play" : "clock"} size={17} />
+                          <Icon name={playingJobId === item.jobId ? "pause" : item.status === "DONE" ? "play" : item.status === "FAILED" ? "alert" : "clock"} size={17} />
                         </Button>
                         <div className="record-info">
                           <h2>
@@ -955,6 +858,8 @@ export default function App() {
                 volume={preferences.volume}
                 onVolume={(volume) => setPreferences((p) => ({ ...p, volume }))}
                 notify={notify}
+                playbackRequest={playbackRequest}
+                onPlayingChange={setPlayingJobId}
               />
             </div>
           )}
@@ -979,13 +884,13 @@ export default function App() {
       )}
 
       {dialog === "menu" && (
-        <Modal title="Phòng thu" onClose={closeDialog} className="mobile-nav-modal">
+        <Modal title="TTS Studio" onClose={closeDialog} className="mobile-nav-modal">
           <div className="mobile-brand">
             <Brand />
           </div>
           <div className="mobile-nav">
             {pages.map((n) => (
-              <Button className={page === n.id ? "active" : ""} key={n.id} onClick={() => navigate(n.id)}>
+              <Button className={page === n.id ? "active" : ""} key={n.id} aria-current={page === n.id ? "page" : undefined} onClick={() => navigate(n.id)}>
                 <Icon name={n.icon} size={19} />
                 {n.title}
                 <Icon name="arrow" size={15} />
@@ -994,48 +899,10 @@ export default function App() {
           </div>
         </Modal>
       )}
-      {dialog === "search" && (
-        <Modal title="Tìm kiếm" onClose={closeDialog} className="search-modal">
-          <label className="command-search">
-            <Icon name="search" size={18} />
-            <input
-              autoFocus
-              aria-label="Tìm màn hình hoặc bản thu"
-              placeholder="Tìm màn hình hoặc bản thu…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </label>
-          <div className="command-results">
-            {matchingNavigation.map((n) => (
-              <Button key={n.id} onClick={() => navigate(n.id)}>
-                <Icon name={n.icon} size={18} />
-                <span>{n.title}</span>
-                <Icon name="arrow" size={14} />
-              </Button>
-            ))}
-            {matchingRecords.map((item) => (
-              <Button
-                key={item.jobId}
-                onClick={() => {
-                  navigate("library");
-                  void studio.openRecording(item);
-                }}
-              >
-                <Icon name="wave" size={18} />
-                <span>{item.text.slice(0, 60)}</span>
-                <Icon name="play" size={14} />
-              </Button>
-            ))}
-            {!matchingNavigation.length && !matchingRecords.length && (
-              <p className="no-results">Không tìm thấy kết quả.</p>
-            )}
-          </div>
-        </Modal>
-      )}
       {deleteItem && (
         <Modal
           title="Xóa bản thu?"
+          dismissible={!deleting}
           onClose={() => {
             if (!deleting) setDeleteItem(null);
           }}
@@ -1062,6 +929,8 @@ export default function App() {
           </div>
         </Modal>
       )}
+      {studio.review && <CorrectionReview correction={studio.review.correction}
+        onChoose={(corrected) => void studio.resolveReview(corrected)} onClose={studio.cancelReview} />}
       <div className="toast-region" aria-live="polite" aria-atomic="true">
         {toast && (
           <div className={`toast ${toast.error ? "toast-error" : ""}`}>

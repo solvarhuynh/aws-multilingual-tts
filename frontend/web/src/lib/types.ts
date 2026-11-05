@@ -18,6 +18,14 @@ export interface SynthesizeInput {
   speed: number;
   translateTo: string | null;
 }
+export interface TextCorrection {
+  status: "checked" | "skipped";
+  language: string;
+  hasTypos: boolean;
+  originalText: string;
+  correctedText: string;
+  changes: { from: string; to: string; start: number; end: number }[];
+}
 export interface Job {
   jobId: string;
   status: JobStatus;

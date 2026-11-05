@@ -35,6 +35,25 @@ S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M
 
 ## Ghi chú kỹ thuật riêng
 
+- [x] Gộp nút Tạo giọng đọc vào đáy ô nhập, bỏ hàng/khoảng trống bên ngoài; nháp/lỗi/tiến độ nằm cùng composer và điều khiển tự xuống dòng khi hẹp. Kiểm thử ứng dụng 9/9 đạt ngày 2026-11-05, gồm chống submit trùng và lỗi văn bản rỗng.
+- [x] Đổi thành Nhóm 5, lời chào tiếng Việt theo buổi không hiển thị giờ, avatar đám mây và logo/lời chào lớn hơn. Tìm kiếm inline gợi ý theo ký tự/không dấu, không mở Modal/hiện nhãn phím tắt; không tác động bộ lọc từng trang.
+- [x] Đồng bộ palette lấy từ logo HCMUTE/AWS (#0072BC, #252F3E, #FF9900), giữ kính và màu trạng thái có mục đích. 55 kiểm thử mô phỏng và build đạt ngày 2026-11-05; còn đối chiếu trực quan trên máy thật.
+- [x] Bỏ hoàn toàn khung/nền/viền/blur/bóng của header theo ảnh; tách tiêu đề trang thành H1 riêng bên dưới, 28px desktop/24px mobile. Kiểm thử ứng dụng 8/8 đạt ngày 2026-11-05; còn đối chiếu trực quan trên máy thật.
+- [x] Header ShipCODE theo ảnh mới: HCMUTE ở header, AWS ở sidebar, tên trang bên dưới lời chào và nút Xuất báo cáo CSV từ lịch sử đã tải. Dashboard dùng lưới/spacing chung, KPI bằng nhau và card dưới cùng chiều cao theo nội dung.
+- [x] Tối ưu thu/mở sidebar bằng FLIP/Web Animations API, bỏ layout mỗi frame, SVG viền nav và blur chữ; xử lý đảo chiều, resize/unmount, giảm chuyển động và fallback. 47 kiểm thử mô phỏng đạt ngày 2026-11-05; vẫn cần đo FPS/đối chiếu trực quan trên máy thật, chưa hoàn tất 4.11.
+- [x] Dựng sidebar theo video tham chiếu: kính mỏng, nút mép, chuyển đổi chiều rộng/cao, chữ hiện trễ, pill chọn mục và tooltip ở dạng hẹp; giữ giảm chuyển động/mobile. 38 kiểm thử mô phỏng đạt ngày 2026-11-05; còn đối chiếu chuyển động trên trình duyệt thực, chưa khẳng định khớp 100%.
+- [x] Tách workspace thành các ô kính rời (thanh trên, soạn thảo, cài đặt giọng, trình phát), tăng độ trong và dùng chung token CSS; giữ sóng 3D và tùy chọn trợ năng. Build thành công ngày 2026-11-05; chưa xác nhận hình ảnh/FPS trên trình duyệt thật.
+- [x] Tinh gọn bộ bọc nút bấm, bỏ lớp kính/CSS trùng và gom thiết lập kiểm thử; build không sinh tsconfig.tsbuildinfo. Giữ các font/logo/giấy phép và mã đang được dùng.
+- [x] Hoàn thiện frontend cho bước 4.3–4.5: kiểm tra lỗi đánh máy một lần, duyệt bản gốc/bản sửa, giữ bản gốc khi API lỗi, chống gửi trùng và hủy đề xuất cũ. Đã kiểm thử bằng API mô phỏng; còn chờ API thật của M1/M5.
+- [x] Sửa phát từ danh sách, khôi phục âm lượng khi bật tiếng, Escape khi modal bận, trạng thái tải/lỗi và phản hồi đến chậm. 37/37 kiểm thử DOM/dữ liệu đạt ngày 2026-11-05; chưa đánh dấu xong bước 4.11.
+- [x] Đặt tên “TTS Studio” trên giao diện, menu điện thoại, tiêu đề tab và mô tả trang theo lựa chọn của người dùng. Đã build thành công ngày 2026-11-05; chưa đánh dấu hoàn tất toàn bộ bước 4.1.
+- [x] Mở rộng Liquid Glass bằng Glisse MIT sẵn có cho điều hướng, thanh trên, trình phát và nút bấm; dùng chung nền tĩnh và CSS. Build thành công ngày 2026-11-05; còn kiểm tra trực quan trên máy tính/điện thoại, chưa hoàn tất bước 4.11.
+- [x] Giảm tải Liquid Glass sau phản hồi: bỏ viền SVG trên nút đặc và khúc xạ nền toàn màn hình; dùng kính CSS cho panel lớn, giữ khúc xạ ở bề mặt nhỏ. Chưa đo FPS thực tế hoặc hoàn tất bước 4.11.
+- [x] Đổi palette sang trắng sữa và xanh slate theo ảnh tham chiếu, nền loang tĩnh và card viền trắng; giữ bố cục hiện tại. Build thành công ngày 2026-11-05; còn đối chiếu trực quan trên trình duyệt.
+- [x] Thay icon UI bằng Framework7 Icons 5.0.5 (MIT), thống nhất phong cách iOS, gỡ Lucide. Build và kiểm tra render 32 SVG cùng spinner thành công ngày 2026-11-05; còn kiểm tra trực quan.
+- [x] Giữ và hoàn thiện sóng 3D, chuyển động nền và độ trong hai khung chính; sửa kéo nút gạt, thay bốn native select bằng menu đồng bộ. Build và 10 kiểm thử DOM thành công ngày 2026-11-05; chưa thay thế kiểm thử trình duyệt thực tế ở bước 4.11.
+- [x] Bỏ khung nền/viền bọc icon công cụ và vòng viền trang trí trong bản thu gần đây; build thành công ngày 2026-11-05.
+
 - Địa chỉ API đọc từ cấu hình frontend, không ghi cứng trong logic và **không chứa key bí mật**.
 - Dùng danh sách API cố định trong `docs/overview/QUY-UOC-CHUNG.md`. Khi backend chưa sẵn sàng, dùng dữ liệu giả đúng định dạng đó để làm trước.
 - Hosting: bucket S3 riêng tư + CloudFront (Origin Access Control), trang lỗi 404 trả về `index.html` nếu là ứng dụng một trang.

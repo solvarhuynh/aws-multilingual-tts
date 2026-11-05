@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, DEMO } from "../lib/api";
 import { extractDocument } from "../lib/document";
 import { MAX_CHARS, readStored, samples, storeValue, validateInput } from "../lib/data";
-import type { HistoryItem, Job, Language } from "../lib/types";
+import type { HistoryItem, Job, Language, SynthesizeInput, TextCorrection } from "../lib/types";
+
+type Review = { input: SynthesizeInput; correction: TextCorrection };
 
 export function useStudio(
   notify: (message: string, error?: boolean) => void,
@@ -24,6 +26,10 @@ export function useStudio(
   const [historyError, setHistoryError] = useState("");
   const [currentAudio, setCurrentAudio] = useState<HistoryItem | null>(null);
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [review, setReview] = useState<Review | null>(null);
+  const reviewRef = useRef<Review | null>(null);
+  const revision = useRef(0);
   const [readingFile, setReadingFile] = useState(false);
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState("");
@@ -33,6 +39,8 @@ export function useStudio(
   const submitLock = useRef(false);
   const fileLock = useRef(false);
   const historyRequest = useRef(0);
+  const voiceRequest = useRef(0);
+  const recordingRequest = useRef(0);
   const editorRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -48,11 +56,12 @@ export function useStudio(
   }, [text]);
 
   const loadVoices = useCallback(async () => {
+    const requestId = ++voiceRequest.current;
     setLoadingVoices(true);
     setVoiceError("");
     try {
       const result = await api.voices();
-      if (!mounted.current) return;
+      if (!mounted.current || requestId !== voiceRequest.current) return;
       setLanguages(result);
       const initial =
         result.find((l) => l.lang === "vi-VN" && l.voices.length) || result.find((l) => l.voices.length);
@@ -64,9 +73,9 @@ export function useStudio(
         result.some((l) => l.lang === previous && l.voices.length) ? previous : initial.lang,
       );
     } catch (error) {
-      if (mounted.current) setVoiceError((error as Error).message);
+      if (mounted.current && requestId === voiceRequest.current) setVoiceError((error as Error).message);
     } finally {
-      if (mounted.current) setLoadingVoices(false);
+      if (mounted.current && requestId === voiceRequest.current) setLoadingVoices(false);
     }
   }, []);
 
@@ -102,6 +111,8 @@ export function useStudio(
   }, [language]);
 
   function updateText(value: string) {
+    revision.current++;
+    cancelReview();
     setText(value);
     setError("");
   }
@@ -115,8 +126,19 @@ export function useStudio(
     setError("");
   }
 
+  function cancelReview() {
+    reviewRef.current = null;
+    setReview(null);
+  }
+  useEffect(() => {
+    revision.current++;
+    const pending = reviewRef.current?.input;
+    if (pending && (pending.text !== text || pending.lang !== lang || pending.voice !== voice ||
+      pending.speed !== speed || pending.translateTo !== translateTo)) cancelReview();
+  }, [text, lang, voice, speed, translateTo]);
+
   async function generate() {
-    if (submitLock.current || fileLock.current) return;
+    if (submitLock.current || fileLock.current || reviewRef.current) return;
     const invalid = validateInput(text, speed);
     if (invalid) {
       setError(invalid);
@@ -127,18 +149,43 @@ export function useStudio(
       setError("Vui lòng chọn một giọng đọc khả dụng.");
       return;
     }
-    submitLock.current = true;
-    setBusy(true);
-    setError("");
-    setJob(null);
     if (translateTo === lang) {
       setError("Hãy chọn ngôn ngữ đích khác với ngôn ngữ gốc.");
-      submitLock.current = false;
-      setBusy(false);
       return;
     }
-    const input = { text: text.trim(), lang, voice, speed, translateTo };
+    return runSynthesis({ text, lang, voice, speed, translateTo }, true);
+  }
+
+  async function resolveReview(corrected: boolean) {
+    const pending = reviewRef.current;
+    if (!pending || submitLock.current) return;
+    const selected = corrected ? pending.correction.correctedText : pending.input.text;
+    cancelReview();
+    if (corrected) updateText(selected);
+    return runSynthesis({ ...pending.input, text: selected }, false);
+  }
+
+  async function runSynthesis(input: SynthesizeInput, check: boolean) {
+    if (submitLock.current || fileLock.current) return;
+    submitLock.current = true;
+    setBusy(true);
+    setChecking(check);
+    setError("");
+    setJob(null);
+    const currentRevision = revision.current;
     try {
+      if (check) {
+        // Kiểm tra chỉ một lần; khi dịch vụ không sẵn sàng, giữ nguyên bản gốc.
+        const correction = await api.correct(input.text, input.lang).catch(() => null);
+        if (!mounted.current || currentRevision !== revision.current) return;
+        setChecking(false);
+        if (correction?.status === "checked" && correction.hasTypos && correction.correctedText !== input.text) {
+          const pending = { input, correction };
+          reviewRef.current = pending;
+          setReview(pending);
+          return;
+        }
+      }
       let result = await api.synthesize(input);
       if (!mounted.current) return;
       setJob(result);
@@ -175,7 +222,7 @@ export function useStudio(
       }
     } finally {
       submitLock.current = false;
-      if (mounted.current) setBusy(false);
+      if (mounted.current) { setBusy(false); setChecking(false); }
     }
   }
 
@@ -187,7 +234,7 @@ export function useStudio(
     try {
       const content = await extractDocument(file);
       if (!mounted.current) return;
-      setText(content);
+      updateText(content);
       setFileName(file.name);
       notify(`Đã nhập ${file.name}.`);
       editorRef.current?.focus();
@@ -200,12 +247,14 @@ export function useStudio(
   }
 
   async function openRecording(item: HistoryItem) {
+    const requestId = ++recordingRequest.current;
     if (item.status === "FAILED") {
       notify("Bản thu bị lỗi. Vui lòng tạo lại.", true);
       return;
     }
     try {
       const fresh = DEMO ? item : { ...item, ...(await api.job(item.jobId)) };
+      if (!mounted.current || requestId !== recordingRequest.current) return;
       if (fresh.status !== "DONE") {
         notify("Bản thu đang được xử lý. Vui lòng thử lại sau.");
         void loadHistory();
@@ -213,14 +262,15 @@ export function useStudio(
       }
       if (!DEMO && !fresh.audioUrl) throw new Error("Bản thu chưa có link nghe. Vui lòng thử lại.");
       setCurrentAudio(fresh);
-      notify("Đã mở bản thu. Nhấn phát để nghe.");
+      return fresh;
     } catch (error) {
-      notify((error as Error).message, true);
+      if (mounted.current && requestId === recordingRequest.current) notify((error as Error).message, true);
     }
   }
 
   async function deleteRecording(item: HistoryItem) {
     await api.remove(item.jobId);
+    recordingRequest.current++;
     historyRequest.current++;
     setLoadingHistory(false);
     setHistory((old) => old.filter((i) => i.jobId !== item.jobId));
@@ -251,6 +301,10 @@ export function useStudio(
     loadHistory,
     currentAudio,
     busy,
+    checking,
+    review,
+    cancelReview,
+    resolveReview,
     readingFile,
     fileName,
     setVoice,
