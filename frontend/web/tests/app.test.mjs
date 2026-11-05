@@ -64,6 +64,35 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
         URL.createObjectURL = originalCreate;
       }
     });
+    await suite.test("nút tạo giọng nằm trong ô nhập và submit không tạo bản thu trùng", async () => {
+      await click(env.mount.querySelector('.sidebar a[href="#studio"]'));
+      const form = env.mount.querySelector('.composer');
+      const button = form.querySelector('.editor-status button[type="submit"]');
+      const editor = form.querySelector('textarea');
+      assert.ok(button);
+      assert.equal(env.mount.querySelector('.editor-panel > .editor-footer'), null);
+      assert.equal(form.querySelector('.editor-footer'), null);
+      const originalCorrect = api.correct, originalSynthesize = api.synthesize;
+      let submissions = 0;
+      api.correct = async (text, language) => ({ status: "skipped", language, hasTypos: false,
+        originalText: text, correctedText: text, changes: [] });
+      api.synthesize = async () => { submissions++; return recording("inline"); };
+      try {
+        await act(() => {
+          Object.getOwnPropertyDescriptor(env.win.HTMLTextAreaElement.prototype, "value").set.call(editor, "Nội dung kiểm tra.");
+          editor.dispatchEvent(new env.win.Event("input", { bubbles: true }));
+        });
+        await act(async () => { button.click(); button.click(); await settle(); });
+        assert.equal(submissions, 1);
+        await click(form.querySelector('[aria-label="Xóa nội dung văn bản"]'));
+        await click(button);
+        assert.ok(form.querySelector('#form-error[role="alert"]'));
+        assert.equal(submissions, 1);
+      } finally {
+        api.correct = originalCorrect; api.synthesize = originalSynthesize;
+      }
+      await click(env.mount.querySelector('[aria-label="Hướng dẫn"]'));
+    });
     await suite.test("sidebar thu gọn được và lưu lựa chọn", async () => {
       await click(env.mount.querySelector('[aria-label="Thu gọn thanh bên"]'));
       assert.ok(env.mount.querySelector(".app-shell.sidebar-collapsed"));

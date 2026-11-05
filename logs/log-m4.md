@@ -6,13 +6,22 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-05
-- Đang làm: hoàn thiện header Nhóm 5, tìm kiếm gợi ý và màu thương hiệu.
-- Đã xong: lời chào tiếng Việt theo buổi, không hiện giờ; tên Nhóm 5, avatar đám mây, tăng logo/chữ. Tìm kiếm gõ trực tiếp với gợi ý theo ký tự, bỏ Modal tìm kiếm và nhãn phím tắt. Đổi palette sang màu lấy từ logo HCMUTE/AWS. 55 kiểm thử mô phỏng và build đạt.
+- Đang làm: hoàn thiện bố cục ô soạn thảo M4.
+- Đã xong: đưa nút Tạo giọng đọc vào hàng đáy trong ô nhập, bỏ hàng nút và khoảng trống ngoài; trạng thái nháp cạnh bộ đếm, lỗi/tiến độ nằm cùng ô. Nút dùng submit của form, kiểm tra bấm hai lần vẫn chỉ tạo một bản thu. 9 kiểm thử ứng dụng đạt sau thay đổi.
 - Việc tiếp theo: đối chiếu trực quan và đo độ mượt trên máy thật; kiểm tra luồng AWS sau khi M1/M5 cung cấp API chạy được.
 - Đang bị chặn bởi: công cụ trình duyệt chưa kết nối; backend/submit hiện trả 501 và SAM chưa nối API nên chưa kiểm thử xuyên suốt AWS.
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-05: Gộp nút tạo giọng vào ô soạn thảo
+- Đã làm: chuyển nút Tạo giọng đọc/Dịch và tạo giọng đọc vào hàng editor-status bên trong composer, cạnh bộ đếm/thời lượng/xóa văn bản. Xóa generate-row và hàng footer bên ngoài vốn giữ margin/min-height gây khoảng trống dưới ô nhập.
+- Chi tiết: nút là submit của form thay vì lặp onClick; giữ khóa chống gửi trùng và các điều kiện disabled. Nhãn Đã lưu nháp nằm cạnh bộ đếm; văn bản mẫu, lỗi và tiến độ xử lý nằm trong composer và chỉ hiện khi có nội dung tương ứng. Hàng điều khiển cho phép xuống dòng ở chiều rộng hẹp để không cắt nút.
+- File đã đổi: frontend/web/src/App.tsx, frontend/web/src/styles.css, frontend/web/tests/app.test.mjs, logs/log-m4.md, docs/tasks/task-m4.md.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không; kiểm thử dùng API mô phỏng.
+- Kiểm tra: node --test tests/app.test.mjs đạt 9/9, gồm submit từ nút trong ô nhập, bấm hai lần chỉ gửi một lần và lỗi văn bản rỗng hiển thị trong cùng form. Chạy npm run build và git diff --check trước commit; chưa xác nhận ảnh trực tiếp qua trình duyệt.
+- Việc tiếp theo: đối chiếu hàng nút trong ô nhập ở desktop/mobile; các phần AWS còn chờ như nhật ký trước.
+- Cần báo module khác: không.
 
 ### 2026-11-05: Lời chào Nhóm 5, tìm kiếm gợi ý và màu HCMUTE/AWS
 - Đã làm: đổi tên hiển thị thành Nhóm 5. Lời chào tiếng Việt theo giờ thiết bị: sáng từ 05:00 đến trước 12:00, chiều từ 12:00 đến trước 18:00, còn lại là tối; kiểm tra mỗi phút/khi cửa sổ nhận lại focus và không hiển thị đồng hồ. Tăng logo HCMUTE lên 48×58px/chữ 24px desktop, 40×48px/chữ 22px mobile; giữ header không khung và H1 riêng. Avatar dùng CloudFill SVG sẵn có trong Framework7, không thêm dependency/ảnh bitmap.

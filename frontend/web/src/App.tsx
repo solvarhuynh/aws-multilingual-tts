@@ -508,7 +508,7 @@ export default function App() {
                       maxLength={MAX_CHARS + 1}
                       spellCheck={false}
                       aria-invalid={!!studio.error}
-                      aria-describedby="text-count form-error"
+                      aria-describedby={studio.error ? "text-count form-error" : "text-count"}
                       onKeyDown={(e) => {
                         if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                           e.preventDefault();
@@ -541,10 +541,41 @@ export default function App() {
                         </div>
                       </div>
                     )}
+                    {(page !== "studio" || studio.error || studio.busy) && (
+                      <div className="editor-footer">
+                        {page !== "studio" && (
+                          <Button className="secondary-button" disabled={studio.busy} onClick={studio.useSample}>
+                            <Icon name="file" size={15} />
+                            Văn bản mẫu
+                          </Button>
+                        )}
+                        {studio.error && (
+                          <div id="form-error" role="alert" className="form-error">
+                            <Icon name="alert" size={16} />
+                            <span>{studio.error}</span>
+                          </div>
+                        )}
+                        {studio.busy && (
+                          <div className="job-progress" role="status">
+                            <div>
+                              <Spinner />
+                              <span>
+                                {studio.checking ? "Đang kiểm tra lỗi đánh máy…" : studio.job?.status === "PENDING" ? "Đang chuẩn bị…" : "Đang tạo giọng nói…"}
+                              </span>
+                              {studio.job?.progress && <strong>{progress}%</strong>}
+                            </div>
+                            <progress aria-label="Tiến độ tạo giọng nói" value={studio.job?.progress ? progress : undefined} max={100} />
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="editor-status">
                       <span id="text-count" className={studio.text.length > MAX_CHARS ? "over-limit" : ""}>
                         {formatNumber(studio.text.length)}
                         <span> / {formatNumber(MAX_CHARS)} ký tự</span>
+                        {studio.text && studio.draftSaved && (
+                          <span className="draft-state"><Icon name="check" size={12} />Đã lưu nháp</span>
+                        )}
                       </span>
                       <div>
                         <span className="duration-estimate">
@@ -565,73 +596,27 @@ export default function App() {
                         >
                           <Icon name="trash" size={15} />
                         </Button>
+                        <Button
+                          type="submit"
+                          className="primary-button"
+                          disabled={
+                            studio.busy ||
+                            studio.readingFile ||
+                            studio.loadingVoices ||
+                            !!studio.voiceError ||
+                            !studio.voice
+                          }
+                        >
+                          {studio.busy ? <Spinner /> : <Icon name="wave" size={17} />}
+                          {studio.busy
+                            ? "Đang tạo âm thanh…"
+                            : page === "translation"
+                              ? "Dịch và tạo giọng đọc"
+                              : "Tạo giọng đọc"}
+                        </Button>
                       </div>
                     </div>
                   </form>
-                  <div className="editor-footer">
-                    <div className="editor-footer-tools">
-                      {page !== "studio" && (
-                        <Button
-                          className="secondary-button"
-                          disabled={studio.busy}
-                          onClick={studio.useSample}
-                        >
-                          <Icon name="file" size={15} />
-                          Văn bản mẫu
-                        </Button>
-                      )}
-                      {studio.text && studio.draftSaved && (
-                        <span className="draft-state">
-                          <Icon name="check" size={12} />
-                          Đã lưu nháp
-                        </span>
-                      )}
-                    </div>
-                    <div
-                      id="form-error"
-                      role={studio.error ? "alert" : undefined}
-                      className={studio.error ? "form-error" : ""}
-                    >
-                      {studio.error && (
-                        <>
-                          <Icon name="alert" size={16} />
-                          <span>{studio.error}</span>
-                        </>
-                      )}
-                    </div>
-                    {studio.busy && (
-                      <div className="job-progress" role="status">
-                        <div>
-                          <Spinner />
-                          <span>
-                            {studio.checking ? "Đang kiểm tra lỗi đánh máy…" : studio.job?.status === "PENDING" ? "Đang chuẩn bị…" : "Đang tạo giọng nói…"}
-                          </span>
-                          {studio.job?.progress && <strong>{progress}%</strong>}
-                        </div>
-                        <progress aria-label="Tiến độ tạo giọng nói" value={studio.job?.progress ? progress : undefined} max={100} />
-                      </div>
-                    )}
-                    <div className="generate-row">
-                      <Button
-                        className="primary-button"
-                        disabled={
-                          studio.busy ||
-                          studio.readingFile ||
-                          studio.loadingVoices ||
-                          !!studio.voiceError ||
-                          !studio.voice
-                        }
-                        onClick={() => void studio.generate()}
-                      >
-                        {studio.busy ? <Spinner /> : <Icon name="wave" size={17} />}
-                        {studio.busy
-                          ? "Đang tạo âm thanh…"
-                          : page === "translation"
-                            ? "Dịch và tạo giọng đọc"
-                            : "Tạo giọng đọc"}
-                      </Button>
-                    </div>
-                  </div>
                 </section>
                 <aside className="voice-settings surface" aria-label="Cài đặt giọng đọc">
                   <div className="settings-heading">
