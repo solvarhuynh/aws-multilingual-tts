@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEMO } from "./lib/api";
 import AudioPlayer from "./components/AudioPlayer";
+import Sidebar from "./components/Sidebar";
 import Select from "./components/Select";
 import CorrectionReview from "./components/CorrectionReview";
 import {
   Button,
   Brand,
-  Glass,
   EmptyState,
   Icon,
   Modal,
@@ -343,74 +343,12 @@ export default function App() {
       </a>
       <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <div className="glass-backdrop" aria-hidden="true" />
-        <aside id="main-sidebar" className="sidebar" aria-label="Điều hướng chính">
-          <div className="sidebar-brand">
-            <Brand />
-            <span className="product-name">TTS Studio</span>
-          </div>
-
-          <nav
-            aria-label="Công cụ"
-            style={
-              {
-                "--nav-index": Math.max(
-                  0,
-                  navigation.findIndex((n) => n.id === page),
-                ),
-              } as React.CSSProperties
-            }
-          >
-            <Glass
-              className={`nav-selection ${navigation.some((n) => n.id === page) ? "" : "hidden"}`}
-              aria-hidden="true"
-            />
-            {navigation.map((n) => (
-              <a
-                key={n.id}
-                className={`nav-item ${page === n.id ? "active" : ""}`}
-                href={`#${n.id}`}
-                title={n.title}
-                aria-label={n.title}
-                aria-current={page === n.id ? "page" : undefined}
-                onClick={(e) => {
-                  e.preventDefault();
-                  navigate(n.id);
-                }}
-              >
-                <Icon name={n.icon} size={19} />
-                <span className="nav-label">{n.title}</span>
-                {n.id === "library" && studio.history.length > 0 && (
-                  <span className="nav-count">{studio.history.length}</span>
-                )}
-              </a>
-            ))}
-          </nav>
-          <div className="sidebar-bottom">
-            <Button
-              className={`nav-item ${page === "help" ? "active" : ""}`}
-              onClick={() => navigate("help")}
-              aria-label="Hướng dẫn" title="Hướng dẫn"
-            >
-              <Icon name="help" size={19} />
-              <span className="nav-label">Hướng dẫn</span>
-            </Button>
-            <Button
-              className={`nav-item ${page === "settings" ? "active" : ""}`}
-              onClick={() => navigate("settings")}
-              aria-label="Cài đặt" title="Cài đặt"
-            >
-              <Icon name="settings" size={19} />
-              <span className="nav-label">Cài đặt</span>
-            </Button>
-          </div>
-        </aside>
+        <Sidebar page={page} collapsed={sidebarCollapsed} count={studio.history.length}
+          onToggle={() => setSidebarCollapsed((value) => !value)}
+          onNavigate={navigate} onSearch={() => openDialog("search")} />
         <div className="workspace">
           <header className="page-header">
             <div className="page-heading">
-              <Button className="icon-button sidebar-control" aria-label={sidebarCollapsed ? "Hiện thanh bên" : "Thu gọn thanh bên"}
-                title={sidebarCollapsed ? "Hiện thanh bên" : "Thu gọn thanh bên"} aria-expanded={!sidebarCollapsed}
-                aria-controls="main-sidebar"
-                onClick={() => setSidebarCollapsed((value) => !value)}><Icon name="sidebar" size={21} /></Button>
               <Button
                 className="icon-button mobile-menu"
                 aria-label="Mở menu điều hướng"
@@ -422,8 +360,6 @@ export default function App() {
             </div>
             <Button className="header-search" aria-label="Tìm kiếm" aria-keyshortcuts="Control+K Meta+K" onClick={() => openDialog("search")}>
               <Icon name="search" size={17} />
-              <span>Tìm công cụ hoặc bản thu…</span>
-              <kbd>{/Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘ K" : "Ctrl K"}</kbd>
             </Button>
           </header>
           <main id="main-content" key={page} className={`route-view ${isStudio ? "studio-route" : ""}`}>

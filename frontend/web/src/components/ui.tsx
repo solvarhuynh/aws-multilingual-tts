@@ -46,7 +46,6 @@ import TextBubbleFill from "framework7-icons/react/esm/TextBubbleFill.js";
 import Trash from "framework7-icons/react/esm/Trash.js";
 import Waveform from "framework7-icons/react/esm/Waveform.js";
 import Xmark from "framework7-icons/react/esm/Xmark.js";
-import SidebarLeft from "framework7-icons/react/esm/SidebarLeft.js";
 
 // Dùng chung một bộ biểu tượng iOS; chỉ import các SVG đang sử dụng.
 const icons: Record<string, typeof Waveform> = {
@@ -82,7 +81,6 @@ const icons: Record<string, typeof Waveform> = {
   muted: SpeakerSlashFill,
   close: Xmark,
   loading: Arrow2Circlepath,
-  sidebar: SidebarLeft,
 };
 export const Glass = memo(LiquidGlass);
 

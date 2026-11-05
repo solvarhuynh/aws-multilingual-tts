@@ -35,6 +35,7 @@ S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M
 
 ## Ghi chú kỹ thuật riêng
 
+- [x] Dựng sidebar theo video tham chiếu: kính mỏng, nút mép, chuyển đổi chiều rộng/cao, chữ hiện trễ, pill chọn mục và tooltip ở dạng hẹp; giữ giảm chuyển động/mobile. 38 kiểm thử mô phỏng đạt ngày 2026-11-05; còn đối chiếu chuyển động trên trình duyệt thực, chưa khẳng định khớp 100%.
 - [x] Tách workspace thành các ô kính rời (thanh trên, soạn thảo, cài đặt giọng, trình phát), tăng độ trong và dùng chung token CSS; giữ sóng 3D và tùy chọn trợ năng. Build thành công ngày 2026-11-05; chưa xác nhận hình ảnh/FPS trên trình duyệt thật.
 - [x] Tinh gọn bộ bọc nút bấm, bỏ lớp kính/CSS trùng và gom thiết lập kiểm thử; build không sinh tsconfig.tsbuildinfo. Giữ các font/logo/giấy phép và mã đang được dùng.
 - [x] Hoàn thiện frontend cho bước 4.3–4.5: kiểm tra lỗi đánh máy một lần, duyệt bản gốc/bản sửa, giữ bản gốc khi API lỗi, chống gửi trùng và hủy đề xuất cũ. Đã kiểm thử bằng API mô phỏng; còn chờ API thật của M1/M5.

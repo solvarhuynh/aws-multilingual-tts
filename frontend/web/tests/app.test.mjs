@@ -38,6 +38,22 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       await click(env.mount.querySelector('[aria-label="Hiện thanh bên"]'));
       assert.equal(env.mount.querySelector(".app-shell.sidebar-collapsed"), null);
     });
+    await suite.test("sidebar dạng hẹp vẫn có nhãn nổi, tìm kiếm và đổi trạng thái liên tục", async () => {
+      await click(env.mount.querySelector('[aria-label="Thu gọn thanh bên"]'));
+      assert.equal(env.mount.querySelector('.sidebar-toggle').getAttribute("aria-expanded"), "false");
+      const link = env.mount.querySelector('.sidebar a[href="#studio"]');
+      await act(() => link.focus());
+      assert.equal(env.mount.querySelector('[role="tooltip"]').textContent, "Tạo giọng đọc");
+      await act(() => link.blur());
+      assert.equal(env.mount.querySelector('[role="tooltip"]'), null);
+      await click(env.mount.querySelector('.sidebar-search'));
+      const dialog = document.querySelector('dialog[aria-label="Tìm kiếm"]');
+      assert.ok(dialog?.open);
+      await act(() => dialog.dispatchEvent(new env.win.Event("cancel", { cancelable: true })));
+      for (let i = 0; i < 5; i++) await click(env.mount.querySelector('.sidebar-toggle'));
+      assert.equal(env.mount.querySelector('.sidebar-toggle').getAttribute("aria-expanded"), "true");
+      assert.equal(localStorage.getItem("tts.sidebar.collapsed"), "false");
+    });
     await suite.test("Ctrl K mở tìm kiếm; Escape đóng qua state và phục hồi focus", async () => {
       await act(async () => { window.dispatchEvent(new env.win.KeyboardEvent("keydown", { key: "k", ctrlKey: true })); await settle(); });
       const dialog = document.querySelector('dialog[aria-label="Tìm kiếm"]');

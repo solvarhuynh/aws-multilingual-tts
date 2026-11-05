@@ -6,13 +6,25 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-05
-- Đang làm: hoàn thiện giao diện M4 với các ô kính rời và code dễ đọc.
-- Đã xong: bỏ kính bao ngoài workspace, tăng độ trong từng ô; tinh gọn nút bấm/CSS và gom thiết lập kiểm thử; sửa phát từ danh sách, âm lượng, modal, phản hồi API đến chậm và luồng duyệt lỗi đánh máy. Build và 37 kiểm thử mô phỏng đạt.
-- Việc tiếp theo: đối chiếu trực quan, độ mượt và responsive trên máy thật; kiểm tra luồng AWS sau khi M1/M5 cung cấp API chạy được.
+- Đang làm: hoàn thiện sidebar kính theo video người dùng gửi.
+- Đã xong: sidebar kính mỏng, thu hẹp 72px, mở/đóng có chuyển đổi chiều rộng/cao và bo góc; nhãn mờ/trượt có độ trễ, nút mũi tên ở mép, tooltip và tìm kiếm trong sidebar. Tách component Sidebar để App gọn hơn, không thêm dependency. 38 kiểm thử mô phỏng đạt.
+- Việc tiếp theo: đối chiếu trực quan và độ mượt của cả hai chiều trên máy thật; kiểm tra luồng AWS sau khi M1/M5 cung cấp API chạy được.
 - Đang bị chặn bởi: công cụ trình duyệt chưa kết nối; backend/submit hiện trả 501 và SAM chưa nối API nên chưa kiểm thử xuyên suốt AWS.
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-05: Sidebar Liquid Glass theo video tham chiếu
+- Đã làm: đọc video 1793878216867_192046527460282917_6446778780327023864.mp4 (9,7 giây, 30fps); trích khung hình tổng thể và từng 2 frame quanh đoạn mở. Quan sát sidebar hẹp dạng viên, nở hai chiều quanh tâm dọc, viền sáng mảnh, pill chọn mục giãn từ tròn thành dài và chữ hiện trễ. Đo đoạn mở chính khoảng 2,43–2,90 giây; đoạn cuối video phủ lớp tối trước khi thấy đầy đủ một lần đóng.
+- Triển khai: khung sidebar trong hơn, gradient phản sáng và blur cố định 18px; chuyển kích thước/bo góc 460ms với easing giảm tốc; chữ hiện sau 120ms và mờ trước khi đóng. Đảo cùng trạng thái CSS để đóng/mở và bấm đảo chiều giữa chừng không cần khóa hay bộ đếm JavaScript. Nội dung chính thay đổi bề rộng cùng nhịp; không thêm thư viện hay đặt bộ lọc SVG toàn màn hình.
+- Chi tiết: nút tròn nằm sát mép bên phải, chevron xoay theo trạng thái; tooltip kính khi dùng chuột/bàn phím ở thanh hẹp. Đưa tìm kiếm desktop vào sidebar, giữ tìm kiếm/menu trên topbar cho mobile. Giữ logo HCMUTE và AWS cùng màu nền hiện tại; không thêm thông tin tài khoản giả từ video.
+- File đã đổi: frontend/web/src/components/Sidebar.tsx, frontend/web/src/App.tsx, frontend/web/src/styles.css, frontend/web/tests/app.test.mjs, frontend/README.md, logs/log-m4.md, docs/tasks/task-m4.md.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Kiểm tra: npm run test:ui đạt 38/38, thêm thao tác thu hẹp, tooltip/focus, tìm kiếm và bấm đóng/mở liên tục; kiểm tra TypeScript/build. Trình duyệt báo browser access host is unavailable khi thử kết nối lại, nên chưa xác nhận hình ảnh, FPS hoặc khớp từng pixel với video trên máy thật. Các phép kiểm thử DOM không đo chuyển động.
+- Quyết định và lý do: tách phần sidebar khỏi App để dễ đọc; chỉ dùng CSS cho chuyển động, giữ các ô kính rời đã làm ở lượt trước. Ảnh trích video chỉ dùng phân tích tạm trong cache, không đưa vào mã nguồn hoặc bản build.
+- Lỗi gặp / đang dở: cần đối chiếu trực quan hai chiều trên máy thật; không khẳng định giống 100% khi chưa có preview chạy được.
+- Việc tiếp theo: tải lại web, thử nút mũi tên cạnh logo, bấm đảo chiều giữa chừng và thử tùy chọn Giảm chuyển động.
+- Cần báo module khác: không có thay đổi giao diện API; các phần backend M1/M5 còn chờ như mục trước.
 
 ### 2026-11-05: Tách các ô kính, tinh gọn code và kiểm tra luồng M4
 - Đã làm: bỏ nền/viền/blur của workspace; thanh trên, ô nhập, cài đặt giọng và trình phát dùng cùng một công thức kính riêng, nền trắng khoảng 50% để thấy màu xanh phía sau. Giữ sóng 3D, màu slate, chế độ tương phản cao, giảm chuyển động và fallback cho trình duyệt không hỗ trợ blur.
