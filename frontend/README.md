@@ -1,9 +1,13 @@
-# Giao diện App/Web
+# Giao diện
 
-M4 chọn công nghệ phù hợp cho web hoặc app.
+Yêu cầu Node.js 20.19 trở lên.
 
-Địa chỉ API cần được cấu hình lúc build, không ghi cứng trong mã nguồn.
+```sh
+cd frontend/web
+npm install
+npm run dev
+```
 
-Trước khi bắt đầu, đọc `docs/tasks/task-m4.md` và `docs/overview/QUY-UOC-CHUNG.md`.
+`npm run build` tạo bản chạy trong `web/dist`.
 
-Chưa khởi tạo framework ở bước dựng khung repo.
+Chưa cấu hình máy chủ: nghe thử bằng giọng của thiết bị. Đặt `VITE_API_BASE_URL` lúc build để dùng API của nhóm; không đặt khóa bí mật trong frontend.

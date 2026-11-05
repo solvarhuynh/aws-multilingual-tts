@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.*
+playwright-report/
+test-results/
+references/
+*.mp4
+*.MP4
+PhanCong*.pdf
+*plan*.pdf
