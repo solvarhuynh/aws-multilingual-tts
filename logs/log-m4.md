@@ -6,13 +6,22 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-05
-- Đang làm: tối ưu Liquid Glass sau phản hồi viền nút thừa và chuyển động giật.
-- Đã xong: bỏ mép SVG trên nút màu đặc; bỏ bộ lọc khúc xạ nền toàn màn hình; panel lớn dùng kính CSS, chỉ điều hướng/nút trong suốt dùng Glisse. Build frontend thành công.
-- Việc tiếp theo: kiểm tra lại viền nút và độ mượt trên máy người dùng; chưa đo FPS thực tế.
+- Đang làm: tinh chỉnh màu giao diện theo ảnh tham chiếu trắng sữa và xanh xám của người dùng.
+- Đã xong: đổi palette, nền loang tĩnh, bề mặt card và màu điều khiển bằng CSS; giữ bố cục bản f1e64fb và các sửa hiệu năng trước đó. Build frontend thành công.
+- Việc tiếp theo: người dùng tải lại trang để đối chiếu màu với ảnh; chưa kiểm tra trực quan hoặc đo FPS trên máy người dùng.
 - Đang bị chặn bởi: (không)
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-05: Đổi palette trắng sữa và xanh slate theo ảnh tham chiếu
+- Đã làm: đổi nền nhiều màu thành trắng lạnh với một vùng xanh xám khuếch tán phía trên; giảm độ bão hòa kính, dùng viền trắng và bóng mềm; đổi màu nhấn, nút, thanh âm lượng, tiến độ và sóng âm sang xanh slate. Gom palette dùng chung vào biến CSS và thêm nền đặc dự phòng khi không hỗ trợ backdrop-filter. Chỉ sửa giao diện trong `styles.css`.
+- File đã đổi: `frontend/web/src/styles.css`, `logs/log-m4.md`, `docs/tasks/task-m4.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Quyết định và lý do: áp dụng màu và cảm giác vật liệu từ ảnh Payno người dùng gửi, giữ nguyên bố cục hiện tại sau khi người dùng hủy bản thiết kế lại Tổng quan. Dùng gradient tĩnh, không thêm thư viện, ảnh, vòng lặp hay hiệu ứng chuyển động.
+- Lỗi gặp / đang dở: chưa kiểm tra trực quan trong trình duyệt. `npm.cmd run build` và `git diff --check` thành công. Kiểm tra toán học hai cặp màu: chữ trắng trên nút #435f87 đạt 6,51:1; chữ phụ #606c7b trên nền #f1f5f8 đạt 4,88:1; chưa đánh giá toàn bộ các trạng thái kính.
+- Việc tiếp theo: tải lại trang, đối chiếu màu nền và độ rõ chữ trên máy tính/điện thoại với ảnh tham chiếu.
+- Cần báo module khác: không; không đổi API hay hạ tầng.
 
 ### 2026-11-05: Bỏ viền chồng và giảm tải chuyển động kính
 - Đã làm: xem ảnh người dùng gửi và đọc mã Glisse 0.5.0 trong node_modules. Nút màu đặc không còn dùng LiquidButton, tránh chồng mép SVG lên viền CSS. Bỏ `data-glisse-backdrop` vì chế độ này tạo vòng requestAnimationFrame để theo dõi các lớp kính và lọc nền toàn màn hình. Thay hai lớp Glass lớn ở thanh trên/trình phát bằng div kính CSS; giữ khúc xạ thật ở điều hướng và nút trong suốt. Giảm blur panel từ 20px xuống 14px, bỏ transform CSS trùng với spring của nút Glisse, bỏ dịch chuyển toàn bộ trang khi chuyển màn và làm dịu chuyển động mục điều hướng.
