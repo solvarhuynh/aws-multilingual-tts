@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEMO } from "./lib/api";
 import AudioPlayer from "./components/AudioPlayer";
+import Select from "./components/Select";
 import {
   Button,
   Brand,
@@ -190,7 +191,7 @@ export default function App() {
       <div className="preferences-content">
         <Toggle
           label="Giảm chuyển động"
-          description="Tắt hiệu ứng chuyển động."
+          description="Ngừng chuyển động của nền và sóng âm."
           checked={preferences.reducedMotion}
           onChange={(value) => setPreferences((p) => ({ ...p, reducedMotion: value }))}
         />
@@ -249,18 +250,8 @@ export default function App() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </label>
-          <select
-            aria-label="Lọc ngôn ngữ giọng đọc"
-            value={languageFilter}
-            onChange={(e) => setLanguageFilter(e.target.value)}
-          >
-            <option value="all">Tất cả ngôn ngữ</option>
-            {studio.languages.map((l) => (
-              <option key={l.lang} value={l.lang}>
-                {languageNames[l.lang] || l.lang}
-              </option>
-            ))}
-          </select>
+          <Select label="Lọc ngôn ngữ giọng đọc" value={languageFilter} onValueChange={setLanguageFilter}
+            options={[{ value: "all", label: "Tất cả ngôn ngữ" }, ...studio.languages.map((l) => ({ value: l.lang, label: languageNames[l.lang] || l.lang }))]} />
         </div>
         {studio.voiceError ? (
           <div className="inline-error" role="alert">
@@ -410,7 +401,7 @@ export default function App() {
             </div>
             <Button className="header-search" aria-label="Tìm kiếm" onClick={() => openDialog("search")}>
               <Icon name="search" size={17} />
-              <span>Tìm kiếm mọi thứ…</span>
+              <span>Tìm công cụ hoặc bản thu…</span>
             </Button>
           </header>
           <main id="main-content" key={page} className={`route-view ${isStudio ? "studio-route" : ""}`}>
@@ -689,42 +680,16 @@ export default function App() {
                   </div>
                   <div className="setting-field">
                     <label htmlFor="language">{page === "translation" ? "Ngôn ngữ gốc" : "Ngôn ngữ"}</label>
-                    <div className="select-wrap">
-                      <select
-                        id="language"
-                        value={studio.lang}
-                        disabled={studio.busy || studio.loadingVoices}
-                        onChange={(e) => studio.setLang(e.target.value)}
-                      >
-                        {studio.languages.map((l) => (
-                          <option key={l.lang} value={l.lang}>
-                            {languageNames[l.lang] || l.lang}
-                          </option>
-                        ))}
-                      </select>
-                      <Icon name="chevron" size={15} />
-                    </div>
+                    <Select id="language" label={page === "translation" ? "Ngôn ngữ gốc" : "Ngôn ngữ"}
+                      value={studio.lang} onValueChange={studio.setLang} disabled={studio.busy || studio.loadingVoices}
+                      options={studio.languages.map((l) => ({ value: l.lang, label: languageNames[l.lang] || l.lang }))} />
                   </div>
                   {page === "translation" && (
                     <div className="setting-field">
                       <label htmlFor="target-language">Dịch sang</label>
-                      <div className="select-wrap">
-                        <select
-                          id="target-language"
-                          value={target}
-                          disabled={studio.busy || studio.loadingVoices}
-                          onChange={(e) => setTarget(e.target.value)}
-                        >
-                          {studio.languages
-                            .filter((l) => l.voices.length)
-                            .map((l) => (
-                              <option key={l.lang} value={l.lang}>
-                                {languageNames[l.lang] || l.lang}
-                              </option>
-                            ))}
-                        </select>
-                        <Icon name="chevron" size={15} />
-                      </div>
+                      <Select id="target-language" label="Dịch sang" value={target} onValueChange={setTarget}
+                        disabled={studio.busy || studio.loadingVoices}
+                        options={studio.languages.filter((l) => l.voices.length).map((l) => ({ value: l.lang, label: languageNames[l.lang] || l.lang }))} />
                     </div>
                   )}
                   <div className="setting-field">
@@ -828,18 +793,8 @@ export default function App() {
                       onChange={(e) => setQuery(e.target.value)}
                     />
                   </label>
-                  <select
-                    aria-label="Lọc ngôn ngữ bản thu"
-                    value={languageFilter}
-                    onChange={(e) => setLanguageFilter(e.target.value)}
-                  >
-                    <option value="all">Tất cả ngôn ngữ</option>
-                    {Array.from(new Set(studio.history.map((i) => i.lang))).map((code) => (
-                      <option key={code} value={code}>
-                        {languageNames[code] || code}
-                      </option>
-                    ))}
-                  </select>
+                  <Select label="Lọc ngôn ngữ bản thu" value={languageFilter} onValueChange={setLanguageFilter}
+                    options={[{ value: "all", label: "Tất cả ngôn ngữ" }, ...Array.from(new Set(studio.history.map((i) => i.lang))).map((code) => ({ value: code, label: languageNames[code] || code }))]} />
                   <Button
                     className="icon-button"
                     aria-label="Làm mới lịch sử"

@@ -40,6 +40,7 @@ S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M
 - [x] Giảm tải Liquid Glass sau phản hồi: bỏ viền SVG trên nút đặc và khúc xạ nền toàn màn hình; dùng kính CSS cho panel lớn, giữ khúc xạ ở bề mặt nhỏ. Chưa đo FPS thực tế hoặc hoàn tất bước 4.11.
 - [x] Đổi palette sang trắng sữa và xanh slate theo ảnh tham chiếu, nền loang tĩnh và card viền trắng; giữ bố cục hiện tại. Build thành công ngày 2026-11-05; còn đối chiếu trực quan trên trình duyệt.
 - [x] Thay icon UI bằng Framework7 Icons 5.0.5 (MIT), thống nhất phong cách iOS, gỡ Lucide. Build và kiểm tra render 32 SVG cùng spinner thành công ngày 2026-11-05; còn kiểm tra trực quan.
+- [x] Giữ và hoàn thiện sóng 3D, chuyển động nền và độ trong hai khung chính; sửa kéo nút gạt, thay bốn native select bằng menu đồng bộ. Build và 10 kiểm thử DOM thành công ngày 2026-11-05; chưa thay thế kiểm thử trình duyệt thực tế ở bước 4.11.
 
 - Địa chỉ API đọc từ cấu hình frontend, không ghi cứng trong logic và **không chứa key bí mật**.
 - Dùng danh sách API cố định trong `docs/overview/QUY-UOC-CHUNG.md`. Khi backend chưa sẵn sàng, dùng dữ liệu giả đúng định dạng đó để làm trước.

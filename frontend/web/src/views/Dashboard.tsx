@@ -60,7 +60,7 @@ export default function Dashboard({
         <section className="featured-tool" aria-labelledby="featured-tool-title">
           <div className="featured-copy">
             <h2 id="featured-tool-title">Tạo giọng đọc</h2>
-            <p>Chuyển văn bản thành giọng nói.</p>
+            <p>Dán nội dung, chọn giọng rồi nghe lại.</p>
             <Button className="primary-button" onClick={() => navigate("studio")}>
               Tạo bản thu
               <Icon name="arrow" size={16} />
@@ -73,13 +73,13 @@ export default function Dashboard({
             {
               id: "translation" as const,
               title: "Dịch và đọc",
-              description: "Dịch và đọc đa ngôn ngữ",
+              description: "Đổi ngôn ngữ trước khi tạo giọng",
               icon: "translate",
             },
             {
               id: "documents" as const,
               title: "Đọc tài liệu",
-              description: "Đọc PDF, Word và văn bản dài",
+              description: "Nhập nội dung từ PDF, Word hoặc TXT",
               icon: "book",
             },
           ].map((tool) => (
@@ -109,7 +109,7 @@ export default function Dashboard({
             icon: "file",
           },
           {
-            title: "Ngôn ngữ",
+            title: "Ngôn ngữ hỗ trợ",
             value: formatNumber(languages.length),
             icon: "translate",
           },
@@ -156,6 +156,7 @@ export default function Dashboard({
             <div className="recent-empty">
               <Icon name="headphones" size={23} />
               <p>Chưa có bản thu</p>
+              <Button className="text-button" onClick={() => navigate("studio")}>Tạo bản thu đầu tiên<Icon name="arrow" size={14} /></Button>
             </div>
           )}
         </section>

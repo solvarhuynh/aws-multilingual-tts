@@ -2,7 +2,6 @@ import {
   Button as LiquidButton,
   Glass as LiquidGlass,
   Slider as LiquidSlider,
-  Switch,
   type ButtonProps,
   type SliderProps,
 } from "glisse";
@@ -12,9 +11,11 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useId,
   type CSSProperties,
   type ReactNode,
 } from "react";
+import PreferenceSwitch from "./PreferenceSwitch";
 import Arrow2Circlepath from "framework7-icons/react/esm/Arrow2Circlepath.js";
 import ArrowCounterclockwise from "framework7-icons/react/esm/ArrowCounterclockwise.js";
 import ArrowDownToLine from "framework7-icons/react/esm/ArrowDownToLine.js";
@@ -310,13 +311,14 @@ export function Toggle({
   checked: boolean;
   onChange: (value: boolean) => void;
 }) {
+  const descriptionId = useId();
   return (
     <div className="preference-row">
       <span>
         <strong>{label}</strong>
-        <small>{description}</small>
+        <small id={descriptionId}>{description}</small>
       </span>
-      <Switch aria-label={label} checked={checked} onCheckedChange={onChange} />
+      <PreferenceSwitch label={label} descriptionId={descriptionId} checked={checked} onChange={onChange} />
     </div>
   );
 }

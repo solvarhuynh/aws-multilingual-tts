@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
-    "preview": "vite preview --host 127.0.0.1"
+    "preview": "vite preview --host 127.0.0.1",
+    "test:ui": "node --test"
   },
   "dependencies": {
+    "@radix-ui/react-select": "2.4.1",
     "framework7-icons": "5.0.5",
     "glisse": "^0.5.0",
     "mammoth": "^1.13.0",
@@ -21,6 +23,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "happy-dom": "21.0.4",
     "typescript": "~5.7.2",
     "vite": "^6.4.1"
   },
