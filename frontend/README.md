@@ -1,5 +1,27 @@
 # Giao diện
 
+App iOS/Android nằm trong `app/`, web nằm trong `web/`. App dùng Node.js 22 LTS (22.13 trở lên) hoặc 24 LTS (24.3 trở lên).
+
+```sh
+cd frontend/app
+npm ci
+npm start
+```
+
+Quét QR bằng Camera iPhone để mở bằng Expo Go (SDK 58). Điện thoại và máy tính dùng cùng Wi-Fi. `npm run ios` chỉ dùng khi đã cài iOS Simulator.
+
+Nếu dùng nvm, chạy `nvm use` trong `app/`. Trên Mac này, nếu `node -v` vẫn là 20, dùng Node 22 đã cài bằng `export PATH="/opt/homebrew/opt/node@22/bin:$PATH"` trước khi chạy lệnh.
+
+Nếu Expo Go yêu cầu đăng nhập, chạy `npx expo login` và đăng nhập cùng tài khoản trong Expo Go.
+
+App có giao diện sáng/tối/hệ thống, thanh kính nổi hỗ trợ kéo chọn tab, tạo giọng, đọc PDF/DOCX/TXT, chọn/lưu giọng và quản lý bản thu. Khi chưa đặt `EXPO_PUBLIC_API_BASE_URL`, app nghe bằng giọng thiết bị và lưu bản thu dạng văn bản trên máy; dịch và xuất MP3 cần API của nhóm. Không đặt khóa bí mật trong biến `EXPO_PUBLIC_*`.
+
+Kính gốc dùng `expo-glass-effect` trên iOS hỗ trợ; thiết bị khác dùng kính mờ. Cử chỉ thanh tab tham khảo [expo-glass-tabs](https://github.com/davidmokos/expo-glass-tabs), có chỉnh hình học cho nút + riêng. Đây là thanh tùy biến dùng kính native, không phải toàn bộ `UITabBar` của Apple. Giấy phép đặt trong `app/licenses/`.
+
+Khung màn hình, tiêu đề, vùng cuộn và xử lý bàn phím dùng chung trong `app/src/components/layout.tsx`. Vùng an toàn được đo riêng cho từng trang/cửa sổ; lưới, thanh dưới và trình phát tự đổi theo kích thước và cỡ chữ. App hỗ trợ xoay màn hình.
+
+`npm ci` tự dựng bộ đọc PDF cục bộ qua `prepare`; không tải tài liệu lên dịch vụ khác. Trong `app/`, chạy `npm run typecheck`, `npm run lint`, `npm test`; `npx expo export --platform ios --platform android` kiểm tra đóng gói hai nền tảng. Kiểm tra bố cục bằng bản web không thay thế thử bàn phím, âm thanh và kính native trên thiết bị thật.
+
 Yêu cầu Node.js 20.19 trở lên.
 
 ```sh

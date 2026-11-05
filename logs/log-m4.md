@@ -5,14 +5,52 @@
 
 ## TRẠNG THÁI NHANH
 
-- Ngày cập nhật lần cuối: 2026-11-05
-- Đang làm: hoàn thiện bố cục ô soạn thảo M4.
-- Đã xong: đưa nút Tạo giọng đọc vào hàng đáy trong ô nhập, bỏ hàng nút và khoảng trống ngoài; trạng thái nháp cạnh bộ đếm, lỗi/tiến độ nằm cùng ô. Nút dùng submit của form, kiểm tra bấm hai lần vẫn chỉ tạo một bản thu. 9 kiểm thử ứng dụng đạt sau thay đổi.
-- Việc tiếp theo: đối chiếu trực quan và đo độ mượt trên máy thật; kiểm tra luồng AWS sau khi M1/M5 cung cấp API chạy được.
-- Đang bị chặn bởi: công cụ trình duyệt chưa kết nối; backend/submit hiện trả 501 và SAM chưa nối API nên chưa kiểm thử xuyên suốt AWS.
+- Ngày cập nhật lần cuối: 2026-11-06
+- Đang làm: xác nhận bố cục app trên thiết bị native thật và nối máy chủ của nhóm.
+- Đã xong: app SDK 58 có khung vùng an toàn riêng cho trang/modal, tiêu đề căn giữa, xử lý bàn phím chung, xoay màn hình và bố cục co theo kích thước/cỡ chữ. TypeScript/lint, 14 kiểm thử, bundle iOS/Android, Expo Doctor 20/20 và 145 kiểm tra bố cục trên 11 cấu hình trình duyệt đạt. Luồng tạo/duyệt nội dung, tài liệu, lịch sử và kéo tab đã chạy lại.
+- Việc tiếp theo: mở lại Expo Go SDK 58 trên iPhone/Android, thử bàn phím/xoay màn hình/chữ lớn/kính/âm thanh thật; đặt EXPO_PUBLIC_API_BASE_URL khi M1/M5 cung cấp API.
+- Đang bị chặn bởi: không có Xcode/iOS Simulator hoặc thiết bị kết nối; AVD Android không khởi động vì thiếu dung lượng. Kiểm tra trình duyệt và bundle không thay thế kiểm tra native. Luồng AWS thật vẫn chờ backend.
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-06: Sửa vùng an toàn và bố cục app nhiều kích thước
+- Vấn đề từ ảnh iPhone: nút đóng/cài đặt nằm cùng vùng đồng hồ; trang soạn thảo dùng modal native riêng, kích thước và khoảng chừa dưới còn cố định.
+- Đã làm: cấp SafeAreaProvider cho từng trang/cửa sổ, dùng inset đo được để đặt padding rõ ràng; root có initialWindowMetrics. Tiêu đề dùng hai cột nút bằng nhau, luôn nằm ngoài vùng cuộn. Không gán chiều cao thanh trạng thái cố định. Bản web đọc CSS safe-area vì Router 58 trả inset bằng 0 trên web.
+- Bố cục: gộp ScreenFrame/Header/PageScroll/Page/KeyboardArea, dùng chung SearchField và hook kích thước. Lề thay đổi theo chiều rộng, nội dung tablet giới hạn 960 điểm; lưới bản thu giảm số cột khi chữ lớn. Bật xoay màn hình, thanh dưới tránh cả mép trái/phải khi xoay, thu chiều cao ở cửa sổ thấp, chừa vùng cuộn theo dock và trình phát nhỏ.
+- Bàn phím: KeyboardAvoidingView dùng chung cho soạn thảo, trang tìm kiếm và cửa sổ chọn giọng. Ẩn dock khi nhập, bỏ padding đáy dư khi bàn phím mở; header/footer thu gọn ở cửa sổ thấp. Editor cuộn nội bộ, hàng ký tự/tác vụ được xuống dòng. Bỏ nút cài đặt trùng ở đầu trang; giữ nút ở hàng tạo giọng. Trình phát chia hai cột khi đủ rộng, ảnh bìa co theo chiều cao và mọi điều khiển nằm trong vùng cuộn.
+- Dọn code: bỏ wrapper Screen, tiêu đề/tìm kiếm/khoảng chừa cố định lặp ở từng trang và import/style không dùng; gom phần dùng chung trong components, hooks và lib. Không thêm e2e, tài liệu kế hoạch hoặc ảnh kiểm tra vào repo; build/cache/PDF sinh tự động tiếp tục được ignore. Không thay API, khóa lưu dữ liệu hoặc mã web/backend.
+- Kiểm tra: TypeScript, ESLint và 14/14 kiểm thử đạt; ma trận hình học gồm cỡ chữ 1–3 và inset khác nhau. Expo Doctor 20/20, npm audit --omit=dev không có lỗ hổng, bundle Hermes iOS và Android thành công.
+- Kiểm tra trình duyệt: 145 lượt trên 11 khung gồm 320×568, 390×844, 430×932, 360×800, 412×915, 568×320, 844×390, 800×360, 768×1024, 1366×1024 và 390×430. Mô phỏng inset tai thỏ/thanh hệ thống, kiểm tra trang/tab, ba chế độ soạn thảo, cửa sổ chọn, trình phát, cuộn cuối thư viện và đổi kích thước khi đang mở trang; không tràn ngang, header/footer/dock trong vùng an toàn, không có lỗi JavaScript. Kịch bản và ảnh kiểm tra đặt ngoài repo.
+- Kiểm tra chức năng: tạo hai lần chỉ lưu một bản, chọn/lưu/tìm giọng, sáng/tối, giảm chuyển động, tốc độ đọc, lưu nháp/lịch sử qua reload; nhập TXT/DOCX/PDF và lỗi PDF hỏng; kéo tab chỉ chuyển khi thả. API mô phỏng kiểm tra một lần, chờ duyệt rồi mới synthesize một lần, polling và xóa lịch sử đều đạt. Không gọi AWS tính phí.
+- Giới hạn: chưa chạy giao diện bằng Expo Go trên thiết bị iOS/Android thật; không có iOS Simulator, AVD Pixel_9a không boot vì thiếu dung lượng. Chưa xác nhận bàn phím native, Dynamic Type thực, khúc xạ kính hoặc FPS; không khẳng định không còn mọi lỗi hiển thị trên mọi thiết bị.
+- File đã đổi: frontend/app/{app.json,src/app/,src/components/,src/hooks/,src/lib/layout.ts,tests/layout.test.ts}, frontend/README.md, docs/tasks/task-m4.md, logs/log-m4.md.
+- Tài nguyên AWS đã tạo/sửa: không.
+- Việc tiếp theo: kiểm tra các phần native trên máy thật; nối API thật khi có địa chỉ từ M1/M5. Commit theo đúng tên người dùng yêu cầu: sẵn sàng với giao diện app native ios; đẩy cả nhánh m4-nguyenkhang.
+- Cần báo module khác: không có thay đổi hợp đồng chung.
+
+### 2026-11-06: Khớp Expo SDK 58 với Expo Go trên iPhone
+- Nguyên nhân: ảnh thiết bị báo Expo Go chỉ hỗ trợ SDK 58, dự án đang dùng SDK 57.
+- Đã làm: nâng Expo, React 19.3, React Native 0.88.1 và các thư viện theo danh sách tương thích SDK 58; dựng lại package-lock, thêm .nvmrc 22 và sửa hướng dẫn chạy. Dùng Node 22 đã có trong /opt/homebrew/opt/node@22/bin, không thay liên kết Node mặc định của máy.
+- Tương thích: chuyển thanh tab sang emitter/navigateToTab của Expo Router 58; bỏ ref TextInput không sử dụng; khai báo generic unknown cho WebView 14 để tránh giao props với undefined thành never. Không đổi giao diện, khóa lưu trữ hoặc hợp đồng API.
+- Kiểm tra: TypeScript/lint và 12/12 kiểm thử đạt; Expo Doctor 20/20; đóng gói iOS thành công. Chrome kiểm tra điều hướng, kéo chọn, sáng/tối, giọng yêu thích, tốc độ, tạo giọng không trùng, lịch sử/lưu qua reload và nhập TXT/DOCX/PDF/lỗi PDF hỏng đều đạt, không có lỗi JavaScript. Máy chủ đã khởi động lại ở cổng 8081 và manifest iOS trả sdkVersion 58.0.0.
+- File đã đổi: frontend/app/{package.json,package-lock.json,.nvmrc,src/app/compose.tsx,src/components/{PdfReader.tsx,TabBar.tsx}}, frontend/README.md, logs/log-m4.md, docs/tasks/task-m4.md.
+- Tài nguyên AWS đã tạo/sửa: không.
+- Đang dở / việc tiếp theo: người dùng bấm Go home trong Expo Go rồi mở lại dự án; còn cần xác nhận kính và âm thanh trên iPhone thật. Node mặc định đang là 20, lần tự chạy sau cần nvm use hoặc thêm Node 22 vào PATH theo README.
+- Cần báo module khác: không.
+
+### 2026-11-05: App Expo tiếng Việt và thanh kính theo ảnh tham chiếu
+- Đã làm: tạo frontend/app riêng, không thay đổi mã web. Bốn tab Trang chủ/Giọng đọc/Công cụ/Bản thu và nút + mở trang soạn thảo; có trang trình phát, cài đặt và hướng dẫn. Dùng logo hiện có HCMUTE | AWS, bỏ khung trắng AWS; chế độ tối đổi màu phần chữ bằng lớp tint, giữ mũi tên cam và ảnh gốc.
+- Thiết kế: kính gốc UIGlassEffect qua expo-glass-effect khi hệ điều hành hỗ trợ; BlurView dự phòng. Cử chỉ kéo tham khảo expo-glass-tabs (MIT), đã giữ giấy phép. Đo chiều rộng thật của cụm bốn tab, thanh chọn chạy trên luồng giao diện, đổi màu icon theo vị trí tay, chỉ chuyển trang khi thả. Nút + là hình tròn riêng, có phản hồi chạm và giảm chuyển động. Đây là thanh tùy biến dùng kính native, không khẳng định là UITabBar hoặc khớp hoàn toàn iOS 27.
+- Chức năng: lưu nháp/cài đặt/giọng yêu thích/bản thu cục bộ; nghe bằng expo-speech khi chưa có máy chủ. API giữ hợp đồng chung; kiểm tra lỗi đánh máy một lần, chờ chọn bản gốc/bản sửa, khóa gửi trùng, theo dõi job định kỳ. MP3 dùng expo-audio, tua/lặp/chuyển bản thu và bảng chia sẻ iOS. Không giả kết quả dịch hoặc MP3 trong chế độ nghe trên máy.
+- Tài liệu: chọn PDF/DOCX/TXT tối đa 10 MB, nội dung 20.000 ký tự. TXT/DOCX xử lý cục bộ; PDF.js chạy trong WebView, không tải tệp lên dịch vụ ngoài. npm ci tự dựng tài nguyên PDF từ mã nguồn; đầu ra sinh tự động và bộ nhớ đệm được ignore. Xóa màn hình/ảnh mẫu Expo và tệp khởi động không dùng.
+- Nội dung: bỏ slogan, ô số liệu trang trí, mô tả trùng chức năng và câu quảng bá. Dùng nhãn tiếng Việt ngắn; giữ lỗi, giới hạn tệp và trạng thái cần thiết. Mẫu văn bản dùng thông báo học tập, bài học về luồng Polly/S3 và giới thiệu Nhóm 5.
+- File đã đổi: frontend/app/, frontend/README.md, logs/log-m4.md, docs/tasks/task-m4.md.
+- Kiểm tra: npm ci sạch, npm run typecheck, npm run lint, npm test (12/12), npx expo export --platform ios và expo-doctor (21/21) đạt; npm audit không báo lỗ hổng. Chrome bản web: điều hướng, tìm/lưu giọng, sáng/tối, tốc độ, tạo hai lần chỉ lưu một bản, phát/lịch sử/tìm kiếm/lưu qua reload, nhập TXT/DOCX/PDF thật và báo lỗi PDF hỏng. Kéo tab chỉ chuyển trang khi thả; không tràn ngang ở 320/375/390/430/768 px. API mô phỏng kiểm tra một lần, chỉ synthesize sau khi chọn, gửi nội dung đã chọn một lần, polling và xóa lịch sử đạt. Kịch bản trình duyệt/ảnh thử nằm ngoài repo.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không; không gọi dịch vụ tính phí.
+- Lỗi gặp / đang dở: chưa kiểm tra trực tiếp Expo Go trên iPhone. Giọng/âm lượng, khúc xạ kính gốc, bàn phím và độ mượt cần kiểm tra trên máy thật; chưa đánh dấu hoàn tất 4.11/4.12.
+- Việc tiếp theo: chạy npm start trong frontend/app và quét QR bằng Expo Go tương thích SDK 57; kiểm tra các phần trên rồi nối API thật.
+- Cần báo module khác: không đổi hợp đồng API; cần địa chỉ API hoạt động từ M1/M5 để kiểm tra AWS xuyên suốt.
 
 ### 2026-11-05: Gộp nút tạo giọng vào ô soạn thảo
 - Đã làm: chuyển nút Tạo giọng đọc/Dịch và tạo giọng đọc vào hàng editor-status bên trong composer, cạnh bộ đếm/thời lượng/xóa văn bản. Xóa generate-row và hàng footer bên ngoài vốn giữ margin/min-height gây khoảng trống dưới ô nhập.
