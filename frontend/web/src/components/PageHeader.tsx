@@ -1,18 +1,10 @@
-import { useEffect, useState } from "react";
 import { Button, Icon } from "./ui";
 
-export default function PageHeader({ title, onMenu, onSearch, onExport }: {
-  title: string;
+export default function PageHeader({ onMenu, onSearch, onExport }: {
   onMenu: () => void;
   onSearch: () => void;
   onExport: () => void;
 }) {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
   return <header className="page-header">
     <div className="page-heading">
       <Button className="icon-button mobile-menu" aria-label="Mở menu điều hướng" onClick={onMenu}>
@@ -21,14 +13,10 @@ export default function PageHeader({ title, onMenu, onSearch, onExport }: {
       <img className="header-logo" src="/brand/hcmute.png" alt="HCMUTE" />
       <div className="header-copy">
         <p className="header-greeting"><span>Hey,</span> <strong>ShipCODE</strong></p>
-        <h1>{title}</h1>
+        <p className="header-subtitle">Quản lý nội dung và bản thu của bạn.</p>
       </div>
     </div>
     <div className="header-actions">
-      <time className="header-date" dateTime={now.toISOString()}>
-        <small>Hôm nay</small>
-        {now.toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })}
-      </time>
       <Button className="header-search" aria-label="Tìm kiếm" aria-keyshortcuts="Control+K Meta+K" onClick={onSearch}>
         <span>Tìm công cụ hoặc bản thu…</span>
         <kbd>{/Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘ K" : "Ctrl K"}</kbd>

@@ -6,13 +6,22 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-05
-- Đang làm: hoàn thiện giao diện M4 theo ảnh header và phản hồi về chuyển động.
-- Đã xong: header chào ShipCODE, HCMUTE cạnh lời chào và tên trang bên dưới; AWS ở sidebar, tìm kiếm trên header, xuất báo cáo CSV. Dashboard căn chung lưới; sidebar dùng FLIP/Web Animations thay reflow mỗi frame, bỏ SVG viền/blur chữ. 47 kiểm thử mô phỏng đạt; không thêm dependency.
+- Đang làm: hoàn thiện giao diện M4 theo ảnh header không có khung bao.
+- Đã xong: bỏ toàn bộ nền, viền, blur và bóng của header; HCMUTE cạnh lời chào ShipCODE. Tên trang tách thành hàng H1 riêng bên dưới, 28px desktop/24px mobile. Giữ AWS ở sidebar, tìm kiếm và xuất CSV. Kiểm thử ứng dụng 8/8 đạt sau thay đổi.
 - Việc tiếp theo: đối chiếu trực quan và đo độ mượt trên máy thật; kiểm tra luồng AWS sau khi M1/M5 cung cấp API chạy được.
 - Đang bị chặn bởi: công cụ trình duyệt chưa kết nối; backend/submit hiện trả 501 và SAM chưa nối API nên chưa kiểm thử xuyên suốt AWS.
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-05: Bỏ khung header, tách tiêu đề trang thành hàng lớn
+- Đã làm: header đứng trực tiếp trên nền ứng dụng; bỏ gradient, border, bo góc, backdrop-filter và box-shadow ở rule riêng lẫn selector dùng chung. Gỡ header khỏi cả quy tắc tương phản cao và fallback để khung không xuất hiện lại ở chế độ khác.
+- Thứ bậc: giữ HCMUTE và lời chào gọn như ảnh, dòng mô tả ngắn bên dưới lời chào. Tên mục như Tổng quan được đưa ra khỏi header thành H1 riêng ngay trên nội dung, 28px desktop/24px mobile, căn theo mép lưới nội dung. Xóa ngày/timer và CSS tiêu đề nhỏ không còn dùng.
+- File đã đổi: frontend/web/src/{App.tsx,components/PageHeader.tsx,styles.css}, frontend/web/tests/app.test.mjs, frontend/README.md, logs/log-m4.md, docs/tasks/task-m4.md.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không; không đổi API hoặc dữ liệu.
+- Kiểm tra: 8/8 kiểm thử ứng dụng đạt, gồm tám màn hình, vị trí H1 riêng, branding, tìm kiếm, xuất CSV và sidebar. Chạy npm run build và git diff --check trước commit; chưa kiểm tra ảnh thực qua trình duyệt vì browser access host chưa kết nối ở lượt trước.
+- Việc tiếp theo: đối chiếu header không khung và tiêu đề lớn trên trình duyệt thật; các phần AWS còn chờ như nhật ký trước.
+- Cần báo module khác: không.
 
 ### 2026-11-05: Header ShipCODE, lưới Tổng quan và tối ưu chuyển động sidebar
 - Đã làm: header theo ảnh mới, HCMUTE đứng cạnh “Hey, ShipCODE”, tên trang như Tổng quan nằm bên dưới. Sidebar và drawer chỉ giữ AWS. Đưa tìm kiếm lên header, vẫn dùng Ctrl/⌘ K; bố cục và nhãn tự thu gọn trên màn hình nhỏ.

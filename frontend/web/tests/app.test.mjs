@@ -34,8 +34,10 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       const header = env.mount.querySelector('.page-header');
       assert.match(header.querySelector('.header-greeting').textContent, /Hey, ShipCODE/);
       assert.equal(header.querySelector('.header-greeting strong').textContent, "ShipCODE");
-      assert.ok(Number.isFinite(Date.parse(header.querySelector('time').dateTime)));
-      assert.equal(header.querySelector('.header-greeting').nextElementSibling.tagName, "H1");
+      assert.equal(header.querySelector('h1'), null);
+      assert.equal(header.nextElementSibling.tagName, "H1");
+      assert.ok(header.nextElementSibling.classList.contains('page-title'));
+      assert.equal(header.nextElementSibling.textContent, "Hướng dẫn sử dụng");
       assert.ok(header.querySelector('img[alt="HCMUTE"]'));
       assert.equal(env.mount.querySelector('.sidebar img[alt="HCMUTE"]'), null);
       assert.ok(env.mount.querySelector('.sidebar img[alt="AWS"]'));

@@ -372,8 +372,9 @@ export default function App() {
           onToggle={sidebarMotion.toggleWithMotion}
           onNavigate={navigate} />
         <div className="workspace">
-          <PageHeader title={title} onMenu={() => openDialog("menu")}
+          <PageHeader onMenu={() => openDialog("menu")}
             onSearch={() => openDialog("search")} onExport={exportReport} />
+          <h1 className="page-title">{title}</h1>
           <main id="main-content" key={page} className={`route-view ${isStudio ? "studio-route" : ""}`}>
             {page === "dashboard" && (
               <Dashboard

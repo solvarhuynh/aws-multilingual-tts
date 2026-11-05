@@ -20,7 +20,7 @@ Liquid Glass dùng [Glisse](https://github.com/0kzh/glisse) (MIT) cho thanh trư
 
 Sidebar thu thành thanh icon 72px. `hooks/useSidebarMotion.ts` đổi bố cục một lần rồi nối vị trí bằng Web Animations API; nền kính co giãn, nhóm icon giữ tỉ lệ. Có hủy chuyển động cũ khi bấm đảo chiều, resize hoặc bật giảm chuyển động. Thời gian chỉnh bằng `--sidebar-duration` và `--sidebar-ease`; không thêm thư viện chuyển động.
 
-`components/PageHeader.tsx` đặt HCMUTE cạnh lời chào ShipCODE, tên trang bên dưới; sidebar giữ logo AWS. Tìm kiếm dùng nút trên header hoặc Ctrl/⌘ K. Nút Xuất báo cáo tải các bản thu đã tải trong lịch sử ra CSV UTF-8, không chứa link nghe tạm thời; tải thêm lịch sử trước khi xuất nếu cần đủ các bản thu. Tổng quan dùng chung lưới ba cột, chuyển sang hai/một cột trên màn hình nhỏ.
+`components/PageHeader.tsx` đặt HCMUTE cạnh lời chào ShipCODE, không có khung/nền kính bao ngoài. Tên trang là H1 riêng ngay bên dưới (28px desktop, 24px mobile); sidebar giữ logo AWS. Tìm kiếm dùng nút trên header hoặc Ctrl/⌘ K. Nút Xuất báo cáo tải các bản thu đã tải trong lịch sử ra CSV UTF-8, không chứa link nghe tạm thời; tải thêm lịch sử trước khi xuất nếu cần đủ các bản thu. Tổng quan dùng chung lưới ba cột, chuyển sang hai/một cột trên màn hình nhỏ.
 
 Menu chọn dùng [Radix Select](https://www.radix-ui.com/primitives/docs/components/select), cùng một component cho bốn ô ngôn ngữ/bộ lọc. Nút gạt cài đặt dùng một núm CSS giới hạn trong track, không dùng lớp phóng đại SVG. Nền và sóng 3D có chuyển động nhẹ; bật “Giảm chuyển động” sẽ dừng cả hai.
 
