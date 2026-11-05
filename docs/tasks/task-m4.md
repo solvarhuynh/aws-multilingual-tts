@@ -39,6 +39,7 @@ S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M
 - [x] Mở rộng Liquid Glass bằng Glisse MIT sẵn có cho điều hướng, thanh trên, trình phát và nút bấm; dùng chung nền tĩnh và CSS. Build thành công ngày 2026-11-05; còn kiểm tra trực quan trên máy tính/điện thoại, chưa hoàn tất bước 4.11.
 - [x] Giảm tải Liquid Glass sau phản hồi: bỏ viền SVG trên nút đặc và khúc xạ nền toàn màn hình; dùng kính CSS cho panel lớn, giữ khúc xạ ở bề mặt nhỏ. Chưa đo FPS thực tế hoặc hoàn tất bước 4.11.
 - [x] Đổi palette sang trắng sữa và xanh slate theo ảnh tham chiếu, nền loang tĩnh và card viền trắng; giữ bố cục hiện tại. Build thành công ngày 2026-11-05; còn đối chiếu trực quan trên trình duyệt.
+- [x] Thay icon UI bằng Framework7 Icons 5.0.5 (MIT), thống nhất phong cách iOS, gỡ Lucide. Build và kiểm tra render 32 SVG cùng spinner thành công ngày 2026-11-05; còn kiểm tra trực quan.
 
 - Địa chỉ API đọc từ cấu hình frontend, không ghi cứng trong logic và **không chứa key bí mật**.
 - Dùng danh sách API cố định trong `docs/overview/QUY-UOC-CHUNG.md`. Khi backend chưa sẵn sàng, dùng dữ liệu giả đúng định dạng đó để làm trước.

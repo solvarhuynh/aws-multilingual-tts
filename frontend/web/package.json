@@ -9,8 +9,8 @@
     "preview": "vite preview --host 127.0.0.1"
   },
   "dependencies": {
+    "framework7-icons": "5.0.5",
     "glisse": "^0.5.0",
-    "lucide-react": "^0.468.0",
     "mammoth": "^1.13.0",
     "pdfjs-dist": "5.5.207",
     "react": "^19.0.0",

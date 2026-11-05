@@ -6,13 +6,22 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-05
-- Đang làm: tinh chỉnh màu giao diện theo ảnh tham chiếu trắng sữa và xanh xám của người dùng.
-- Đã xong: đổi palette, nền loang tĩnh, bề mặt card và màu điều khiển bằng CSS; giữ bố cục bản f1e64fb và các sửa hiệu năng trước đó. Build frontend thành công.
-- Việc tiếp theo: người dùng tải lại trang để đối chiếu màu với ảnh; chưa kiểm tra trực quan hoặc đo FPS trên máy người dùng.
+- Đang làm: đồng bộ icon theo phong cách hệ thống Apple.
+- Đã xong: thay Lucide bằng Framework7 Icons 5.0.5 (MIT) qua component Icon chung, gồm cả spinner; giữ palette trắng sữa/xanh slate. Build và kiểm tra render SVG thành công.
+- Việc tiếp theo: người dùng tải lại trang để xem icon mới trên các màn hình; chưa kiểm tra trực quan trên trình duyệt.
 - Đang bị chặn bởi: (không)
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-05: Đồng bộ icon phong cách iOS bằng Framework7 Icons
+- Đã làm: tìm trên GitHub và web, đối chiếu SF Symbols và Framework7 Icons. Chọn https://github.com/framework7io/framework7-icons (MIT), không dùng bộ SF Symbols chính thức của Apple. Thay toàn bộ 32 ánh xạ icon dùng chung và spinner bằng SVG cùng bộ; biểu tượng Dịch và đọc dùng TextBubbleFill thay hai mũi tên. Sidebar, công cụ, trình phát, tìm kiếm, cài đặt và thông báo tự dùng bộ mới qua component Icon.
+- File đã đổi: `frontend/web/src/components/ui.tsx`, `frontend/web/src/framework7-icons.d.ts`, `frontend/web/src/styles.css`, `frontend/web/package.json`, `frontend/web/package-lock.json`, `frontend/web/public/licenses/framework7-icons.txt`, `frontend/README.md`, `logs/log-m4.md`, `docs/tasks/task-m4.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Quyết định và lý do: Framework7 là bộ iOS được phép dùng trên web theo MIT, phù hợp hướng hình ảnh Apple. Import trực tiếp từng SVG React để không tải cả bộ hoặc font/CDN; gỡ dependency Lucide cũ. Thêm khai báo kiểu TypeScript ngắn vì package chưa cung cấp kiểu; giữ giấy phép trong public/licenses để bản build cũng có thông báo bản quyền.
+- Lỗi gặp / đang dở: build lần đầu phát hiện prop size của Lucide không phù hợp SVG mới, đã đổi thành width/height. Build cuối thành công; kiểm tra render server cho 32 SVG và spinner đạt, đúng kích thước và aria-hidden; `git diff --check` đạt. Chưa kiểm tra trực quan trên trình duyệt.
+- Việc tiếp theo: tải lại trang, kiểm tra icon Dịch và đọc, sidebar và các nút trình phát trên máy tính/điện thoại.
+- Cần báo module khác: không; không đổi API hay hạ tầng.
 
 ### 2026-11-05: Đổi palette trắng sữa và xanh slate theo ảnh tham chiếu
 - Đã làm: đổi nền nhiều màu thành trắng lạnh với một vùng xanh xám khuếch tán phía trên; giảm độ bão hòa kính, dùng viền trắng và bóng mềm; đổi màu nhấn, nút, thanh âm lượng, tiến độ và sóng âm sang xanh slate. Gom palette dùng chung vào biến CSS và thêm nền đặc dự phòng khi không hỗ trợ backdrop-filter. Chỉ sửa giao diện trong `styles.css`.

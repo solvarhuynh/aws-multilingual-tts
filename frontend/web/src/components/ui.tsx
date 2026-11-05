@@ -15,74 +15,73 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import {
-  AudioLines,
-  ArrowLeftRight,
-  BookOpen,
-  LayoutDashboard,
-  ArrowRight,
-  Check,
-  ChevronDown,
-  CircleHelp,
-  Clock3,
-  Download,
-  FileText,
-  Headphones,
-  Layers3,
-  LoaderCircle,
-  Menu,
-  Mic2,
-  Pause,
-  Play,
-  Plus,
-  RotateCcw,
-  SkipBack,
-  SkipForward,
-  Repeat2,
-  ListMusic,
-  Search,
-  Settings2,
-  Trash2,
-  TriangleAlert,
-  Upload,
-  Volume2,
-  VolumeX,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import Arrow2Circlepath from "framework7-icons/react/esm/Arrow2Circlepath.js";
+import ArrowCounterclockwise from "framework7-icons/react/esm/ArrowCounterclockwise.js";
+import ArrowDownToLine from "framework7-icons/react/esm/ArrowDownToLine.js";
+import ArrowRight from "framework7-icons/react/esm/ArrowRight.js";
+import BackwardEndFill from "framework7-icons/react/esm/BackwardEndFill.js";
+import BookFill from "framework7-icons/react/esm/BookFill.js";
+import Checkmark from "framework7-icons/react/esm/Checkmark.js";
+import ChevronDown from "framework7-icons/react/esm/ChevronDown.js";
+import Clock from "framework7-icons/react/esm/Clock.js";
+import DocText from "framework7-icons/react/esm/DocText.js";
+import ExclamationmarkTriangleFill from "framework7-icons/react/esm/ExclamationmarkTriangleFill.js";
+import ForwardEndFill from "framework7-icons/react/esm/ForwardEndFill.js";
+import GearAltFill from "framework7-icons/react/esm/GearAltFill.js";
+import Headphones from "framework7-icons/react/esm/Headphones.js";
+import LayersAltFill from "framework7-icons/react/esm/LayersAltFill.js";
+import LineHorizontal3 from "framework7-icons/react/esm/LineHorizontal3.js";
+import MicFill from "framework7-icons/react/esm/MicFill.js";
+import MusicNoteList from "framework7-icons/react/esm/MusicNoteList.js";
+import PauseFill from "framework7-icons/react/esm/PauseFill.js";
+import PlayFill from "framework7-icons/react/esm/PlayFill.js";
+import Plus from "framework7-icons/react/esm/Plus.js";
+import QuestionCircle from "framework7-icons/react/esm/QuestionCircle.js";
+import Repeat from "framework7-icons/react/esm/Repeat.js";
+import Search from "framework7-icons/react/esm/Search.js";
+import Speaker2Fill from "framework7-icons/react/esm/Speaker2Fill.js";
+import SpeakerSlashFill from "framework7-icons/react/esm/SpeakerSlashFill.js";
+import SquareArrowUp from "framework7-icons/react/esm/SquareArrowUp.js";
+import SquareGrid2x2Fill from "framework7-icons/react/esm/SquareGrid2x2Fill.js";
+import TextBubbleFill from "framework7-icons/react/esm/TextBubbleFill.js";
+import Trash from "framework7-icons/react/esm/Trash.js";
+import Waveform from "framework7-icons/react/esm/Waveform.js";
+import Xmark from "framework7-icons/react/esm/Xmark.js";
 
-const icons: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard,
-  translate: ArrowLeftRight,
-  book: BookOpen,
-  wave: AudioLines,
+// Dùng chung một bộ biểu tượng iOS; chỉ import các SVG đang sử dụng.
+const icons: Record<string, typeof Waveform> = {
+  dashboard: SquareGrid2x2Fill,
+  translate: TextBubbleFill,
+  book: BookFill,
+  wave: Waveform,
   arrow: ArrowRight,
-  check: Check,
+  check: Checkmark,
   chevron: ChevronDown,
-  help: CircleHelp,
-  clock: Clock3,
-  download: Download,
-  file: FileText,
+  help: QuestionCircle,
+  clock: Clock,
+  download: ArrowDownToLine,
+  file: DocText,
   headphones: Headphones,
-  layers: Layers3,
-  menu: Menu,
-  mic: Mic2,
-  pause: Pause,
-  play: Play,
+  layers: LayersAltFill,
+  menu: LineHorizontal3,
+  mic: MicFill,
+  pause: PauseFill,
+  play: PlayFill,
   plus: Plus,
-  reset: RotateCcw,
-  previous: SkipBack,
-  next: SkipForward,
-  repeat: Repeat2,
-  queue: ListMusic,
+  reset: ArrowCounterclockwise,
+  previous: BackwardEndFill,
+  next: ForwardEndFill,
+  repeat: Repeat,
+  queue: MusicNoteList,
   search: Search,
-  settings: Settings2,
-  trash: Trash2,
-  alert: TriangleAlert,
-  upload: Upload,
-  volume: Volume2,
-  muted: VolumeX,
-  close: X,
+  settings: GearAltFill,
+  trash: Trash,
+  alert: ExclamationmarkTriangleFill,
+  upload: SquareArrowUp,
+  volume: Speaker2Fill,
+  muted: SpeakerSlashFill,
+  close: Xmark,
+  loading: Arrow2Circlepath,
 };
 const StableLiquidButton = memo(LiquidButton);
 export const Glass = memo(LiquidGlass);
@@ -166,11 +165,12 @@ export function Icon({
   size?: number;
   className?: string;
 }) {
-  const Component = icons[name] || AudioLines;
+  const Component = icons[name] || Waveform;
   return (
     <Component
-      size={size}
-      strokeWidth={1.7}
+      width={size}
+      height={size}
+      focusable="false"
       style={{ width: size, height: size }}
       className={className}
       aria-hidden="true"
@@ -178,7 +178,7 @@ export function Icon({
   );
 }
 export function Spinner() {
-  return <LoaderCircle size={17} className="spinner" aria-hidden="true" />;
+  return <Icon name="loading" size={17} className="spinner" />;
 }
 export function Brand() {
   return (
