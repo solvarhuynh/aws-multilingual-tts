@@ -1,5 +1,5 @@
-import { demoLanguages, readStored, storeValue } from "./data";
-import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, Stats } from "./types";
+import { demoLanguages, MAX_CHARS, readStored, storeValue } from "./data";
+import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, Stats, TextCorrection } from "./types";
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
 export const DEMO = !API_BASE;
@@ -70,9 +70,9 @@ function checkedJob(value: unknown): Job {
   return value;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeout = 30000): Promise<T> {
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), 30000);
+  const timer = window.setTimeout(() => controller.abort(), timeout);
   try {
     const response = await fetch(`${API_BASE}${path}`, {
       ...init,
@@ -89,6 +89,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       throw new ApiError("Máy chủ trả về dữ liệu không hợp lệ. Vui lòng thử lại.", "INVALID_RESPONSE");
     }
     if (!response.ok) {
+      if (response.status === 501) throw new ApiError("Máy chủ chưa hỗ trợ chức năng này. Vui lòng thử lại sau.", "NOT_IMPLEMENTED");
       const error = (body as { error?: { message?: string; code?: string } })?.error;
       throw new ApiError(error?.message || `Không thể hoàn tất yêu cầu (${response.status}).`, error?.code);
     }
@@ -103,12 +104,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-export function getDemoHistory(): HistoryItem[] {
+function getDemoHistory(): HistoryItem[] {
   const value = readStored<unknown>(HISTORY_KEY, []);
   if (!Array.isArray(value)) return [];
   return value.filter(isHistoryItem);
 }
 export const api = {
+  async correct(text: string, lang: string): Promise<TextCorrection> {
+    if (DEMO) return { status: "skipped", language: lang, hasTypos: false, originalText: text, correctedText: text, changes: [] };
+    const result = await request<TextCorrection>("/text/correct", {
+      method: "POST", body: JSON.stringify({ text, lang }),
+    }, 12000);
+    if (!result || !["checked", "skipped"].includes(result.status) || typeof result.language !== "string" || result.originalText !== text ||
+      typeof result.hasTypos !== "boolean" || typeof result.correctedText !== "string" ||
+      !result.correctedText.trim() || result.correctedText.length > MAX_CHARS || !Array.isArray(result.changes) ||
+      !result.changes.every((change) => typeof change?.from === "string" && typeof change.to === "string" &&
+        Number.isInteger(change.start) && Number.isInteger(change.end) && change.start >= 0 &&
+        change.end > change.start && change.end <= result.correctedText.length))
+      throw new ApiError("Chưa kiểm tra được nội dung.", "INVALID_RESPONSE");
+    return result;
+  },
   async stats(): Promise<Stats> {
     if (DEMO) {
       const items = getDemoHistory();

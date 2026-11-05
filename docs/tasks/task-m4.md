@@ -35,6 +35,10 @@ S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M
 
 ## Ghi chú kỹ thuật riêng
 
+- [x] Tách workspace thành các ô kính rời (thanh trên, soạn thảo, cài đặt giọng, trình phát), tăng độ trong và dùng chung token CSS; giữ sóng 3D và tùy chọn trợ năng. Build thành công ngày 2026-11-05; chưa xác nhận hình ảnh/FPS trên trình duyệt thật.
+- [x] Tinh gọn bộ bọc nút bấm, bỏ lớp kính/CSS trùng và gom thiết lập kiểm thử; build không sinh tsconfig.tsbuildinfo. Giữ các font/logo/giấy phép và mã đang được dùng.
+- [x] Hoàn thiện frontend cho bước 4.3–4.5: kiểm tra lỗi đánh máy một lần, duyệt bản gốc/bản sửa, giữ bản gốc khi API lỗi, chống gửi trùng và hủy đề xuất cũ. Đã kiểm thử bằng API mô phỏng; còn chờ API thật của M1/M5.
+- [x] Sửa phát từ danh sách, khôi phục âm lượng khi bật tiếng, Escape khi modal bận, trạng thái tải/lỗi và phản hồi đến chậm. 37/37 kiểm thử DOM/dữ liệu đạt ngày 2026-11-05; chưa đánh dấu xong bước 4.11.
 - [x] Đặt tên “TTS Studio” trên giao diện, menu điện thoại, tiêu đề tab và mô tả trang theo lựa chọn của người dùng. Đã build thành công ngày 2026-11-05; chưa đánh dấu hoàn tất toàn bộ bước 4.1.
 - [x] Mở rộng Liquid Glass bằng Glisse MIT sẵn có cho điều hướng, thanh trên, trình phát và nút bấm; dùng chung nền tĩnh và CSS. Build thành công ngày 2026-11-05; còn kiểm tra trực quan trên máy tính/điện thoại, chưa hoàn tất bước 4.11.
 - [x] Giảm tải Liquid Glass sau phản hồi: bỏ viền SVG trên nút đặc và khúc xạ nền toàn màn hình; dùng kính CSS cho panel lớn, giữ khúc xạ ở bề mặt nhỏ. Chưa đo FPS thực tế hoặc hoàn tất bước 4.11.

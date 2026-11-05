@@ -1,20 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import React, { act, useState } from "react";
-import { createRoot } from "react-dom/client";
-import { Window } from "happy-dom";
-import { createServer } from "vite";
+import { environment, settle } from "./environment.mjs";
 
 test("Nút gạt: kéo, hủy và bàn phím", async (suite) => {
-  const win = new Window({ url: "http://localhost" });
-  for (const key of ["window", "document", "HTMLElement", "Node", "Event", "MouseEvent", "PointerEvent"])
-    Object.defineProperty(globalThis, key, { value: key === "window" ? win : win[key], configurable: true });
-  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  const server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom", logLevel: "silent" });
-  const { default: Switch } = await server.ssrLoadModule("/src/components/PreferenceSwitch.tsx");
-  const mount = document.createElement("div");
-  document.body.append(mount);
-  const root = createRoot(mount);
+  const env = await environment();
+  const { win, mount, root } = env;
+  const { default: Switch } = await env.load("components/PreferenceSwitch.tsx");
   let changes = [];
   function Harness() {
     const [checked, setChecked] = useState(false);
@@ -82,7 +74,61 @@ test("Nút gạt: kéo, hủy và bàn phím", async (suite) => {
     });
   } finally {
     await act(() => root.unmount());
-    await server.close();
-    await win.happyDOM.close();
+    await env.close();
+  }
+});
+
+test("Dropdown: bàn phím, trạng thái và lớp dialog", async (suite) => {
+  const env = await environment();
+  const { win, root, mount } = env;
+  const { default: Select } = await env.load("components/Select.tsx");
+  const dialog = document.createElement("dialog");
+  document.body.append(dialog);
+  dialog.append(mount);
+  dialog.showModal();
+  let disabled = false;
+  function Harness() {
+    const [value, setValue] = useState("vi-VN");
+    return React.createElement(Select, { label: "Ngôn ngữ", value, onValueChange: setValue, disabled,
+      options: [{ value: "vi-VN", label: "Tiếng Việt" }, { value: "en-US", label: "Tiếng Anh" }] });
+  }
+  async function key(element, value) {
+    await act(async () => {
+      element.dispatchEvent(new win.KeyboardEvent("keydown", { bubbles: true, cancelable: true, key: value }));
+      await settle();
+    });
+  }
+  try {
+    await act(async () => { root.render(React.createElement(Harness)); await settle(); });
+    await suite.test("mở bằng bàn phím, menu ở cùng lớp với dialog", async () => {
+      const trigger = dialog.querySelector('[role="combobox"]');
+      assert.match(trigger.textContent, /Tiếng Việt/);
+      await key(trigger, "ArrowDown");
+      const list = document.querySelector('[role="listbox"]');
+      assert.ok(list);
+      assert.equal(list.closest("dialog"), dialog);
+      assert.equal(list.querySelectorAll('[role="option"]').length, 2);
+    });
+    await suite.test("phím mũi tên và Enter chọn giá trị, đóng menu", async () => {
+      await key(document.activeElement, "End");
+      assert.match(document.activeElement.textContent, /Tiếng Anh/);
+      await key(document.activeElement, "Enter");
+      assert.match(dialog.querySelector('[role="combobox"]').textContent, /Tiếng Anh/);
+      assert.equal(document.querySelector('[role="listbox"]'), null);
+    });
+    await suite.test("Escape đóng và giữ lựa chọn", async () => {
+      await key(dialog.querySelector('[role="combobox"]'), "ArrowDown");
+      await key(document.activeElement, "Escape");
+      assert.equal(document.querySelector('[role="listbox"]'), null);
+      assert.match(dialog.querySelector('[role="combobox"]').textContent, /Tiếng Anh/);
+    });
+    await suite.test("khóa ô chọn trong lúc xử lý", async () => {
+      disabled = true;
+      await act(async () => { root.render(React.createElement(Harness)); await settle(); });
+      assert.equal(dialog.querySelector('[role="combobox"]').disabled, true);
+    });
+  } finally {
+    await act(async () => { root.unmount(); await settle(); });
+    await env.close();
   }
 });

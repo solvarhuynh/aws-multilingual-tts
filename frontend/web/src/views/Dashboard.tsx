@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { Button, Icon, ToolArt } from "../components/ui";
+import { Button, Icon, Spinner, ToolArt } from "../components/ui";
 import { formatNumber, languageNames, shortDate } from "../lib/data";
 import type { HistoryItem, Language, Page, Stats } from "../lib/types";
 
@@ -9,11 +9,21 @@ export default function Dashboard({
   languages,
   navigate,
   openRecording,
+  playingJobId,
+  loadingHistory,
+  historyError,
+  reloadHistory,
+  hasMoreHistory,
 }: {
   history: HistoryItem[];
   languages: Language[];
   navigate: (page: Page) => void;
   openRecording: (item: HistoryItem) => Promise<void>;
+  playingJobId: string | null;
+  loadingHistory: boolean;
+  historyError: string;
+  reloadHistory: () => Promise<void>;
+  hasMoreHistory: boolean;
 }) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState(false);
@@ -28,7 +38,7 @@ export default function Dashboard({
         }
       })
       .catch(() => {
-        if (active) setError(true);
+        if (active) { setStats(null); setError(true); }
       });
     return () => {
       active = false;
@@ -112,7 +122,7 @@ export default function Dashboard({
             icon: "translate",
           },
         ].map((stat) => (
-          <article className="overview-stat surface" key={stat.title}>
+          <article className="overview-stat" key={stat.title}>
             <span className="stat-icon">
               <Icon name={stat.icon} size={19} />
             </span>
@@ -133,12 +143,15 @@ export default function Dashboard({
               <Icon name="arrow" size={14} />
             </Button>
           </div>
-          {history.length ? (
+          {loadingHistory && !history.length ? <div className="recent-empty" role="status"><Spinner /><p>Đang tải bản thu…</p></div>
+            : historyError && !history.length ? <div className="recent-empty"><p>{historyError}</p><Button className="text-button" onClick={() => void reloadHistory()}>Tải lại lịch sử</Button></div>
+            : history.length ? (
             <div className="recent-records">
               {history.slice(0, 3).map((item) => (
-                <Button key={item.jobId} onClick={() => void openRecording(item)}>
+                <Button key={item.jobId} onClick={() => void openRecording(item)}
+                  aria-label={`${playingJobId === item.jobId ? "Tạm dừng" : item.status === "DONE" ? "Phát" : "Xem trạng thái"}: ${item.text.slice(0, 49)}`}>
                   <span className="recent-play">
-                    <Icon name={item.status === "DONE" ? "play" : "clock"} size={14} />
+                    <Icon name={playingJobId === item.jobId ? "pause" : item.status === "DONE" ? "play" : item.status === "FAILED" ? "alert" : "clock"} size={14} />
                   </span>
                   <span>
                     <strong>{item.text.slice(0, 49)}</strong>
@@ -163,7 +176,9 @@ export default function Dashboard({
             <h2>Hoạt động gần đây</h2>
             <span>7 ngày</span>
           </div>
-          {days.some((day) => day.count > 0) ? (
+          {loadingHistory && !history.length ? <div className="activity-empty"><Spinner /><p>Đang tải hoạt động…</p></div>
+            : historyError && !history.length ? <div className="activity-empty"><p>Hoạt động sẽ hiển thị khi tải được lịch sử.</p></div>
+            : days.some((day) => day.count > 0) ? (
             <div
               className="activity-chart"
               role="img"
@@ -188,6 +203,7 @@ export default function Dashboard({
               <p>Chưa có hoạt động trong 7 ngày.</p>
             </div>
           )}
+          {hasMoreHistory && <p className="activity-note">Thống kê từ các bản thu đã tải.</p>}
         </section>
       </div>
     </div>

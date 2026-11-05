@@ -1,18 +1,16 @@
 import {
-  Button as LiquidButton,
   Glass as LiquidGlass,
   Slider as LiquidSlider,
-  type ButtonProps,
   type SliderProps,
 } from "glisse";
 import {
-  isValidElement,
   memo,
   useCallback,
   useEffect,
   useRef,
   useId,
   type CSSProperties,
+  type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
 import PreferenceSwitch from "./PreferenceSwitch";
@@ -48,6 +46,7 @@ import TextBubbleFill from "framework7-icons/react/esm/TextBubbleFill.js";
 import Trash from "framework7-icons/react/esm/Trash.js";
 import Waveform from "framework7-icons/react/esm/Waveform.js";
 import Xmark from "framework7-icons/react/esm/Xmark.js";
+import SidebarLeft from "framework7-icons/react/esm/SidebarLeft.js";
 
 // Dùng chung một bộ biểu tượng iOS; chỉ import các SVG đang sử dụng.
 const icons: Record<string, typeof Waveform> = {
@@ -83,70 +82,13 @@ const icons: Record<string, typeof Waveform> = {
   muted: SpeakerSlashFill,
   close: Xmark,
   loading: Arrow2Circlepath,
+  sidebar: SidebarLeft,
 };
-const StableLiquidButton = memo(LiquidButton);
 export const Glass = memo(LiquidGlass);
 
-function sameContent(first: unknown, second: unknown): boolean {
-  if (Object.is(first, second)) return true;
-  if (Array.isArray(first) && Array.isArray(second))
-    return first.length === second.length && first.every((value, i) => sameContent(value, second[i]));
-  if (!isValidElement<Record<string, unknown>>(first) || !isValidElement<Record<string, unknown>>(second))
-    return false;
-  if (first.type !== second.type || first.key !== second.key) return false;
-  const keys = Object.keys(first.props);
-  return (
-    keys.length === Object.keys(second.props).length &&
-    keys.every((key) =>
-      key === "children"
-        ? sameContent(first.props[key], second.props[key])
-        : Object.is(first.props[key], second.props[key]),
-    )
-  );
-}
-
-// Chỉ nút trong suốt cần khúc xạ; nút màu đặc dùng CSS để tránh chồng viền.
-export function Button({
-  className = "",
-  variant,
-  children,
-  icon,
-  onClick,
-  type = "button",
-  destructive,
-  tint,
-  ...props
-}: ButtonProps) {
-  const clickRef = useRef(onClick);
-  clickRef.current = onClick;
-  const handleClick = useCallback<NonNullable<ButtonProps["onClick"]>>(
-    (event) => clickRef.current?.(event),
-    [],
-  );
-  const content = useRef(children);
-  if (!sameContent(content.current, children)) content.current = children;
-  const glass = /(?:^|\s)(secondary-button|speaker-chip|header-search)(?:\s|$)/.test(className);
-  if (!glass)
-    return (
-      <button {...props} type={type} className={className} onClick={onClick}>
-        {icon}
-        {children}
-      </button>
-    );
-  return (
-    <StableLiquidButton
-      {...props}
-      type={type}
-      className={className}
-      variant={variant || "glass"}
-      destructive={destructive || className.includes("destructive")}
-      tint={tint}
-      icon={icon}
-      onClick={onClick ? handleClick : undefined}
-    >
-      {content.current}
-    </StableLiquidButton>
-  );
+// Mặc định không gửi form; hình thức nút được quản lý bằng CSS.
+export function Button({ type = "button", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return <button type={type} {...props} />;
 }
 
 const StableSlider = memo(LiquidSlider);
@@ -259,11 +201,13 @@ export function Modal({
   children,
   onClose,
   className = "",
+  dismissible = true,
 }: {
   title: string;
   children: ReactNode;
   onClose: () => void;
   className?: string;
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -283,16 +227,16 @@ export function Modal({
       ref={ref}
       className={`modal ${className}`}
       aria-label={title}
-      onCancel={onClose}
+      onCancel={(event) => { event.preventDefault(); if (dismissible) onClose(); }}
       onClick={(e) => {
-        if (e.target !== e.currentTarget) return;
+        if (!dismissible || e.target !== e.currentTarget) return;
         const r = e.currentTarget.getBoundingClientRect();
         if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) onClose();
       }}
     >
       <div className="modal-heading">
         <h2>{title}</h2>
-        <Button className="icon-button" aria-label="Đóng cửa sổ" onClick={onClose}>
+        <Button className="icon-button" aria-label="Đóng cửa sổ" disabled={!dismissible} onClick={onClose}>
           <Icon name="close" size={19} />
         </Button>
       </div>

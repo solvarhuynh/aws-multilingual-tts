@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DEMO } from "./lib/api";
 import AudioPlayer from "./components/AudioPlayer";
 import Select from "./components/Select";
+import CorrectionReview from "./components/CorrectionReview";
 import {
   Button,
   Brand,
@@ -59,6 +60,10 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [preferences, setPreferences] = useState(getPreferences);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStored<boolean>("tts.sidebar.collapsed", false) === true);
+  const [playbackRequest, setPlaybackRequest] = useState<{ jobId: string; serial: number } | null>(null);
+  const [playingJobId, setPlayingJobId] = useState<string | null>(null);
+  const playbackSerial = useRef(0);
   const [deleteItem, setDeleteItem] = useState<HistoryItem | null>(null);
   const [deleting, setDeleting] = useState(false);
   const deleteLock = useRef(false);
@@ -73,6 +78,8 @@ export default function App() {
   const [target, setTarget] = useState("en-US");
   const isStudio = ["studio", "translation", "documents"].includes(page);
   const studio = useStudio(notify, page === "translation" ? target : null);
+  const modalBlocking = useRef(false);
+  modalBlocking.current = !!deleteItem || !!studio.review;
   useEffect(() => {
     if (studio.languages.length)
       setTarget((previous) =>
@@ -110,6 +117,7 @@ export default function App() {
     const shortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        if (modalBlocking.current) return;
         setDialog((value) => (value === "search" ? null : "search"));
         setQuery("");
       }
@@ -123,13 +131,19 @@ export default function App() {
     };
   }, []);
   useEffect(() => {
-    document.title = `${navigation.find((n) => n.id === page)?.title || (page === "settings" ? "Cài đặt" : "Hướng dẫn")} · HCMUTE | AWS`;
+    document.title = `${navigation.find((n) => n.id === page)?.title || (page === "settings" ? "Cài đặt" : "Hướng dẫn")} · TTS Studio`;
   }, [page]);
   useEffect(() => {
     storeValue("voxa.preferences.v1", preferences);
     document.documentElement.dataset.motion = preferences.reducedMotion ? "reduced" : "auto";
     document.documentElement.dataset.contrast = preferences.highContrast ? "high" : "normal";
   }, [preferences]);
+  useEffect(() => { storeValue("tts.sidebar.collapsed", sidebarCollapsed); }, [sidebarCollapsed]);
+
+  async function playRecording(item: HistoryItem) {
+    const selected = studio.currentAudio?.jobId === item.jobId ? item : await studio.openRecording(item);
+    if (selected?.status === "DONE") setPlaybackRequest({ jobId: selected.jobId, serial: ++playbackSerial.current });
+  }
 
   const visibleVoices = studio.languages
     .flatMap((l) => l.voices.map((v) => ({ ...v, lang: l.lang, provider: l.provider })))
@@ -327,9 +341,9 @@ export default function App() {
       >
         Chuyển đến ô nhập văn bản
       </a>
-      <div className="app-shell">
+      <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <div className="glass-backdrop" aria-hidden="true" />
-        <aside className="sidebar" aria-label="Điều hướng chính">
+        <aside id="main-sidebar" className="sidebar" aria-label="Điều hướng chính">
           <div className="sidebar-brand">
             <Brand />
             <span className="product-name">TTS Studio</span>
@@ -355,6 +369,8 @@ export default function App() {
                 key={n.id}
                 className={`nav-item ${page === n.id ? "active" : ""}`}
                 href={`#${n.id}`}
+                title={n.title}
+                aria-label={n.title}
                 aria-current={page === n.id ? "page" : undefined}
                 onClick={(e) => {
                   e.preventDefault();
@@ -362,7 +378,7 @@ export default function App() {
                 }}
               >
                 <Icon name={n.icon} size={19} />
-                <span>{n.title}</span>
+                <span className="nav-label">{n.title}</span>
                 {n.id === "library" && studio.history.length > 0 && (
                   <span className="nav-count">{studio.history.length}</span>
                 )}
@@ -373,23 +389,28 @@ export default function App() {
             <Button
               className={`nav-item ${page === "help" ? "active" : ""}`}
               onClick={() => navigate("help")}
+              aria-label="Hướng dẫn" title="Hướng dẫn"
             >
               <Icon name="help" size={19} />
-              Hướng dẫn
+              <span className="nav-label">Hướng dẫn</span>
             </Button>
             <Button
               className={`nav-item ${page === "settings" ? "active" : ""}`}
               onClick={() => navigate("settings")}
+              aria-label="Cài đặt" title="Cài đặt"
             >
               <Icon name="settings" size={19} />
-              Cài đặt
+              <span className="nav-label">Cài đặt</span>
             </Button>
           </div>
         </aside>
         <div className="workspace">
           <header className="page-header">
-            <div className="glass-layer" aria-hidden="true" />
             <div className="page-heading">
+              <Button className="icon-button sidebar-control" aria-label={sidebarCollapsed ? "Hiện thanh bên" : "Thu gọn thanh bên"}
+                title={sidebarCollapsed ? "Hiện thanh bên" : "Thu gọn thanh bên"} aria-expanded={!sidebarCollapsed}
+                aria-controls="main-sidebar"
+                onClick={() => setSidebarCollapsed((value) => !value)}><Icon name="sidebar" size={21} /></Button>
               <Button
                 className="icon-button mobile-menu"
                 aria-label="Mở menu điều hướng"
@@ -399,9 +420,10 @@ export default function App() {
               </Button>
               <h1>{title}</h1>
             </div>
-            <Button className="header-search" aria-label="Tìm kiếm" onClick={() => openDialog("search")}>
+            <Button className="header-search" aria-label="Tìm kiếm" aria-keyshortcuts="Control+K Meta+K" onClick={() => openDialog("search")}>
               <Icon name="search" size={17} />
               <span>Tìm công cụ hoặc bản thu…</span>
+              <kbd>{/Mac|iPhone|iPad/.test(navigator.userAgent) ? "⌘ K" : "Ctrl K"}</kbd>
             </Button>
           </header>
           <main id="main-content" key={page} className={`route-view ${isStudio ? "studio-route" : ""}`}>
@@ -410,7 +432,12 @@ export default function App() {
                 history={studio.history}
                 languages={studio.languages}
                 navigate={navigate}
-                openRecording={studio.openRecording}
+                openRecording={playRecording}
+                playingJobId={playingJobId}
+                loadingHistory={studio.loadingHistory}
+                historyError={studio.historyError}
+                reloadHistory={studio.loadHistory}
+                hasMoreHistory={!!studio.nextCursor}
               />
             )}
             {page === "settings" && (
@@ -475,7 +502,7 @@ export default function App() {
               </div>
             )}
             {isStudio && (
-              <div className={`studio-layout mode-${page}`}>
+              <div className="studio-layout">
                 <section className="editor-panel" aria-label="Soạn thảo văn bản">
                   {page === "documents" && (
                     <Button
@@ -613,7 +640,7 @@ export default function App() {
                     <div className="editor-footer-tools">
                       {page !== "studio" && (
                         <Button
-                          className="secondary-button sample-button"
+                          className="secondary-button"
                           disabled={studio.busy}
                           onClick={studio.useSample}
                         >
@@ -645,16 +672,16 @@ export default function App() {
                         <div>
                           <Spinner />
                           <span>
-                            {studio.job?.status === "PENDING" ? "Đang chuẩn bị…" : "Đang tạo giọng nói…"}
+                            {studio.checking ? "Đang kiểm tra lỗi đánh máy…" : studio.job?.status === "PENDING" ? "Đang chuẩn bị…" : "Đang tạo giọng nói…"}
                           </span>
-                          <strong>{progress}%</strong>
+                          {studio.job?.progress && <strong>{progress}%</strong>}
                         </div>
-                        <progress aria-label="Tiến độ tạo giọng nói" value={progress} max={100} />
+                        <progress aria-label="Tiến độ tạo giọng nói" value={studio.job?.progress ? progress : undefined} max={100} />
                       </div>
                     )}
                     <div className="generate-row">
                       <Button
-                        className="primary-button generate-button"
+                        className="primary-button"
                         disabled={
                           studio.busy ||
                           studio.readingFile ||
@@ -823,10 +850,11 @@ export default function App() {
                       <article className="record-row" key={item.jobId}>
                         <Button
                           className="record-play"
-                          aria-label={`Mở bản thu: ${item.text.slice(0, 30)}`}
-                          onClick={() => void studio.openRecording(item)}
+                          aria-label={`${playingJobId === item.jobId ? "Tạm dừng" : item.status === "DONE" ? "Phát" : "Xem trạng thái"}: ${item.text.slice(0, 30)}`}
+                          aria-pressed={item.status === "DONE" ? playingJobId === item.jobId : undefined}
+                          onClick={() => void playRecording(item)}
                         >
-                          <Icon name={item.status === "DONE" ? "play" : "clock"} size={17} />
+                          <Icon name={playingJobId === item.jobId ? "pause" : item.status === "DONE" ? "play" : item.status === "FAILED" ? "alert" : "clock"} size={17} />
                         </Button>
                         <div className="record-info">
                           <h2>
@@ -913,6 +941,8 @@ export default function App() {
                 volume={preferences.volume}
                 onVolume={(volume) => setPreferences((p) => ({ ...p, volume }))}
                 notify={notify}
+                playbackRequest={playbackRequest}
+                onPlayingChange={setPlayingJobId}
               />
             </div>
           )}
@@ -943,7 +973,7 @@ export default function App() {
           </div>
           <div className="mobile-nav">
             {pages.map((n) => (
-              <Button className={page === n.id ? "active" : ""} key={n.id} onClick={() => navigate(n.id)}>
+              <Button className={page === n.id ? "active" : ""} key={n.id} aria-current={page === n.id ? "page" : undefined} onClick={() => navigate(n.id)}>
                 <Icon name={n.icon} size={19} />
                 {n.title}
                 <Icon name="arrow" size={15} />
@@ -977,7 +1007,7 @@ export default function App() {
                 key={item.jobId}
                 onClick={() => {
                   navigate("library");
-                  void studio.openRecording(item);
+                  void playRecording(item);
                 }}
               >
                 <Icon name="wave" size={18} />
@@ -994,6 +1024,7 @@ export default function App() {
       {deleteItem && (
         <Modal
           title="Xóa bản thu?"
+          dismissible={!deleting}
           onClose={() => {
             if (!deleting) setDeleteItem(null);
           }}
@@ -1020,6 +1051,8 @@ export default function App() {
           </div>
         </Modal>
       )}
+      {studio.review && <CorrectionReview correction={studio.review.correction}
+        onChoose={(corrected) => void studio.resolveReview(corrected)} onClose={studio.cancelReview} />}
       <div className="toast-region" aria-live="polite" aria-atomic="true">
         {toast && (
           <div className={`toast ${toast.error ? "toast-error" : ""}`}>
