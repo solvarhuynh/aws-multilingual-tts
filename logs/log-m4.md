@@ -6,13 +6,26 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-05
-- Đang làm: hoàn thiện bố cục ô soạn thảo M4.
-- Đã xong: đưa nút Tạo giọng đọc vào hàng đáy trong ô nhập, bỏ hàng nút và khoảng trống ngoài; trạng thái nháp cạnh bộ đếm, lỗi/tiến độ nằm cùng ô. Nút dùng submit của form, kiểm tra bấm hai lần vẫn chỉ tạo một bản thu. 9 kiểm thử ứng dụng đạt sau thay đổi.
-- Việc tiếp theo: đối chiếu trực quan và đo độ mượt trên máy thật; kiểm tra luồng AWS sau khi M1/M5 cung cấp API chạy được.
-- Đang bị chặn bởi: công cụ trình duyệt chưa kết nối; backend/submit hiện trả 501 và SAM chưa nối API nên chưa kiểm thử xuyên suốt AWS.
+- Đang làm: đối chiếu app Expo trên iPhone thật và nối máy chủ của nhóm.
+- Đã xong: app tiếng Việt tại frontend/app với Expo SDK 57, sáng/tối/hệ thống, hai logo, thanh kính hỗ trợ kéo chọn bằng Reanimated, tạo giọng, đọc PDF/DOCX/TXT, giọng yêu thích, trình phát và lịch sử. Đã bỏ slogan/mô tả lặp và nền trắng quanh AWS. Cài mới, lint, TypeScript, 12 kiểm thử, đóng gói iOS và 21 kiểm tra Expo Doctor đạt.
+- Việc tiếp theo: mở Expo Go trên iPhone để kiểm tra kính/chuyển động/âm thanh/bàn phím thực; đặt EXPO_PUBLIC_API_BASE_URL khi M1/M5 cung cấp API.
+- Đang bị chặn bởi: chưa có iOS Simulator hoặc iPhone kết nối trong môi trường; luồng AWS thật vẫn chờ backend. Các kiểm tra giao diện dùng bản web của chính app và API mô phỏng, không thay thế kiểm tra iPhone.
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-05: App Expo tiếng Việt và thanh kính theo ảnh tham chiếu
+- Đã làm: tạo frontend/app riêng, không thay đổi mã web. Bốn tab Trang chủ/Giọng đọc/Công cụ/Bản thu và nút + mở trang soạn thảo; có trang trình phát, cài đặt và hướng dẫn. Dùng logo hiện có HCMUTE | AWS, bỏ khung trắng AWS; chế độ tối đổi màu phần chữ bằng lớp tint, giữ mũi tên cam và ảnh gốc.
+- Thiết kế: kính gốc UIGlassEffect qua expo-glass-effect khi hệ điều hành hỗ trợ; BlurView dự phòng. Cử chỉ kéo tham khảo expo-glass-tabs (MIT), đã giữ giấy phép. Đo chiều rộng thật của cụm bốn tab, thanh chọn chạy trên luồng giao diện, đổi màu icon theo vị trí tay, chỉ chuyển trang khi thả. Nút + là hình tròn riêng, có phản hồi chạm và giảm chuyển động. Đây là thanh tùy biến dùng kính native, không khẳng định là UITabBar hoặc khớp hoàn toàn iOS 27.
+- Chức năng: lưu nháp/cài đặt/giọng yêu thích/bản thu cục bộ; nghe bằng expo-speech khi chưa có máy chủ. API giữ hợp đồng chung; kiểm tra lỗi đánh máy một lần, chờ chọn bản gốc/bản sửa, khóa gửi trùng, theo dõi job định kỳ. MP3 dùng expo-audio, tua/lặp/chuyển bản thu và bảng chia sẻ iOS. Không giả kết quả dịch hoặc MP3 trong chế độ nghe trên máy.
+- Tài liệu: chọn PDF/DOCX/TXT tối đa 10 MB, nội dung 20.000 ký tự. TXT/DOCX xử lý cục bộ; PDF.js chạy trong WebView, không tải tệp lên dịch vụ ngoài. npm ci tự dựng tài nguyên PDF từ mã nguồn; đầu ra sinh tự động và bộ nhớ đệm được ignore. Xóa màn hình/ảnh mẫu Expo và tệp khởi động không dùng.
+- Nội dung: bỏ slogan, ô số liệu trang trí, mô tả trùng chức năng và câu quảng bá. Dùng nhãn tiếng Việt ngắn; giữ lỗi, giới hạn tệp và trạng thái cần thiết. Mẫu văn bản dùng thông báo học tập, bài học về luồng Polly/S3 và giới thiệu Nhóm 5.
+- File đã đổi: frontend/app/, frontend/README.md, logs/log-m4.md, docs/tasks/task-m4.md.
+- Kiểm tra: npm ci sạch, npm run typecheck, npm run lint, npm test (12/12), npx expo export --platform ios và expo-doctor (21/21) đạt; npm audit không báo lỗ hổng. Chrome bản web: điều hướng, tìm/lưu giọng, sáng/tối, tốc độ, tạo hai lần chỉ lưu một bản, phát/lịch sử/tìm kiếm/lưu qua reload, nhập TXT/DOCX/PDF thật và báo lỗi PDF hỏng. Kéo tab chỉ chuyển trang khi thả; không tràn ngang ở 320/375/390/430/768 px. API mô phỏng kiểm tra một lần, chỉ synthesize sau khi chọn, gửi nội dung đã chọn một lần, polling và xóa lịch sử đạt. Kịch bản trình duyệt/ảnh thử nằm ngoài repo.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không; không gọi dịch vụ tính phí.
+- Lỗi gặp / đang dở: chưa kiểm tra trực tiếp Expo Go trên iPhone. Giọng/âm lượng, khúc xạ kính gốc, bàn phím và độ mượt cần kiểm tra trên máy thật; chưa đánh dấu hoàn tất 4.11/4.12.
+- Việc tiếp theo: chạy npm start trong frontend/app và quét QR bằng Expo Go tương thích SDK 57; kiểm tra các phần trên rồi nối API thật.
+- Cần báo module khác: không đổi hợp đồng API; cần địa chỉ API hoạt động từ M1/M5 để kiểm tra AWS xuyên suốt.
 
 ### 2026-11-05: Gộp nút tạo giọng vào ô soạn thảo
 - Đã làm: chuyển nút Tạo giọng đọc/Dịch và tạo giọng đọc vào hàng editor-status bên trong composer, cạnh bộ đếm/thời lượng/xóa văn bản. Xóa generate-row và hàng footer bên ngoài vốn giữ margin/min-height gây khoảng trống dưới ô nhập.

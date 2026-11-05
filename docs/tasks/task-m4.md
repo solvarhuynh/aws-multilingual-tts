@@ -35,6 +35,8 @@ S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M
 
 ## Ghi chú kỹ thuật riêng
 
+- [x] Tạo app Expo SDK 57 tại frontend/app với bốn tab, nút tạo riêng, kính native/blur dự phòng, kéo chọn tab, hai logo không nền trắng AWS, sáng/tối/hệ thống và nhãn tiếng Việt ngắn. Có nghe thử trên máy, nháp, giọng yêu thích, lịch sử và trình phát.
+- [x] App giữ hợp đồng API kiểm tra/duyệt nội dung, synthesize một lần và polling; đọc PDF/DOCX/TXT cục bộ. Cài mới, lint/TypeScript, 12 kiểm thử, đóng gói iOS, Expo Doctor 21/21 và luồng trình duyệt/API mô phỏng đạt ngày 2026-11-05. Còn kiểm tra iPhone/Expo Go và API AWS thật trước khi đánh dấu hoàn tất 4.11/4.12.
 - [x] Gộp nút Tạo giọng đọc vào đáy ô nhập, bỏ hàng/khoảng trống bên ngoài; nháp/lỗi/tiến độ nằm cùng composer và điều khiển tự xuống dòng khi hẹp. Kiểm thử ứng dụng 9/9 đạt ngày 2026-11-05, gồm chống submit trùng và lỗi văn bản rỗng.
 - [x] Đổi thành Nhóm 5, lời chào tiếng Việt theo buổi không hiển thị giờ, avatar đám mây và logo/lời chào lớn hơn. Tìm kiếm inline gợi ý theo ký tự/không dấu, không mở Modal/hiện nhãn phím tắt; không tác động bộ lọc từng trang.
 - [x] Đồng bộ palette lấy từ logo HCMUTE/AWS (#0072BC, #252F3E, #FF9900), giữ kính và màu trạng thái có mục đích. 55 kiểm thử mô phỏng và build đạt ngày 2026-11-05; còn đối chiếu trực quan trên máy thật.

@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "TTS Studio",
+    "slug": "hcmute-tts-studio",
+    "scheme": "hcmute-tts",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "vn.edu.hcmute.ttsstudio"
+    },
+    "android": {
+      "package": "vn.edu.hcmute.ttsstudio"
+    },
+    "web": {
+      "favicon": "./assets/brand/hcmute.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}
