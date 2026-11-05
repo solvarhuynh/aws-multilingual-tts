@@ -6,13 +6,22 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-05
-- Đang làm: hoàn thiện phong cách Liquid Glass cho giao diện M4 ở bước 4.1.
-- Đã xong: tên TTS Studio; tích hợp thêm Glass của Glisse cho điều hướng, thanh trên, trình phát và các nút có bề mặt; build frontend thành công.
-- Việc tiếp theo: kiểm tra trực quan trên máy tính và điện thoại, rồi đối chiếu các yêu cầu còn lại của bước 4.1.
+- Đang làm: tối ưu Liquid Glass sau phản hồi viền nút thừa và chuyển động giật.
+- Đã xong: bỏ mép SVG trên nút màu đặc; bỏ bộ lọc khúc xạ nền toàn màn hình; panel lớn dùng kính CSS, chỉ điều hướng/nút trong suốt dùng Glisse. Build frontend thành công.
+- Việc tiếp theo: kiểm tra lại viền nút và độ mượt trên máy người dùng; chưa đo FPS thực tế.
 - Đang bị chặn bởi: (không)
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-05: Bỏ viền chồng và giảm tải chuyển động kính
+- Đã làm: xem ảnh người dùng gửi và đọc mã Glisse 0.5.0 trong node_modules. Nút màu đặc không còn dùng LiquidButton, tránh chồng mép SVG lên viền CSS. Bỏ `data-glisse-backdrop` vì chế độ này tạo vòng requestAnimationFrame để theo dõi các lớp kính và lọc nền toàn màn hình. Thay hai lớp Glass lớn ở thanh trên/trình phát bằng div kính CSS; giữ khúc xạ thật ở điều hướng và nút trong suốt. Giảm blur panel từ 20px xuống 14px, bỏ transform CSS trùng với spring của nút Glisse, bỏ dịch chuyển toàn bộ trang khi chuyển màn và làm dịu chuyển động mục điều hướng.
+- File đã đổi: `frontend/web/src/App.tsx`, `frontend/web/src/components/AudioPlayer.tsx`, `frontend/web/src/components/ui.tsx`, `frontend/web/src/styles.css`, `frontend/README.md`, `logs/log-m4.md`, `docs/tasks/task-m4.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Quyết định và lý do: lần tích hợp trước dùng khúc xạ trên vùng quá rộng. Ưu tiên độ mượt bằng cách giới hạn bộ lọc SVG vào bề mặt nhỏ; Safari/Firefox giữ kính mờ và mép sáng. Không sửa mã thư viện, không thêm dependency.
+- Lỗi gặp / đang dở: chưa xác nhận trực quan hoặc đo FPS trên máy người dùng. Đã chạy lại `npm.cmd run build` sau thay đổi cuối cùng thành công; `git diff --check` đạt.
+- Việc tiếp theo: người dùng tải lại web, kiểm tra nút tạo giọng, chuyển trang và kéo thanh tốc độ; nếu còn giật cần đo Performance trên trình duyệt thực tế.
+- Cần báo module khác: không.
 
 ### 2026-11-05: Tích hợp Liquid Glass bằng Glisse
 - Đã làm: tìm và đối chiếu các thư viện miễn phí trên GitHub; chọn mở rộng Glisse 0.5.0 đã có trong repo (https://github.com/0kzh/glisse, giấy phép MIT). Dùng Glass cho mục điều hướng đang chọn, thanh trên và nền trình phát; dùng nút kính cho tìm kiếm, chọn giọng và nút phụ. Thêm một nền màu tĩnh để khúc xạ, chỉnh độ trong, mép kính và bóng bằng CSS; giữ tùy chọn tương phản cao và giảm chuyển động. Chạy `npm.cmd run build` và `git diff --check` thành công.

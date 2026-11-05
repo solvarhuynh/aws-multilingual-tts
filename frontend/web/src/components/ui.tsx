@@ -105,7 +105,7 @@ function sameContent(first: unknown, second: unknown): boolean {
   );
 }
 
-// Giữ lớp kính ổn định khi người dùng gõ; chỉ dùng cho các nút có bề mặt.
+// Chỉ nút trong suốt cần khúc xạ; nút màu đặc dùng CSS để tránh chồng viền.
 export function Button({
   className = "",
   variant,
@@ -125,9 +125,8 @@ export function Button({
   );
   const content = useRef(children);
   if (!sameContent(content.current, children)) content.current = children;
-  const primary = /(?:^|\s)(primary-button|player-play)(?:\s|$)/.test(className);
   const glass = /(?:^|\s)(secondary-button|speaker-chip|header-search)(?:\s|$)/.test(className);
-  if (!primary && !glass)
+  if (!glass)
     return (
       <button {...props} type={type} className={className} onClick={onClick}>
         {icon}
@@ -139,7 +138,7 @@ export function Button({
       {...props}
       type={type}
       className={className}
-      variant={variant || (primary ? "filled" : "glass")}
+      variant={variant || "glass"}
       destructive={destructive || className.includes("destructive")}
       tint={tint}
       icon={icon}

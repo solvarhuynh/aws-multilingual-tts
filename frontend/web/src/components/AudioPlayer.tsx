@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEMO } from "../lib/api";
 import { estimateDuration, formatTime, languageNames } from "../lib/data";
-import { Button, Glass, Icon, Slider, ToolArt } from "./ui";
+import { Button, Icon, Slider, ToolArt } from "./ui";
 import type { HistoryItem } from "../lib/types";
 
 export default function AudioPlayer({
@@ -207,7 +207,7 @@ export default function AudioPlayer({
       className={`audio-player ${item ? "has-audio" : ""} ${playing ? "is-playing" : ""}`}
       aria-label="Trình phát âm thanh"
     >
-      <Glass className="glass-layer" aria-hidden="true" />
+      <div className="glass-layer" aria-hidden="true" />
       <div className="player-identity">
         <div className="track-cover">
           <ToolArt />

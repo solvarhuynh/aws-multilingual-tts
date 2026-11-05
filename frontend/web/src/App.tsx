@@ -337,7 +337,7 @@ export default function App() {
         Chuyển đến ô nhập văn bản
       </a>
       <div className="app-shell">
-        <div className="glass-backdrop" data-glisse-backdrop aria-hidden="true" />
+        <div className="glass-backdrop" aria-hidden="true" />
         <aside className="sidebar" aria-label="Điều hướng chính">
           <div className="sidebar-brand">
             <Brand />
@@ -397,7 +397,7 @@ export default function App() {
         </aside>
         <div className="workspace">
           <header className="page-header">
-            <Glass className="glass-layer" aria-hidden="true" />
+            <div className="glass-layer" aria-hidden="true" />
             <div className="page-heading">
               <Button
                 className="icon-button mobile-menu"
