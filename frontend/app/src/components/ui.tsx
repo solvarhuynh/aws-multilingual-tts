@@ -1,12 +1,10 @@
 import { useEffect, useState, type PropsWithChildren } from 'react';
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { GlassView, isLiquidGlassAvailable, isGlassEffectAPIAvailable } from 'expo-glass-effect';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 import { useStudio } from '../state/Studio';
 
 const icons = {
@@ -33,12 +31,12 @@ export function Icon({ name, size = 22, color }: { name: IconName; size?: number
     size={size} style={{ width: size, height: size }} resizeMode="scaleAspectFit" />;
   return <Ionicons accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" name={fallback} size={size} color={color ?? colors.text} />;
 }
-export function Label({ children, size = 16, weight = '400', muted, style, lines }: PropsWithChildren<{
-  size?: number; weight?: TextStyle['fontWeight']; muted?: boolean; style?: StyleProp<TextStyle>; lines?: number;
+export function Label({ children, size = 16, weight = '400', muted, style, lines, maxScale }: PropsWithChildren<{
+  size?: number; weight?: TextStyle['fontWeight']; muted?: boolean; style?: StyleProp<TextStyle>; lines?: number; maxScale?: number;
 }>) {
   const { colors } = useStudio();
-  return <Text numberOfLines={lines} style={[{ color: muted ? colors.secondary : colors.text, fontSize: size,
-    fontWeight: weight, letterSpacing: -0.3 }, style]}>{children}</Text>;
+  return <Text numberOfLines={lines} maxFontSizeMultiplier={maxScale} style={[{ color: muted ? colors.secondary : colors.text, fontSize: size,
+    fontWeight: weight, letterSpacing: -0.3, flexShrink: 1 }, style]}>{children}</Text>;
 }
 let nativeGlass = false;
 try { nativeGlass = Platform.OS === 'ios' && isLiquidGlassAvailable() && isGlassEffectAPIAvailable(); } catch { /* Dùng kính mờ khi thiết bị không hỗ trợ. */ }
@@ -58,19 +56,20 @@ export function Action({ children, onPress, icon, primary, disabled, accessibili
   const { colors, haptic, reducedMotion } = useStudio();
   const [scale] = useState(() => new Animated.Value(1));
   const animate = (value: number) => Animated.spring(scale, { toValue: value, useNativeDriver: Platform.OS !== 'web', speed: 35, bounciness: 3 }).start();
-  return <Animated.View style={[{ transform: [{ scale }] }, style]}><Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? (typeof children === 'string' ? children : undefined)}
+  return <Animated.View style={[{ minWidth: 0, transform: [{ scale }] }, style]}><Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel ?? (typeof children === 'string' ? children : undefined)}
     disabled={disabled} accessibilityState={{ disabled: !!disabled }} onPressIn={() => !reducedMotion && animate(0.97)} onPressOut={() => animate(1)}
     onPress={() => { haptic(); onPress(); }} style={[styles.action, { backgroundColor: primary ? colors.blue : colors.raised, opacity: disabled ? 0.45 : 1 }]}>
     {icon && <Icon name={icon} size={21} color={primary ? colors.invert : colors.text} />}
-    <Label weight="600" size={16} style={{ color: primary ? colors.invert : colors.text }}>{children}</Label>
+    <Label weight="600" size={16} lines={2} style={{ color: primary ? colors.invert : colors.text, textAlign: 'center' }}>{children}</Label>
   </Pressable></Animated.View>;
 }
 export function Circle({ name, onPress, label, size = 46, primary, disabled }: {
   name: IconName; onPress: () => void; label: string; size?: number; primary?: boolean; disabled?: boolean;
 }) {
   const { colors, haptic } = useStudio();
+  const target = Math.max(44, size);
   return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} accessibilityState={{ disabled: !!disabled }}
-    hitSlop={5} onPress={() => { haptic(); onPress(); }} style={({ pressed }) => [{ width: size, height: size, borderRadius: size / 2,
+    hitSlop={3} onPress={() => { haptic(); onPress(); }} style={({ pressed }) => [{ width: target, height: target, borderRadius: target / 2, flexShrink: 0,
       alignItems: 'center', justifyContent: 'center', backgroundColor: primary ? colors.blue : colors.raised, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 }]}>
     <Icon name={name} size={size > 50 ? 26 : 21} color={primary ? colors.invert : colors.text} />
   </Pressable>;
@@ -79,18 +78,13 @@ export function Section({ title, action, onPress }: { title: string; action?: st
   return <View style={styles.section}><Label size={21} weight="600">{title}</Label>{action && onPress &&
     <Pressable accessibilityRole="button" onPress={onPress} hitSlop={10}><Label size={14} muted>{action}</Label></Pressable>}</View>;
 }
-export function Screen({ children, title, subtitle, scroll = true, bottom = 180 }: PropsWithChildren<{
-  title: string; subtitle?: string; scroll?: boolean; bottom?: number;
-}>) {
+export function SearchField({ value, onChange, label, placeholder }: { value: string; onChange: (text: string) => void; label: string; placeholder: string }) {
   const { colors } = useStudio();
-  const content = <><View style={styles.pageHeading}><View style={{ flex: 1 }}><Label size={34} weight="700">{title}</Label>
-    {subtitle && <Label muted size={15} style={{ marginTop: 7 }}>{subtitle}</Label>}</View>
-    <Circle name="settings" label="Mở cài đặt" onPress={() => router.push('/settings')} /></View>{children}</>;
-  return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.bg }}>
-    {scroll ? <ScrollView contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 12, paddingBottom: bottom, gap: 22 }}
-      keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>{content}</ScrollView>
-      : <View style={{ flex: 1, paddingHorizontal: 22, gap: 22 }}>{content}</View>}
-  </SafeAreaView>;
+  return <View style={[styles.search, { backgroundColor: colors.raised }]}><Icon name="search" size={21} color={colors.secondary} />
+    <TextInput accessibilityLabel={label} placeholder={placeholder} value={value} onChangeText={onChange} placeholderTextColor={colors.faint}
+      returnKeyType="search" autoCapitalize="none" style={{ flex: 1, minWidth: 0, color: colors.text, fontSize: 16, paddingVertical: 14 }} />
+    {!!value && <Circle name="close" label="Xóa tìm kiếm" size={36} onPress={() => onChange('')} />}
+  </View>;
 }
 export function Empty({ title, detail, icon = 'wave' }: { title: string; detail: string; icon?: IconName }) {
   const { colors } = useStudio();
@@ -119,8 +113,8 @@ export function Wave({ compact = false, moving = true }: { compact?: boolean; mo
   </View>;
 }
 const styles = StyleSheet.create({
-  action: { minHeight: 54, borderRadius: 28, flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
-  section: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  pageHeading: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },
+  action: { minHeight: 54, borderRadius: 28, flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 13 },
+  section: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  search: { minHeight: 54, borderRadius: 28, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, gap: 10 },
   empty: { borderRadius: 26, borderWidth: 1, padding: 26, gap: 12, alignItems: 'center' },
 });

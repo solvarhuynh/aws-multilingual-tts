@@ -4,14 +4,15 @@
     "slug": "hcmute-tts-studio",
     "scheme": "hcmute-tts",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "vn.edu.hcmute.ttsstudio"
     },
     "android": {
-      "package": "vn.edu.hcmute.ttsstudio"
+      "package": "vn.edu.hcmute.ttsstudio",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "favicon": "./assets/brand/hcmute.png",

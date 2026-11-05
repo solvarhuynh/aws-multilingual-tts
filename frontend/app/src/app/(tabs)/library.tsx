@@ -1,9 +1,9 @@
-import { Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Action, Circle, Empty, Icon, Label } from '../../components/ui';
+import { Action, Circle, Empty, Icon, Label, SearchField } from '../../components/ui';
+import { Page } from '../../components/layout';
 import { useStudio } from '../../state/Studio';
 import { usePlayback } from '../../state/Playback';
 import { covers, date, languageNames, normalize, type Recording } from '../../lib/model';
@@ -13,7 +13,6 @@ export default function Library() {
   const { current, playing, play, toggle, stop } = usePlayback();
   const [query, setQuery] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
-  const insets = useSafeAreaInsets();
   const items = history.filter(r => normalize(`${r.text} ${r.voice} ${languageNames[r.lang]}`).includes(normalize(query)));
   const remove = (record: Recording) => {
     const execute = async () => {
@@ -26,13 +25,8 @@ export default function Library() {
     if (Platform.OS === 'web') { if (window.confirm('Xóa bản thu này?')) void execute(); }
     else Alert.alert('Xóa bản thu?', 'Bạn sẽ không thể khôi phục bản thu đã xóa.', [{ text: 'Giữ lại', style: 'cancel' }, { text: 'Xóa', style: 'destructive', onPress: () => void execute() }]);
   };
-  return <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 22, paddingTop: 20, paddingBottom: 210, gap: 22 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={colors.blue} />}>
-      <View style={styles.heading}><Label size={34} weight="700">Bản thu</Label><Circle name="settings" label="Mở cài đặt" onPress={() => router.push('/settings')} /></View>
-      <View style={[styles.search, { backgroundColor: colors.raised }]}><Icon name="search" size={21} color={colors.secondary} />
-        <TextInput value={query} onChangeText={setQuery} accessibilityLabel="Tìm bản thu" placeholder="Tìm trong bản thu của bạn…" placeholderTextColor={colors.faint}
-          style={{ flex: 1, color: colors.text, fontSize: 16, paddingVertical: 15 }} />{!!query && <Circle name="close" size={32} label="Xóa tìm kiếm" onPress={() => setQuery('')} />}</View>
+  return <Page tabs title="Bản thu" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} tintColor={colors.blue} />}>
+      <SearchField value={query} onChange={setQuery} label="Tìm bản thu" placeholder="Tìm trong bản thu của bạn…" />
       {items.length > 0 && <Label muted size={14}>{items.length} bản thu{query ? ' phù hợp' : ' đã lưu'}</Label>}
       {items.map((record, index) => {
         const selected = current?.jobId === record.jobId;
@@ -40,7 +34,7 @@ export default function Library() {
           <View style={styles.recordTop}><Pressable accessibilityRole="button" accessibilityLabel={`Mở bản thu ${record.text.slice(0, 30)}`}
             onPress={() => { void play(record); router.push('/recording'); }} style={styles.recordMain}>
             <LinearGradient colors={covers[index % covers.length]} style={styles.cover}><Icon name="wave" color="#FFFFFF" size={28} /></LinearGradient>
-            <View style={{ flex: 1, gap: 8 }}><Label weight="600" size={18} lines={2}>{record.text}</Label><Label size={12} muted lines={1}>{date(record.createdAt)} · {record.voice}</Label>
+            <View style={{ flex: 1, minWidth: 0, gap: 8 }}><Label weight="600" size={18} lines={2}>{record.text}</Label><Label size={12} muted lines={1}>{date(record.createdAt)} · {record.voice}</Label>
               <Label size={12} muted>{languageNames[record.lang] ?? record.lang}{record.local ? ' · Nghe trên máy' : ''}</Label></View></Pressable>
             <Circle name="trash" label="Xóa bản thu" size={36} disabled={deleting === record.jobId} onPress={() => remove(record)} />
           </View>
@@ -57,15 +51,12 @@ export default function Library() {
         detail={query ? 'Tìm theo nội dung hoặc tên giọng.' : 'Bản thu mới sẽ được lưu ở đây.'} />
         {!query && <Action primary icon="plus" onPress={() => router.push('/compose')}>Tạo bản thu</Action>}</>}
       {cursor && <Action disabled={refreshing} onPress={() => void refresh(true)}>Tải thêm bản thu</Action>}
-    </ScrollView>
-  </View>;
+  </Page>;
 }
 const styles = StyleSheet.create({
-  heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  search: { borderRadius: 28, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 10 },
   record: { gap: 16, paddingBottom: 22, borderBottomWidth: 1 }, recordTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  recordMain: { flex: 1, flexDirection: 'row', gap: 14, alignItems: 'center' },
-  cover: { width: 78, height: 94, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+  recordMain: { flex: 1, minWidth: 0, flexDirection: 'row', gap: 12, alignItems: 'center' },
+  cover: { width: 64, height: 82, flexShrink: 0, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   inlinePlayer: { flexDirection: 'row', alignItems: 'center', borderRadius: 28, padding: 6, gap: 10 },
   bars: { flex: 1, height: 34, flexDirection: 'row', alignItems: 'center', gap: 3 },
 });

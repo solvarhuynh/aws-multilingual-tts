@@ -1,12 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Keyboard, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Slider from '@react-native-community/slider';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Clipboard from 'expo-clipboard';
 import { Action, Circle, Glass, Icon, Label } from '../components/ui';
+import { Header, KeyboardArea, PageScroll, ScreenFrame } from '../components/layout';
+import { useLayout } from '../hooks/useLayout';
+import { useKeyboardState } from '../hooks/useKeyboard';
 import Sheet from '../components/Sheet';
 import VoiceList from '../components/VoiceList';
 import PdfReader from '../components/PdfReader';
@@ -17,10 +19,15 @@ import { base64Bytes, checkedText, extractDocument, MAX_FILE_BYTES } from '../li
 import { duration, languageNames, MAX_CHARS, number, samples, time, validate, type Correction, type Input, type Recording } from '../lib/model';
 
 export default function Compose() {
+  const keyboard = useKeyboardState();
+  return <ScreenFrame bottom={!keyboard.visible}><ComposeBody keyboard={keyboard} /></ScreenFrame>;
+}
+function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: number } }) {
   const params = useLocalSearchParams<{ mode?: string }>();
   const mode = params.mode === 'translation' || params.mode === 'document' ? params.mode : 'speech';
   const { colors, draft, setDraft, lang, voice, speed, setSpeed, selectVoice, languages, saveRecording, setNotice } = useStudio();
   const { play, stop } = usePlayback();
+  const { gutter, compact, usableHeight } = useLayout();
   const [sheet, setSheet] = useState<'voices' | 'settings' | 'source' | 'target' | null>(null);
   const [target, setTarget] = useState('en-US');
   const [targetVoice, setTargetVoice] = useState('Joanna');
@@ -110,11 +117,10 @@ export default function Compose() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không đọc được tài liệu.'); setImporting(false); }
   };
   const close = () => { if (busy) return; if (router.canGoBack()) router.back(); else router.replace('/'); };
-  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top', 'bottom', 'left', 'right']}>
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={styles.header}><Circle name="close" label="Đóng trang soạn thảo" disabled={busy} onPress={close} />
-        <Label size={19} weight="600">{title}</Label><Circle name="settings" label="Cài đặt giọng đọc" disabled={busy} onPress={() => setSheet('settings')} /></View>
-      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive" contentContainerStyle={styles.content}>
+  return <>
+    <KeyboardArea>
+      <Header title={title} left={<Circle name="close" label="Đóng trang soạn thảo" disabled={busy} onPress={close} />} />
+      <PageScroll contentContainerStyle={{ flexGrow: 1 }}>
         {mode === 'translation' && <View style={styles.translation}>
           <Pressable accessibilityRole="button" onPress={() => setSheet('source')} disabled={busy} style={[styles.language, { backgroundColor: colors.raised }]}><Label size={12} muted>Từ</Label><Label weight="600">{languageNames[lang]}</Label></Pressable>
           <Icon name="arrow" color={colors.secondary} />
@@ -126,8 +132,10 @@ export default function Compose() {
           <Icon name="next" size={16} color={colors.secondary} /></Pressable>
         {mode === 'document' && <Action icon="upload" disabled={busy || importing} onPress={() => void importFile()}>{importing ? 'Đang đọc tài liệu…' : documentName || 'Chọn PDF, Word hoặc TXT'}</Action>}
         <TextInput accessibilityLabel="Nội dung cần đọc" value={draft} onChangeText={text => { setDraft(text); setError(''); }} editable={!busy && !importing}
-          multiline scrollEnabled={false} placeholder="Nhập hoặc dán nội dung…" placeholderTextColor={colors.faint}
-          textAlignVertical="top" style={[styles.editor, { color: colors.text }]} selectionColor={colors.blue} />
+          multiline scrollEnabled placeholder="Nhập hoặc dán nội dung…" placeholderTextColor={colors.faint}
+          textAlignVertical="top" style={[styles.editor, { color: colors.text, fontSize: compact ? 23 : 25,
+            minHeight: keyboard.visible ? 110 : Math.max(150, Math.min(260, usableHeight * 0.32)),
+            maxHeight: keyboard.visible ? Math.max(120, Math.min(200, usableHeight - keyboard.height - 180)) : Math.max(160, usableHeight * 0.5) }]} selectionColor={colors.blue} />
         <View style={styles.editorMeta}><Label size={12} muted>{number(draft.length)} / {number(MAX_CHARS)} ký tự</Label>
           <Label size={12} muted>~ {time(duration(draft, speed))}</Label>
           <Pressable accessibilityRole="button" accessibilityLabel="Xóa nội dung" disabled={busy || !draft} onPress={() => setDraft('')} hitSlop={12}><Icon name="trash" color={colors.faint} size={17} /></Pressable></View>
@@ -137,15 +145,15 @@ export default function Compose() {
             <Icon name={sample.icon} size={15} color={colors.secondary} /><Label size={13} muted>{sample.title}</Label></Pressable>)}</View></View>}
         {!!error && <View accessibilityRole="alert" style={{ flexDirection: 'row', gap: 8 }}><Icon name="help" color={colors.danger} size={18} /><Label size={14} style={{ color: colors.danger, lineHeight: 21, flex: 1 }}>{error}</Label></View>}
         {DEMO && <Label size={12} muted>Nghe trên thiết bị · Chưa có MP3</Label>}
-      </ScrollView>
-      <View style={[styles.footer, { borderColor: colors.line }]}>
+      </PageScroll>
+      <View testID="composer-footer" style={[styles.footer, { borderColor: colors.line, paddingHorizontal: gutter, paddingVertical: keyboard.visible ? 6 : 12 }]}>
         {busy && <View style={styles.progress}><ActivityIndicator color={colors.blue} size="small" /><Label size={14} muted>{stage || 'Đang chờ bạn chọn nội dung…'}</Label></View>}
-        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}><Glass interactive style={{ borderRadius: 30 }}><Pressable accessibilityRole="button" accessibilityLabel="Điều chỉnh giọng đọc" disabled={busy}
-          onPress={() => { Keyboard.dismiss(); setSheet('settings'); }} style={{ width: 56, height: 56, justifyContent: 'center', alignItems: 'center' }}><Icon name="settings" /></Pressable></Glass>
+        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}><Glass interactive style={{ borderRadius: 30 }}><Pressable accessibilityRole="button" accessibilityLabel="Cài đặt giọng đọc" disabled={busy}
+          onPress={() => { Keyboard.dismiss(); setSheet('settings'); }} style={{ width: keyboard.visible ? 48 : 56, height: keyboard.visible ? 48 : 56, justifyContent: 'center', alignItems: 'center' }}><Icon name="settings" /></Pressable></Glass>
           <Action primary style={{ flex: 1 }} disabled={busy || importing || !draft.trim()} icon="wave" onPress={() => void generate()}>{busy ? 'Đang xử lý…' : mode === 'translation' ? 'Dịch và tạo giọng' : 'Tạo giọng đọc'}</Action>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardArea>
     <Sheet title="Chọn giọng đọc" visible={sheet === 'voices'} close={() => setSheet(null)}>
       <VoiceList onlyLanguage={mode === 'translation' ? target : undefined} selected={mode === 'translation' ? { lang: target, voice: selectedTargetVoice } : undefined}
         onSelect={(_, id) => { if (mode === 'translation') setTargetVoice(id); setSheet(null); }} />
@@ -175,18 +183,16 @@ export default function Compose() {
       setPdfData(null); setImporting(false);
       try { if (reason) throw new Error(reason); setDraft(checkedText(text ?? '')); setDocumentName(importName.current); } catch (e) { setError(e instanceof Error ? e.message : 'Chưa đọc được PDF.'); }
     }} />}
-  </SafeAreaView>;
+  </>;
 }
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  content: { padding: 24, paddingBottom: 30, gap: 22, flexGrow: 1 },
-  voicePill: { borderRadius: 29, padding: 10, paddingRight: 18, flexDirection: 'row', alignItems: 'center', gap: 11, alignSelf: 'flex-start', minWidth: '67%' },
+  voicePill: { borderRadius: 29, padding: 10, paddingRight: 18, flexDirection: 'row', alignItems: 'center', gap: 11, width: '100%', minWidth: 0 },
   voiceDot: { width: 39, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  editor: { fontSize: 25, lineHeight: 37, minHeight: 245, padding: 0, letterSpacing: -0.5 },
-  editorMeta: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+  editor: { lineHeight: 37, padding: 0, letterSpacing: -0.5, minWidth: 0 },
+  editorMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
   paste: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   samples: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, sample: { flexDirection: 'row', gap: 6, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 10, alignItems: 'center' },
-  footer: { paddingHorizontal: 22, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, gap: 12 },
-  progress: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  translation: { flexDirection: 'row', alignItems: 'center', gap: 12 }, language: { flex: 1, borderRadius: 24, padding: 15, gap: 5 },
+  footer: { width: '100%', maxWidth: 1016, alignSelf: 'center', borderTopWidth: StyleSheet.hairlineWidth, gap: 10, flexShrink: 0 },
+  progress: { flexDirection: 'row', gap: 10, alignItems: 'center', minWidth: 0 },
+  translation: { flexDirection: 'row', alignItems: 'center', gap: 12 }, language: { flex: 1, minWidth: 0, borderRadius: 24, padding: 15, gap: 5 },
 });

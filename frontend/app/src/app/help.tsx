@@ -1,11 +1,12 @@
+import { Page } from '../components/layout';
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { Action, Label, Screen, Section } from '../components/ui';
+import { Action, Label, Section } from '../components/ui';
 import { useStudio } from '../state/Studio';
 
 export default function Help() {
   const { colors } = useStudio();
-  return <Screen title="Hướng dẫn" bottom={40}>
+  return <Page title="Hướng dẫn">
     <Section title="Từ văn bản đến giọng đọc" />
     {[
       ['Nhập nội dung', 'Chạm nút +, nhập văn bản hoặc chọn PDF, Word, TXT. Nội dung tối đa 20.000 ký tự; tệp tối đa 10 MB. PDF bản scan cần có lớp chữ.'],
@@ -18,5 +19,5 @@ export default function Help() {
     <Label muted style={{ lineHeight: 24 }}>Chưa kết nối máy chủ, ứng dụng dùng giọng có sẵn của iPhone. Tên giọng máy chủ chỉ dùng để chọn cho bản thu khi đã kết nối. Nếu không có âm thanh, hãy tăng âm lượng và tắt chế độ im lặng. Có thể tải thêm giọng trong Cài đặt của iPhone.</Label>
     <Label muted style={{ lineHeight: 24 }}>Nghe thử không tạo tệp MP3 và không dịch nội dung. Bạn vẫn có thể lưu nội dung, nghe lại và chia sẻ văn bản.</Label>
     <Action onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>Quay lại</Action>
-  </Screen>;
+  </Page>;
 }

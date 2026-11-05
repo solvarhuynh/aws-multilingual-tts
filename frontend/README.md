@@ -1,6 +1,6 @@
 # Giao diện
 
-App iOS nằm trong `app/`, web nằm trong `web/`. App dùng Node.js 22 LTS (22.13 trở lên) hoặc 24 LTS (24.3 trở lên).
+App iOS/Android nằm trong `app/`, web nằm trong `web/`. App dùng Node.js 22 LTS (22.13 trở lên) hoặc 24 LTS (24.3 trở lên).
 
 ```sh
 cd frontend/app
@@ -18,7 +18,9 @@ App có giao diện sáng/tối/hệ thống, thanh kính nổi hỗ trợ kéo 
 
 Kính gốc dùng `expo-glass-effect` trên iOS hỗ trợ; thiết bị khác dùng kính mờ. Cử chỉ thanh tab tham khảo [expo-glass-tabs](https://github.com/davidmokos/expo-glass-tabs), có chỉnh hình học cho nút + riêng. Đây là thanh tùy biến dùng kính native, không phải toàn bộ `UITabBar` của Apple. Giấy phép đặt trong `app/licenses/`.
 
-`npm ci` tự dựng bộ đọc PDF cục bộ qua `prepare`; không tải tài liệu lên dịch vụ khác. Trong `app/`, chạy `npm run typecheck`, `npm run lint`, `npm test`; `npx expo export --platform ios` kiểm tra đóng gói iOS.
+Khung màn hình, tiêu đề, vùng cuộn và xử lý bàn phím dùng chung trong `app/src/components/layout.tsx`. Vùng an toàn được đo riêng cho từng trang/cửa sổ; lưới, thanh dưới và trình phát tự đổi theo kích thước và cỡ chữ. App hỗ trợ xoay màn hình.
+
+`npm ci` tự dựng bộ đọc PDF cục bộ qua `prepare`; không tải tài liệu lên dịch vụ khác. Trong `app/`, chạy `npm run typecheck`, `npm run lint`, `npm test`; `npx expo export --platform ios --platform android` kiểm tra đóng gói hai nền tảng. Kiểm tra bố cục bằng bản web không thay thế thử bàn phím, âm thanh và kính native trên thiết bị thật.
 
 Yêu cầu Node.js 20.19 trở lên.
 

@@ -1,7 +1,7 @@
-import { Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, Switch, View } from 'react-native';
 import { router } from 'expo-router';
-import { Circle, Icon, Label, Section, type IconName } from '../components/ui';
+import { Icon, Label, Section, type IconName } from '../components/ui';
+import { Page } from '../components/layout';
 import { useStudio } from '../state/Studio';
 import { type ThemeMode } from '../lib/model';
 import { API_BASE, DEMO } from '../lib/api';
@@ -11,9 +11,7 @@ export default function Settings() {
   const options: { title: string; value: ThemeMode; icon: IconName }[] = [
     { title: 'Hệ thống', value: 'system', icon: 'phone' }, { title: 'Sáng', value: 'light', icon: 'sun' }, { title: 'Tối', value: 'dark', icon: 'moon' },
   ];
-  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-    <ScrollView contentContainerStyle={{ padding: 24, gap: 27, paddingBottom: 50 }}>
-      <View style={styles.header}><Label size={30} weight="700">Cài đặt</Label><Circle name="close" label="Đóng cài đặt" onPress={() => router.canGoBack() ? router.back() : router.replace('/')} /></View>
+  return <Page close title="Cài đặt">
       <Section title="Giao diện" />
       <View style={styles.themes}>{options.map(item => <Pressable key={item.value} accessibilityRole="button" accessibilityLabel={`Giao diện ${item.title.toLowerCase()}`}
         accessibilityState={{ selected: preferences.theme === item.value }} onPress={() => updatePreferences({ theme: item.value })}
@@ -36,12 +34,10 @@ export default function Settings() {
       <Pressable accessibilityRole="button" onPress={() => router.push('/help')} style={[styles.help, { borderColor: colors.line }]}><Icon name="help" color={colors.secondary} />
         <Label style={{ flex: 1 }}>Hướng dẫn sử dụng</Label><Icon name="next" size={15} color={colors.secondary} /></Pressable>
       <Label size={12} muted style={{ textAlign: 'center' }}>TTS Studio · HCMUTE | AWS</Label>
-    </ScrollView>
-  </SafeAreaView>;
+  </Page>;
 }
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  themes: { flexDirection: 'row', gap: 10 }, theme: { flex: 1, paddingVertical: 22, gap: 14, alignItems: 'center', borderWidth: 1, borderRadius: 25 },
+  themes: { flexDirection: 'row', gap: 10 }, theme: { flex: 1, minWidth: 0, paddingVertical: 22, paddingHorizontal: 6, gap: 14, alignItems: 'center', borderWidth: 1, borderRadius: 25 },
   radio: { width: 19, height: 19, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   group: { borderWidth: 1, borderRadius: 26, paddingHorizontal: 18 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, gap: 15, borderBottomWidth: 1 },

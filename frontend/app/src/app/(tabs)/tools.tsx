@@ -1,6 +1,7 @@
+import { Page } from '../../components/layout';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import { Icon, Label, Screen, type IconName } from '../../components/ui';
+import { Icon, Label, type IconName } from '../../components/ui';
 import { useStudio } from '../../state/Studio';
 
 const tools: { title: string; icon: IconName; mode: string; color: string }[] = [
@@ -10,7 +11,7 @@ const tools: { title: string; icon: IconName; mode: string; color: string }[] = 
 ];
 export default function Tools() {
   const { colors } = useStudio();
-  return <Screen title="Công cụ">
+  return <Page tabs title="Công cụ">
     {tools.map(tool => <Pressable key={tool.mode} accessibilityRole="button" onPress={() => router.push({ pathname: '/compose', params: { mode: tool.mode } })}
       style={[styles.tool, { backgroundColor: colors.surface, borderColor: colors.line }]}>
       <View style={[styles.art, { backgroundColor: `${tool.color}15` }]}><Icon name={tool.icon} color={tool.color} size={31} /></View>
@@ -19,7 +20,7 @@ export default function Tools() {
     </Pressable>)}
     <Pressable accessibilityRole="button" onPress={() => router.push('/help')} style={[styles.row, { borderColor: colors.line }]}>
       <Icon name="help" size={25} color={colors.secondary} /><Label style={{ flex: 1 }} weight="500">Hướng dẫn</Label><Icon name="next" size={16} color={colors.secondary} /></Pressable>
-  </Screen>;
+  </Page>;
 }
 const styles = StyleSheet.create({
   tool: { minHeight: 112, borderRadius: 30, borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 16, padding: 18 },
