@@ -8,8 +8,10 @@
 Người dùng (trình duyệt / app)
   → App/Web trên S3 + CloudFront (M4)
   → API Gateway + Cognito đăng nhập (M1)
-  → (tùy chọn) POST /text/correct → tts-submit → Gemini trả bản sửa để người dùng duyệt
-  → người dùng xác nhận nội dung rồi gửi POST /synthesize
+  → Nhấn Chuyển giọng: POST /text/correct → Comprehend (nếu tự nhận diện) → Gemini
+      ├─ không có lỗi hoặc kiểm tra không khả dụng → tiếp tục bằng văn bản gốc
+      └─ có đề xuất → M4 cho người dùng chọn bản sửa hoặc giữ bản gốc
+  → POST /synthesize chỉ nhận nội dung cuối cùng đã chọn
   → Lambda tts-submit (M5)
       kiểm tra đầu vào, tạo job PENDING trong DynamoDB
       Comprehend nhận diện ngôn ngữ (MR), Translate dịch (MR)
@@ -33,6 +35,10 @@ Các API dữ liệu đi riêng:
 Trong suốt luồng: M5 ghi log/metric; M1 cấu hình CloudWatch dashboard, SNS alarm và X-Ray.
 SAM / CloudFormation + IAM dùng để dựng hạ tầng và cấp quyền cần thiết (M1).
 ```
+
+## Kiểm tra lỗi đánh máy
+
+Theo workflow được phân công, khi người dùng nhấn **Chuyển giọng**, M4 sẽ gọi `POST /text/correct`. Nếu Gemini có đề xuất, người dùng chọn bản sửa hoặc giữ bản gốc trước khi gửi sang TTS. Nếu bước kiểm tra không khả dụng, hệ thống dùng văn bản gốc. Đây hiện là thiết kế trong tài liệu; phần code chưa bắt đầu. API key dự kiến được lưu trong AWS Secrets Manager, không đưa vào frontend hoặc Git.
 
 ## Các module
 

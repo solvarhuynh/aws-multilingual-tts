@@ -38,6 +38,7 @@ API Gateway REST, Lambda integrations, CloudFormation/SAM, IAM, CloudWatch, SNS,
 ## Ghi chú kỹ thuật riêng
 
 - Dùng API Gateway REST, stage `dev`. Mỗi route dùng Lambda proxy integration; cấu hình `OPTIONS` cho CORS.
+- Route `POST /text/correct` gọi `tts-submit`. Key Gemini không nằm trong API Gateway hay biến cấu hình frontend; IAM của `tts-submit` chỉ được `secretsmanager:GetSecretValue` trên secret được cấu hình.
 - Request ngắn phải hoàn thành trước giới hạn thời gian tích hợp API Gateway; request dài nhận phản hồi `202` và được M5 đưa vào SQS.
 - M1 tích hợp route và phản hồi, còn M5 sở hữu xử lý nghiệp vụ trong `tts-submit`.
 - M1 quản lý dashboard, alarm, SNS, tracing và quyền nền tảng. M5 ghi log/metric trong code và xác minh trace của luồng nghiệp vụ.

@@ -8,12 +8,14 @@ Hệ thống chuyển văn bản thành giọng nói đa ngôn ngữ bằng các
 Người dùng
   → App/Web (S3 + CloudFront)                          [M4]
   → API Gateway (+ Cognito)                            [M1]
-  → (tùy chọn) POST /text/correct → tts-submit → Gemini trả bản sửa để người dùng duyệt [M5]
-  → người dùng xác nhận nội dung
+  → Nhấn Chuyển giọng → POST /text/correct             [M4 → M1 → M5]
+      xác định ngôn ngữ (Comprehend khi chọn tự động)
+      Gemini chỉ tìm lỗi đánh máy
+      ├─ không có lỗi / bước kiểm tra lỗi → dùng nguyên văn bản gốc
+      └─ có đề xuất → M4 hiển thị bản gốc và bản sửa, người dùng chọn
   → POST /synthesize
   → Lambda tts-submit                                  [M5]
       kiểm tra đầu vào, tạo job PENDING trong DynamoDB
-      chỉ sửa chính tả qua Gemini khi người dùng yêu cầu (MR)
       Comprehend nhận diện ngôn ngữ (MR), Translate dịch (MR)
       làm sạch, tách đoạn; chống trùng (MR, M3)
       ├─ văn bản ngắn → gọi thẳng Lambda tts-synthesize
@@ -36,10 +38,11 @@ Các API phụ đi riêng: `GET /voices` (M2), `GET /jobs/{id}`, `GET /history`,
 | Lambda, Polly, Secrets Manager | Chuyển văn bản thành âm thanh | M2 |
 | S3, DynamoDB, Lambda Layer | Lưu file, dữ liệu job và mã dùng chung | M3 |
 | S3, CloudFront, Cognito, CloudWatch RUM, GitHub Actions | Phục vụ và triển khai giao diện web | M4 |
-| Comprehend, Translate, SQS/DLQ, Gemini API | Xử lý ngôn ngữ, sửa chính tả theo yêu cầu và xử lý nền | M5 |
+| Comprehend, Translate, SQS/DLQ, Gemini API | Nhận diện/dịch ngôn ngữ, kiểm tra lỗi đánh máy và xử lý nền | M5 |
 
 ## Quyết định thiết kế
 
 1. Amazon Polly chưa hỗ trợ tiếng Việt, nên dùng bộ chuyển đổi nhà cung cấp để có thể thay dịch vụ mà không đổi luồng xử lý chung.
 2. Văn bản dài chạy nền qua SQS vì Polly giới hạn độ dài mỗi lần gọi và API Gateway giới hạn thời gian chờ.
 3. Bucket S3 giữ riêng tư; trình duyệt nghe file bằng presigned URL có thời hạn.
+4. Gemini chỉ đề xuất sửa lỗi đánh máy. Khi có đề xuất, người dùng chọn bản sửa hoặc giữ bản gốc; khi provider lỗi, hệ thống tiếp tục bằng bản gốc.

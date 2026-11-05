@@ -31,7 +31,7 @@ Yêu cầu cơ bản của giảng viên:
 - API Gateway gọi Lambda, Lambda kích hoạt Amazon Polly tạo file `.mp3`.
 - Lưu file vào S3, lưu metadata vào DynamoDB, trả link phát âm thanh trực tiếp trên web.
 
-Nhóm làm thêm (đánh dấu **MR** = mở rộng): tiếng Việt qua nhà cung cấp ngoài, văn bản dài chạy nền qua SQS, lịch sử, đăng nhập Cognito, chống trùng, nhận diện/dịch ngôn ngữ, sửa chính tả tùy chọn qua Gemini, giám sát CloudWatch/X-Ray và deploy bằng SAM.
+Nhóm làm thêm (đánh dấu **MR** = mở rộng): tiếng Việt qua nhà cung cấp ngoài, văn bản dài chạy nền qua SQS, lịch sử, đăng nhập Cognito, chống trùng, nhận diện/dịch ngôn ngữ, kiểm tra lỗi đánh máy qua Gemini, giám sát CloudWatch/X-Ray và deploy bằng SAM.
 
 **Mục tiêu chấm điểm:** hệ thống chạy thật, mỗi thành viên hiểu và trình bày được phần AWS của mình, ai cũng deploy được repo lên AWS.
 
@@ -43,8 +43,8 @@ Nhóm làm thêm (đánh dấu **MR** = mở rộng): tiếng Việt qua nhà cu
 Người dùng
   → App/Web (S3 + CloudFront)                          [M4]
   → API Gateway (+ Cognito)                            [M1]
-  → (tùy chọn) POST /text/correct → tts-submit → Gemini trả bản sửa để người dùng duyệt [M5]
-  → người dùng xác nhận nội dung
+  → nhấn Chuyển giọng: POST /text/correct → Comprehend nếu cần → Gemini kiểm tra lỗi đánh máy [M5]
+  → nếu có đề xuất, người dùng chọn bản sửa hoặc giữ nguyên; nếu không, dùng bản gốc [M4]
   → POST /synthesize
   → Lambda tts-submit                                  [M5]
         kiểm tra đầu vào, tạo job PENDING trong DynamoDB
@@ -89,7 +89,7 @@ Dịch vụ AWS chính của từng module:
 - **M2, M5** đọc/ghi dữ liệu qua thư viện **`backend/common`** của **M3**. M3 sở hữu history; M5 sở hữu stats.
 - **M1** cấp IAM role cho Lambda, dashboard/SNS alarm, bật X-Ray và gom `infra/m*.yaml` của các module vào `template.yaml`.
 - **M1** tạo IAM OIDC role cho deploy; **M4** sở hữu workflow GitHub Actions dùng role đó.
-- **M5** chỉ gọi Gemini để sửa chính tả sau khi người dùng yêu cầu; **M4** hiển thị bản sửa để người dùng duyệt.
+- **M5** gọi Gemini để kiểm tra lỗi đánh máy khi người dùng nhấn Chuyển giọng; **M4** chỉ yêu cầu chọn khi có đề xuất.
 - **M2** cung cấp `config/voices.json` cho M4 (ô chọn giọng) và M5 (chọn ngôn ngữ).
 
 ---

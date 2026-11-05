@@ -5,14 +5,24 @@
 
 ## TRẠNG THÁI NHANH
 
-- Ngày cập nhật lần cuối: 2026-11-04
-- Đang làm: cập nhật phạm vi M5 và contract sửa chính tả tùy chọn
-- Đã xong: chuyển `tts-stats` sang M5; phân chia Gemini backend cho M5, màn hình duyệt cho M4 và dashboard/tracing nền tảng cho M1
-- Việc tiếp theo: báo nhóm contract `POST /text/correct` và secret Gemini, sau đó bắt đầu hiện thực bước 5.1
+- Ngày cập nhật lần cuối: 2026-11-05
+- Đang làm: chốt workflow và phân công cho tính năng kiểm tra lỗi đánh máy tự động
+- Đã xong: cập nhật mô tả luồng, contract dự kiến `POST /text/correct`, và trách nhiệm M1/M4/M5
+- Việc tiếp theo: nhóm xác nhận workflow/contract rồi mới bắt đầu triển khai code
 - Đang bị chặn bởi: (không)
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-05: Cập nhật cấu trúc phân công cho typo check
+
+- Đã làm: ghi nhận luồng tự kiểm tra khi nhấn Chuyển giọng; M5 phụ trách Gemini backend/Comprehend, M4 duyệt đề xuất, M1 route và IAM. Đây là cập nhật phạm vi và tài liệu, chưa bắt đầu triển khai tính năng.
+- File đã đổi: `AGENTS.md`, `README.md`, `docs/overview/ARCHITECTURE.md`, `docs/overview/QUY-UOC-CHUNG.md`, `docs/tasks/task-m1.md`, `docs/tasks/task-m4.md`, `docs/tasks/task-m5.md`, `infra/m1-api-security.yaml`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): chưa có.
+- Quyết định và lý do: Gemini chỉ đề xuất lỗi đánh máy; người dùng quyết định nội dung trước khi TTS. Nếu Gemini không dùng được, workflow dự kiến dùng bản gốc.
+- Lỗi gặp / đang dở: phần code/API Gateway/UI chưa được triển khai; secret Gemini chưa có.
+- Việc tiếp theo: chỉ bắt đầu code sau khi nhóm chốt contract và workflow.
+- Cần báo module khác: M1, M4, M5 xem lại phân công và contract trong task docs; M2/M3 chưa cần đổi code ở giai đoạn cấu trúc.
 
 ### 2026-11-04: Chốt phạm vi M5 trong phân công module
 
