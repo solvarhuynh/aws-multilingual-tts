@@ -10,15 +10,17 @@ npm run dev
 
 `npm run build` tạo bản chạy trong `web/dist`.
 
-`npm run test:ui` kiểm tra nút gạt, menu, trình phát, điều hướng và luồng tạo giọng bằng DOM/API mô phỏng; không gọi AWS. `happy-dom` chỉ phục vụ kiểm thử, không đưa vào bản chạy.
+`npm run test:ui` kiểm tra nút gạt, menu, trình phát, điều hướng, chuyển động sidebar, xuất CSV và luồng tạo giọng bằng DOM/API mô phỏng; không gọi AWS. `happy-dom` chỉ phục vụ kiểm thử, không đưa vào bản chạy.
 
 Trong `web/src`: `App.tsx` nối các màn hình, `components/` chứa sidebar/trình phát/điều khiển dùng chung, `views/` chứa Tổng quan, `hooks/useStudio.ts` quản lý luồng tạo giọng, `lib/` chứa API/dữ liệu/đọc tài liệu. Các kiểm thử dùng chung thiết lập trong `web/tests/environment.mjs`.
 
 Icon dùng thống nhất [Framework7 Icons](https://github.com/framework7io/framework7-icons) 5.0.5 (MIT), phong cách iOS, không phải SF Symbols chính thức của Apple. Chỉ các SVG cần dùng được import qua component `Icon` trong `web/src/components/ui.tsx`; không tải font hoặc icon từ CDN. Giấy phép được giữ tại `web/public/licenses/framework7-icons.txt`.
 
-Liquid Glass dùng [Glisse](https://github.com/0kzh/glisse) (MIT) cho điều hướng và thanh trượt. Nút bấm dùng HTML/CSS để dễ sửa và tránh dựng lại bộ lọc khi gõ. Thanh trên, ô soạn thảo, cài đặt giọng và trình phát là các ô kính CSS riêng; khung `workspace` chỉ giữ bố cục. Màu, độ trong (`--surface`) và độ mờ kính (`--glass-filter`) nằm ở đầu `web/src/styles.css`.
+Liquid Glass dùng [Glisse](https://github.com/0kzh/glisse) (MIT) cho thanh trượt. Sidebar, nút bấm và các ô kính dùng HTML/CSS. Thanh trên, ô soạn thảo, cài đặt giọng và trình phát là các ô riêng; khung `workspace` chỉ giữ bố cục. Màu, độ trong (`--surface`) và độ mờ kính (`--glass-filter`) nằm ở đầu `web/src/styles.css`.
 
-Sidebar theo video tham chiếu: kính mỏng, thu thành thanh icon 72px và nở cả chiều ngang/cao khi mở. Chữ hiện trễ 120ms, hiệu ứng đóng/mở dùng chung `--sidebar-duration` và `--sidebar-ease`; không thêm thư viện chuyển động. `components/Sidebar.tsx` quản lý điều hướng, tìm kiếm và tooltip khi thu gọn.
+Sidebar thu thành thanh icon 72px. `hooks/useSidebarMotion.ts` đổi bố cục một lần rồi nối vị trí bằng Web Animations API; nền kính co giãn, nhóm icon giữ tỉ lệ. Có hủy chuyển động cũ khi bấm đảo chiều, resize hoặc bật giảm chuyển động. Thời gian chỉnh bằng `--sidebar-duration` và `--sidebar-ease`; không thêm thư viện chuyển động.
+
+`components/PageHeader.tsx` đặt HCMUTE cạnh lời chào ShipCODE, tên trang bên dưới; sidebar giữ logo AWS. Tìm kiếm dùng nút trên header hoặc Ctrl/⌘ K. Nút Xuất báo cáo tải các bản thu đã tải trong lịch sử ra CSV UTF-8, không chứa link nghe tạm thời; tải thêm lịch sử trước khi xuất nếu cần đủ các bản thu. Tổng quan dùng chung lưới ba cột, chuyển sang hai/một cột trên màn hình nhỏ.
 
 Menu chọn dùng [Radix Select](https://www.radix-ui.com/primitives/docs/components/select), cùng một component cho bốn ô ngôn ngữ/bộ lọc. Nút gạt cài đặt dùng một núm CSS giới hạn trong track, không dùng lớp phóng đại SVG. Nền và sóng 3D có chuyển động nhẹ; bật “Giảm chuyển động” sẽ dừng cả hai.
 

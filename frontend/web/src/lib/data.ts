@@ -1,4 +1,4 @@
-import type { Language, Page } from "./types";
+import type { HistoryItem, Language, Page } from "./types";
 
 export const navigation: { id: Page; title: string; icon: string }[] = [
   { id: "dashboard", title: "Tổng quan", icon: "dashboard" },
@@ -135,4 +135,18 @@ export function validateInput(text: string, speed: number): string | null {
   if (!Number.isFinite(speed) || speed < 0.5 || speed > 2)
     return "Tốc độ đọc cần nằm trong khoảng 0,5× đến 2×.";
   return null;
+}
+
+export function historyCsv(items: HistoryItem[]): string {
+  const rows = [
+    ["Mã bản thu", "Nội dung", "Ngôn ngữ", "Giọng đọc", "Số ký tự", "Tốc độ", "Trạng thái", "Ngày tạo"],
+    ...items.map((item) => [item.jobId, item.text, item.lang, item.voice, item.charCount,
+      item.speed ?? 1, item.status, item.createdAt]),
+  ];
+  // BOM giữ tiếng Việt trong Excel; nội dung người dùng luôn được đọc như văn bản.
+  return "\uFEFF" + rows.map((row) => row.map((value) => {
+    const text = String(value);
+    const cell = /^\s*[=+\-@]/.test(text) ? "'" + text : text;
+    return `"${cell.replaceAll('"', '""')}"`;
+  }).join(",")).join("\r\n");
 }

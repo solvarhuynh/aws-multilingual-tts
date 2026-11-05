@@ -30,6 +30,30 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       await click(env.mount.querySelector('[aria-label="Hướng dẫn"]'));
       assert.equal(env.mount.querySelector("h1").textContent, "Hướng dẫn sử dụng");
     });
+    await suite.test("thanh trên chào ShipCODE, đặt tên trang bên dưới và xuất báo cáo CSV", async () => {
+      const header = env.mount.querySelector('.page-header');
+      assert.match(header.querySelector('.header-greeting').textContent, /Hey, ShipCODE/);
+      assert.equal(header.querySelector('.header-greeting strong').textContent, "ShipCODE");
+      assert.ok(Number.isFinite(Date.parse(header.querySelector('time').dateTime)));
+      assert.equal(header.querySelector('.header-greeting').nextElementSibling.tagName, "H1");
+      assert.ok(header.querySelector('img[alt="HCMUTE"]'));
+      assert.equal(env.mount.querySelector('.sidebar img[alt="HCMUTE"]'), null);
+      assert.ok(env.mount.querySelector('.sidebar img[alt="AWS"]'));
+      assert.equal(header.querySelector('.header-create'), null);
+      const originalClick = env.win.HTMLAnchorElement.prototype.click;
+      const originalCreate = URL.createObjectURL;
+      let exported, filename;
+      URL.createObjectURL = (blob) => { exported = blob; return "blob:tts-report"; };
+      env.win.HTMLAnchorElement.prototype.click = function () { filename = this.download; };
+      try {
+        await click(header.querySelector('.header-utility'));
+        assert.match(filename, /^tts-studio-report-.*\.csv$/);
+        assert.match(await exported.text(), /Nội dung bản thu/);
+      } finally {
+        env.win.HTMLAnchorElement.prototype.click = originalClick;
+        URL.createObjectURL = originalCreate;
+      }
+    });
     await suite.test("sidebar thu gọn được và lưu lựa chọn", async () => {
       await click(env.mount.querySelector('[aria-label="Thu gọn thanh bên"]'));
       assert.ok(env.mount.querySelector(".app-shell.sidebar-collapsed"));
@@ -46,7 +70,7 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       assert.equal(env.mount.querySelector('[role="tooltip"]').textContent, "Tạo giọng đọc");
       await act(() => link.blur());
       assert.equal(env.mount.querySelector('[role="tooltip"]'), null);
-      await click(env.mount.querySelector('.sidebar-search'));
+      await click(env.mount.querySelector('.header-search'));
       const dialog = document.querySelector('dialog[aria-label="Tìm kiếm"]');
       assert.ok(dialog?.open);
       await act(() => dialog.dispatchEvent(new env.win.Event("cancel", { cancelable: true })));
@@ -68,6 +92,9 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       await click(env.mount.querySelector('.sidebar a[href="#dashboard"]'));
       assert.match(env.mount.textContent, /Đang tải bản thu/);
       assert.doesNotMatch(env.mount.textContent, /Chưa có bản thu/);
+      await click(env.mount.querySelector('.header-utility'));
+      assert.match(env.mount.textContent, /Đang tải lịch sử để xuất báo cáo/);
+      assert.doesNotMatch(env.mount.textContent, /bạn có bản thu đầu tiên/);
       await act(async () => { reject(new Error("Lịch sử tạm thời chưa tải được")); await settle(); });
       assert.match(env.mount.textContent, /Lịch sử tạm thời chưa tải được/);
       assert.doesNotMatch(env.mount.textContent, /Chưa có bản thu/);

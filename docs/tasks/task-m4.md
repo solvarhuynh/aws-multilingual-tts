@@ -35,6 +35,8 @@ S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M
 
 ## Ghi chú kỹ thuật riêng
 
+- [x] Header ShipCODE theo ảnh mới: HCMUTE ở header, AWS ở sidebar, tên trang bên dưới lời chào và nút Xuất báo cáo CSV từ lịch sử đã tải. Dashboard dùng lưới/spacing chung, KPI bằng nhau và card dưới cùng chiều cao theo nội dung.
+- [x] Tối ưu thu/mở sidebar bằng FLIP/Web Animations API, bỏ layout mỗi frame, SVG viền nav và blur chữ; xử lý đảo chiều, resize/unmount, giảm chuyển động và fallback. 47 kiểm thử mô phỏng đạt ngày 2026-11-05; vẫn cần đo FPS/đối chiếu trực quan trên máy thật, chưa hoàn tất 4.11.
 - [x] Dựng sidebar theo video tham chiếu: kính mỏng, nút mép, chuyển đổi chiều rộng/cao, chữ hiện trễ, pill chọn mục và tooltip ở dạng hẹp; giữ giảm chuyển động/mobile. 38 kiểm thử mô phỏng đạt ngày 2026-11-05; còn đối chiếu chuyển động trên trình duyệt thực, chưa khẳng định khớp 100%.
 - [x] Tách workspace thành các ô kính rời (thanh trên, soạn thảo, cài đặt giọng, trình phát), tăng độ trong và dùng chung token CSS; giữ sóng 3D và tùy chọn trợ năng. Build thành công ngày 2026-11-05; chưa xác nhận hình ảnh/FPS trên trình duyệt thật.
 - [x] Tinh gọn bộ bọc nút bấm, bỏ lớp kính/CSS trùng và gom thiết lập kiểm thử; build không sinh tsconfig.tsbuildinfo. Giữ các font/logo/giấy phép và mã đang được dùng.

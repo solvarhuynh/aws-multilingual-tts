@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DEMO } from "./lib/api";
 import AudioPlayer from "./components/AudioPlayer";
 import Sidebar from "./components/Sidebar";
+import PageHeader from "./components/PageHeader";
 import Select from "./components/Select";
 import CorrectionReview from "./components/CorrectionReview";
 import {
@@ -20,6 +21,7 @@ import {
   estimateDuration,
   formatNumber,
   formatTime,
+  historyCsv,
   languageNames,
   MAX_CHARS,
   navigation,
@@ -30,6 +32,7 @@ import {
   samples,
 } from "./lib/data";
 import { useStudio } from "./hooks/useStudio";
+import { useSidebarMotion } from "./hooks/useSidebarMotion";
 import Dashboard from "./views/Dashboard";
 import type { HistoryItem, Page, Preferences } from "./lib/types";
 
@@ -61,6 +64,7 @@ export default function App() {
   const [languageFilter, setLanguageFilter] = useState("all");
   const [preferences, setPreferences] = useState(getPreferences);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStored<boolean>("tts.sidebar.collapsed", false) === true);
+  const sidebarMotion = useSidebarMotion(() => setSidebarCollapsed((value) => !value), preferences.reducedMotion);
   const [playbackRequest, setPlaybackRequest] = useState<{ jobId: string; serial: number } | null>(null);
   const [playingJobId, setPlayingJobId] = useState<string | null>(null);
   const playbackSerial = useRef(0);
@@ -198,6 +202,27 @@ export default function App() {
       deleteLock.current = false;
       setDeleting(false);
     }
+  }
+
+  function exportReport() {
+    if (studio.loadingHistory && !studio.history.length) {
+      notify("Đang tải lịch sử để xuất báo cáo. Vui lòng thử lại sau.");
+      return;
+    }
+    if (!studio.history.length) {
+      navigate("library");
+      notify(studio.historyError || "Báo cáo sẽ sẵn sàng khi bạn có bản thu đầu tiên.", !!studio.historyError);
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([historyCsv(studio.history)], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `tts-studio-report-${new Date().toLocaleDateString("sv-SE")}.csv`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notify(`Đã xuất ${formatNumber(studio.history.length)} bản thu.${studio.nextCursor ? " Tải thêm lịch sử để xuất các bản thu còn lại." : ""}`);
   }
 
   function renderPreferences() {
@@ -341,27 +366,14 @@ export default function App() {
       >
         Chuyển đến ô nhập văn bản
       </a>
-      <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      <div ref={sidebarMotion.ref} className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
         <div className="glass-backdrop" aria-hidden="true" />
         <Sidebar page={page} collapsed={sidebarCollapsed} count={studio.history.length}
-          onToggle={() => setSidebarCollapsed((value) => !value)}
-          onNavigate={navigate} onSearch={() => openDialog("search")} />
+          onToggle={sidebarMotion.toggleWithMotion}
+          onNavigate={navigate} />
         <div className="workspace">
-          <header className="page-header">
-            <div className="page-heading">
-              <Button
-                className="icon-button mobile-menu"
-                aria-label="Mở menu điều hướng"
-                onClick={() => openDialog("menu")}
-              >
-                <Icon name="menu" />
-              </Button>
-              <h1>{title}</h1>
-            </div>
-            <Button className="header-search" aria-label="Tìm kiếm" aria-keyshortcuts="Control+K Meta+K" onClick={() => openDialog("search")}>
-              <Icon name="search" size={17} />
-            </Button>
-          </header>
+          <PageHeader title={title} onMenu={() => openDialog("menu")}
+            onSearch={() => openDialog("search")} onExport={exportReport} />
           <main id="main-content" key={page} className={`route-view ${isStudio ? "studio-route" : ""}`}>
             {page === "dashboard" && (
               <Dashboard

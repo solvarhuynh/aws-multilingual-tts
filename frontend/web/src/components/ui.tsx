@@ -1,5 +1,4 @@
 import {
-  Glass as LiquidGlass,
   Slider as LiquidSlider,
   type SliderProps,
 } from "glisse";
@@ -82,7 +81,6 @@ const icons: Record<string, typeof Waveform> = {
   close: Xmark,
   loading: Arrow2Circlepath,
 };
-export const Glass = memo(LiquidGlass);
 
 // Mặc định không gửi form; hình thức nút được quản lý bằng CSS.
 export function Button({ type = "button", ...props }: ButtonHTMLAttributes<HTMLButtonElement>) {
@@ -122,13 +120,7 @@ export function Spinner() {
   return <Icon name="loading" size={17} className="spinner" />;
 }
 export function Brand() {
-  return (
-    <div className="brand-lockup" aria-label="HCMUTE | AWS">
-      <img className="hcmute-logo" src="/brand/hcmute.png" alt="HCMUTE" />
-      <span aria-hidden="true">|</span>
-      <img className="aws-logo" src="/brand/aws.webp" alt="AWS" />
-    </div>
-  );
+  return <img className="brand-logo" src="/brand/aws.webp" alt="AWS" />;
 }
 export function ToolArt() {
   const artRef = useRef<HTMLDivElement>(null);

@@ -122,7 +122,7 @@ export default function Dashboard({
             icon: "translate",
           },
         ].map((stat) => (
-          <article className="overview-stat" key={stat.title}>
+          <article className="overview-stat surface" key={stat.title}>
             <span className="stat-icon">
               <Icon name={stat.icon} size={19} />
             </span>
