@@ -34,22 +34,16 @@ Không cần đọc ngay năm tài liệu trong `plans/`. Chỉ mở chúng khi 
 | [DEPLOY](guides/DEPLOY.md) | M1, M4; người deploy | Runbook một phiên lab và reset/redeploy |
 | [GIT-VA-LOGS](guides/GIT-VA-LOGS.md) | Cả nhóm khi commit/log | Quy tắc nhánh, secret và nhật ký |
 
-## File chủ yếu dành cho agent hoặc người phụ trách kế hoạch
+## Kế hoạch chi tiết
 
-| File | Khi nào mở |
-|---|---|
-| [Migration plan](plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md) | Agent/PM cần toàn cảnh, quyết định A/B/C, gates, rủi ro và test matrix |
-| [Module backlog](plans/MODULE-BACKLOG-AND-ACCEPTANCE.md) | Agent chia việc thành task nhỏ hoặc kiểm acceptance |
-| [Service matrix](plans/SANDBOX-SERVICE-MATRIX.md) | M1/agent kiểm allowlist, action và trạng thái `UNVERIFIED` |
-| [Validation runbook](plans/SANDBOX-VALIDATION-RUNBOOK.md) | Chỉ mở khi chuẩn bị kiểm AWS; Level 2 cần approval riêng |
-| [Old-to-new changelog](plans/OLD-TO-NEW-CHANGELOG.md) | Agent migrate từ kiến trúc cũ hoặc cần biết lý do đổi service/env |
+Không cần mở toàn bộ `plans/`. [Bản đồ kế hoạch](plans/README.md) phân loại năm file theo mục đích và chỉ ra file nào là lịch sử, file nào dùng khi xử lý Sandbox. Task `task-mN.md` là nguồn chính cho phạm vi và acceptance của từng thành viên; backlog dùng để xem phụ thuộc liên module.
 
 ## Quy tắc đọc nhanh
 
 - Chỉ muốn hiểu dự án: đọc `README.md` → `ARCHITECTURE.md`.
 - Chuẩn bị code: đọc `QUY-UOC-CHUNG.md` → task module mình.
 - Chuẩn bị báo cáo: đọc `KHUNG-BAO-CAO.md` → task module mình.
-- Chuẩn bị AWS Sandbox: đọc `DEPLOY.md` → `SANDBOX-VALIDATION-RUNBOOK.md`; không tự chạy Level 2.
+- Chuẩn bị AWS Sandbox: đọc `DEPLOY.md` và [bản đồ kế hoạch](plans/README.md); chỉ dùng `SANDBOX-VALIDATION-RUNBOOK.md` khi có yêu cầu kiểm tra cụ thể. Không tự chạy Level 2.
 - Agent bắt đầu công việc: đọc `AGENTS.md` trước, sau đó dùng đúng nhóm file ở trên.
 
 Tất cả tài liệu Sandbox hiện là **PROPOSED / PENDING GROUP SIGN-OFF**. Chúng chưa chứng minh code đã chạy hoặc AWS đã deploy.

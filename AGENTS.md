@@ -1,52 +1,57 @@
-# Hướng dẫn làm việc với repo trong AWS Academy Sandbox
+# Hướng dẫn làm việc trong repo
 
-**Baseline kế hoạch ngày 2026-11-06: PROPOSED / PENDING GROUP SIGN-OFF.** Task đang thực hiện là re-plan/doc-only; chỉ implement khi có yêu cầu riêng. Đọc [kế hoạch chính](docs/plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md), [service matrix](docs/plans/SANDBOX-SERVICE-MATRIX.md) và [quy ước proposed](docs/overview/QUY-UOC-CHUNG.md).
+## Thứ tự đọc cho thành viên và agent
 
-## Constraints trước khi làm
+Thành viên nên nắm bối cảnh chung trước khi làm: `README.md` và [sơ đồ kiến trúc](docs/overview/ARCHITECTURE.md). Trước khi sửa, xem `AGENTS.md`, log của module mình và **toàn bộ** `docs/tasks/task-mN.md`; task có phạm vi, các bước, dependencies, giới hạn và tiêu chí nghiệm thu.
 
-- Handout Academy do người dùng cung cấp là chuẩn giới hạn lab. Allowlist service không chứng minh từng action/integration được phép.
-- Đích regional **us-east-1**; IAM/CloudFront global, bucket S3 có tên toàn cầu nhưng đặt theo region.
-- **CURRENT RUNTIME CONFIG STILL OLD:** samconfig.toml/config/settings.json vẫn ở ap-southeast-1; template/config/code chưa migrate. Không deploy dựa vào tài liệu mới khi runtime cũ chưa được review ở Gate 1.
-- IAM read-only: Lambda dùng **LabRole** hiện hữu, EC2 dùng **LabInstanceProfile** nếu fallback được duyệt. M1 kiểm quyền, không tạo/sửa role/policy/OIDC và không claim LabRole là least privilege do nhóm thiết kế.
-- Session lab reset cuối mỗi phiên theo handout; source/config không nhạy cảm/evidence phải lưu ngoài account. S3/RDS không bảo đảm giữ data qua phiên.
-- Polly, DynamoDB, API Gateway, SQS/DLQ, Secrets Manager, Comprehend, Translate, Cognito, X-Ray/RUM, EventBridge/Budgets **NOT ALLOWLISTED / OUT OF BASELINE**. Chỉ xem lại sau xác nhận riêng và sandbox test.
-- Function URL, CloudFront OAC, Lambda Invoke, SSM SecureString/KMS là **UNVERIFIED / NEEDS SANDBOX TEST**, không được suy ra quyền từ tên service. Nếu không có secret mechanism đủ an toàn được trường chấp thuận thì BLOCKER external TTS.
-- Không yêu cầu gửi credentials/keys qua chat, không xuất lab credentials sang GitHub. Không key/token trong repo/frontend/log/evidence.
+Agent hỗ trợ một thành viên phải đọc `AGENTS.md`, `README.md`, [bản đồ tài liệu](docs/README.md), [kiến trúc](docs/overview/ARCHITECTURE.md), [quy ước chung/API](docs/overview/QUY-UOC-CHUNG.md), log và task đầy đủ của module đó. Sau đó mở kế hoạch/guide đúng chủ đề theo [bản đồ plans](docs/plans/README.md) khi cần quyết định, dependency, Sandbox hoặc deploy. Không cần đọc hết `docs/plans/`, và không bỏ qua task chỉ vì README có phần tóm tắt.
 
-## Luồng dự kiến
+Các file trong `docs/plans/` là tài liệu tham chiếu chi tiết cho agent và người phụ trách; không bắt mọi thành viên đọc toàn bộ. Mục tiêu là giữ tài liệu để tìm hiểu đúng lúc, không xóa chúng để rút ngắn danh sách đọc. Mở `DEPLOY.md` và validation runbook chỉ khi được giao thao tác Sandbox; thao tác ghi resource vẫn theo phê duyệt nêu dưới đây.
 
-Web/app M4 → CloudFront/S3 frontend → Function URL/HTTP entry M1 (candidate) → submit M5 → Lambda async Event → synthesize M2 → external multilingual TTS candidate → S3 jobs/audio private M3 → polling/presigned URL.
+## Dự án và trạng thái hiện tại
 
-OAC cho CloudFront ký request tới origin; presigned URL là link đọc MP3 có hạn. Async Event là AWS Lambda nhận việc để xử lý nền, **không phải SQS queue do M5 quản lý**. Mới tạo job trả 202 kể cả text ngắn; giữ 200 DONE cho kết quả đã hoàn tất nếu có.
+Đồ án web/app chuyển văn bản thành MP3, ưu tiên tiếng Việt, Anh và Nhật. Frontend web/app đã có source; M4 tích hợp và hosting, không xây lại UI cơ bản.
 
-Gemini typo là MR sau MVP: bấm Chuyển giọng → POST /text/correct một lần → đề xuất typo nếu có → người dùng chọn → POST /synthesize. Lỗi/không key/timeout trả skipped + nguyên văn bản. Không grammar/style rewrite, không tạo job trong correct. Comprehend/Translate không baseline; chọn lang rõ, không dịch ngầm.
+Luồng Sandbox đang **PROPOSED / PENDING GROUP SIGN-OFF / NOT DEPLOYED**:
 
-## Ownership giữ nguyên năm người
+`Web/app M4 → CloudFront + S3 web → Lambda HTTP entry M1 → submit M5 → Lambda async Event → worker M2 → TTS provider ngoài AWS → S3 jobs/audio M3 → polling + presigned URL.`
 
-| Module | Thành viên | Deliverables Sandbox đề xuất | Files implementation thuộc owner |
-|---|---|---|---|
-| M1 | Minh Lý | HTTP router/Function URL candidate, root IaC existing LabRole, capability validation, CloudWatch Dashboard/Alarms/SNS, runbook reset | template.yaml, samconfig.toml, infra/m1-api-security.yaml, scripts/, config/settings.json; backend/http/ dự kiến chưa tạo |
-| M2 | Trung Khang | External provider adapter, worker synthesize/voices, MP3, retry handling, EventInvokeConfig worker duy nhất | backend/synthesize/, backend/voices/, config/voices.json, infra/m2-tts-core.yaml |
-| M3 | Trung Đức | S3 job JSON/audio private, common repository/CAS, history/presign/Lifecycle | backend/common/, backend/history/, infra/m3-storage-data.yaml |
-| M4 | Nguyên Khang | Existing frontend integration, S3 web private, CloudFront/OAC association, manual upload/invalidation/redeploy | frontend/, infra/m4-frontend-hosting.yaml; .github/workflows/ chỉ bảo trì, không OIDC deploy baseline |
-| M5 | Trung Nghĩa | Submit/async policy/recovery, validation, application telemetry/tests, typo/stats MR | backend/submit/, backend/stats/, tests/ dự kiến, infra/m5-language-async-monitor.yaml |
+Cấu hình kế hoạch trong `samconfig.toml` và `config/settings.json` đã chuyển sang `us-east-1`. Runtime vẫn chưa sẵn sàng: backend còn stub/501 và `backend/common/python/tts_common/config.py` vẫn đọc biến môi trường cũ. `template.yaml` còn ProjectMarker SSM String để giữ SAM skeleton; không deploy template này. Không coi config/voice placeholder là dịch vụ đã chạy.
 
-Frontend web/app có source trong workspace, không giao dựng lại UI. S3 web M4 tách S3 jobs/audio M3. M1 sở hữu HTTP routing/resource policy, M4 sở hữu distribution/OAC association; M2 sở hữu một worker EventInvokeConfig, M5 bàn giao retry/event-age/destination policy. M1 không sở hữu nghiệp vụ mọi Lambda.
+## Giới hạn AWS Academy
 
-## Cách phối hợp
+- Tài nguyên regional dùng `us-east-1`; IAM và CloudFront là global. Lab reset tài nguyên và dữ liệu khi hết phiên.
+- IAM read-only: dùng `LabRole` có sẵn cho Lambda; không tạo role, policy hay GitHub OIDC mới. EC2 fallback cần `LabInstanceProfile` và kiểm tra riêng.
+- Có tên dịch vụ trong allowlist không chứng minh action cụ thể được phép. Function URL, Lambda Invoke, CloudFront OAC, S3 policy/CAS, CloudFormation và CloudWatch actions vẫn **UNVERIFIED / NEEDS SANDBOX TEST**.
+- KMS chỉ list theo handout; SSM SecureString chưa được chứng minh. Nếu trường không duyệt được cách bảo vệ API key/demo token thì live TTS/Gemini bị chặn; tiếp tục bằng mocks.
+- Polly, DynamoDB, API Gateway, SQS/DLQ, Secrets Manager, Comprehend, Translate, Cognito, X-Ray/RUM, EventBridge và Budgets **OUT OF BASELINE**. Chỉ dùng lại khi có xác nhận riêng và test Sandbox.
+- Không xuất AWS credentials khỏi Lab IDE/CloudShell. Không ghi key, token, text riêng tư hoặc presigned URL đầy đủ vào repo, browser bundle, log hay evidence.
 
-1. Đọc file này, log/task module và tài liệu contract liên quan. Phạm vi tài liệu toàn repo đã được người dùng yêu cầu thì thực hiện, không hỏi lại permission do ownership.
-2. Kiểm git status/diff trước sửa; bảo toàn thay đổi local. Không reset/ghi đè code người khác.
-3. Phân biệt planned, coded, locally tested, sandbox verified và deployed & demoed. File comment, diagram hoặc stub không phải triển khai.
-4. Giữ 7 public API paths/field/status nếu có thể. Mọi thay đổi header/auth/scope/env proposed phải có compatibility mapping và group sign-off trước implementation.
-5. M3 common/schema trước M2/M5; M1 HTTP capability trước M4 nối API; M2 MP3 thật trước MR Gemini.
-6. Mỗi module chỉ thêm log của mình; giữ lịch sử. Entry cũ nói dịch vụ AWS-first là lịch sử, không baseline hiện tại. Không tick task chưa làm.
-7. Backend Python 3.12/boto3, dùng common M3; error shape {"error":{"code":"...","message":"..."}}. Log JSON/correlation ID, không text/key/token/presigned signature.
-8. Demo shared scope có kiểm token là đề xuất giảm scope, không xác thực nhiều người dùng. Không public history guest như một hệ thống phân quyền hoàn chỉnh.
-9. Chỉ Level 1 read-only trong lab khi được yêu cầu. Mọi Level 2 tạo/thay/xóa resource, test trả phí, deploy/reset cần yêu cầu/approval cụ thể theo runbook. Không commit/push khi chưa yêu cầu.
+## Hợp đồng chung cần nhớ
 
-## Phạm vi lượt migration hiện tại
+- Giữ bảy public paths: `POST /text/correct`, `POST /synthesize`, `GET /voices`, `GET /jobs/{id}`, `GET /history`, `DELETE /history/{id}`, `GET /stats`.
+- Job mới trả HTTP `202` và được xử lý async. Trạng thái: `PENDING → PROCESSING → DONE | FAILED`. Error JSON: `{"error":{"code":"...","message":"..."}}`.
+- S3 jobs, audio và hosting là ba bucket riêng; jobs là JSON theo từng job. S3 không có DB transaction, query index hay TTL. Không lưu presigned URL trong metadata.
+- Các tên biến kế hoạch: `JOBS_BUCKET`, `JOBS_PREFIX`, `AUDIO_BUCKET`, `SYNTH_FUNCTION_NAME`. Chúng chưa được nối vào runtime.
+- Auth một scope dùng chung `demo` qua `X-Demo-Token` chỉ là đề xuất cần nhóm duyệt, không phải phân quyền nhiều người dùng. Backend gán scope; không nhận `userId`, bucket hay ARN từ client.
+- Ngôn ngữ tổng hợp phải chọn rõ từ voice registry đã xác minh. Không dịch ngầm. Gemini typo là MR sau khi MP3 MVP chạy: người dùng duyệt đề xuất, lỗi provider thì dùng nguyên bản, không sửa ngữ pháp/văn phong và không tạo job từ `/text/correct`.
 
-Được sửa AGENTS/README, docs/overview, docs/tasks, docs/guides, năm docs/plans, comment infra **chỉ khi file comment-only**; có thể append entry log-m5. Không ghi backend/frontend/tests/config/template.yaml/samconfig.toml/.github/workflows/.env/secret/data/audio. Tất cả runtime changes là backlog, chưa thực hiện. Không tạo PDF/DOCX.
+## Phân công và bàn giao
 
-Các tài liệu chuẩn: [Architecture](docs/overview/ARCHITECTURE.md), [Contract](docs/overview/QUY-UOC-CHUNG.md), [Migration plan](docs/plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md), [Backlog](docs/plans/MODULE-BACKLOG-AND-ACCEPTANCE.md), [Validation](docs/plans/SANDBOX-VALIDATION-RUNBOOK.md), [Deploy](docs/guides/DEPLOY.md), [Report](docs/guides/KHUNG-BAO-CAO.md). Chỗ chưa chắc ghi UNVERIFIED thay vì suy đoán.
+| Module | Người phụ trách | Sở hữu |
+|---|---|---|
+| M1 | Minh Lý | HTTP router/Function URL candidate, root SAM, kiểm quyền LabRole, CloudWatch/SNS |
+| M2 | Trung Khang | TTS provider adapter, voices, worker và MP3; một `EventInvokeConfig` duy nhất |
+| M3 | Trung Đức | S3 jobs/audio, common repository, history, presign và retention |
+| M4 | Nguyên Khang | Frontend hiện có, S3 web, CloudFront/OAC và deploy web thủ công |
+| M5 | Trung Nghĩa | Submit, async orchestration, recovery, application telemetry/tests; typo/stats MR |
+
+M1 sở hữu Lambda URL/resource policy; M4 sở hữu CloudFront distribution/OAC association. M2 sở hữu worker `EventInvokeConfig`; M5 bàn giao retry/event-age policy, không tạo cấu hình trùng. M3 làm common/schema trước khi M2/M5 phụ thuộc; M1 xác minh HTTP trước khi M4 tích hợp; MP3 thật trước Gemini.
+
+## Cách làm và ghi trạng thái
+
+- Chỉ làm module được giao; tài liệu dùng chung có thể sửa khi yêu cầu bao trùm repo. Không sửa code module khác nếu chưa được giao.
+- Trước khi sửa, xem `git status` và giữ thay đổi đang có. Không reset hay ghi đè thay đổi của người khác.
+- Phân biệt `planned`, `coded`, `locally tested`, `sandbox verified`, `deployed & demoed`. Diagram/comment/stub không phải bằng chứng deploy.
+- Mỗi người chỉ cập nhật log của mình, giữ nguyên lịch sử và không tick task trước khi có đầu ra đã kiểm chứng.
+- Chỉ chạy lệnh AWS/resource mutation, test trả phí, deploy hoặc reset khi được giao rõ. Không commit/push trừ khi người dùng yêu cầu.

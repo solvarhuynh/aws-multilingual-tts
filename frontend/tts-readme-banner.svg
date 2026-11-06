@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="title desc">
+  <title id="title">AWS Multilingual TTS</title>
+  <desc id="desc">Multilingual text to speech project for web and mobile</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="0.52" stop-color="#173c67"/>
+      <stop offset="1" stop-color="#087e8b"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ff9900"/>
+      <stop offset="1" stop-color="#44d3d8"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="300" rx="26" fill="url(#bg)"/>
+  <circle cx="1060" cy="36" r="142" fill="#18a5aa" opacity=".18" filter="url(#soft)"/>
+  <circle cx="112" cy="290" r="150" fill="#ff9900" opacity=".12" filter="url(#soft)"/>
+  <path d="M0 239 C180 197 268 278 438 238 S707 204 860 242 S1070 274 1200 224 V300 H0Z" fill="#ffffff" opacity=".055"/>
+  <g fill="url(#wave)" opacity=".9" transform="translate(832 91)">
+    <rect x="0" y="58" width="8" height="40" rx="4"/>
+    <rect x="20" y="37" width="8" height="82" rx="4"/>
+    <rect x="40" y="19" width="8" height="118" rx="4"/>
+    <rect x="60" y="47" width="8" height="62" rx="4"/>
+    <rect x="80" y="5" width="8" height="146" rx="4"/>
+    <rect x="100" y="29" width="8" height="98" rx="4"/>
+    <rect x="120" y="51" width="8" height="54" rx="4"/>
+    <rect x="140" y="17" width="8" height="122" rx="4"/>
+    <rect x="160" y="39" width="8" height="78" rx="4"/>
+    <rect x="180" y="59" width="8" height="38" rx="4"/>
+    <rect x="200" y="27" width="8" height="102" rx="4"/>
+    <rect x="220" y="44" width="8" height="68" rx="4"/>
+    <rect x="240" y="62" width="8" height="32" rx="4"/>
+  </g>
+  <text x="74" y="128" fill="#ffffff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="47" font-weight="750" letter-spacing="1">AWS MULTILINGUAL TTS</text>
+  <text x="78" y="174" fill="#dceafa" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="500">Văn bản đa ngôn ngữ · Tổng hợp giọng nói · Xuất MP3</text>
+  <text x="78" y="215" fill="#a9c8e3" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" letter-spacing="2">WEB  /  MOBILE  /  AWS ACADEMY SANDBOX</text>
+</svg>
