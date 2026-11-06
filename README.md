@@ -49,6 +49,7 @@ Các dịch vụ Polly/DynamoDB/API Gateway/SQS/Secrets Manager/Comprehend/Trans
 
 ## Tài liệu
 
+- [Bản đồ tài liệu — đọc file nào trước](docs/README.md).
 - [Architecture](docs/overview/ARCHITECTURE.md), [Quy ước API/data](docs/overview/QUY-UOC-CHUNG.md).
 - [M1](docs/tasks/task-m1.md), [M2](docs/tasks/task-m2.md), [M3](docs/tasks/task-m3.md), [M4](docs/tasks/task-m4.md), [M5](docs/tasks/task-m5.md).
 - [Old-to-new changelog](docs/plans/OLD-TO-NEW-CHANGELOG.md).
