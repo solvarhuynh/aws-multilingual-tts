@@ -1,7 +1,10 @@
-# Module: M3 — Lưu trữ và dữ liệu
-# Người phụ trách: Trung Đức
-# Tài nguyên dự kiến khai báo ở đây:
-# - Bảng DynamoDB tts-jobs-dev, chỉ mục textHash-index và TTL
-# - Bucket tts-audio-dev, lifecycle và CORS
-# - Lambda Layer common
-# - Lambda tts-history
+# M3 - Trung Đức: S3 jobs/audio, common repository và history.
+# PLANNING ONLY / NOT DEPLOYABLE - 2026-11-06, proposed pending group sign-off.
+# Regional resources: us-east-1; private jobs and audio buckets separate from M4 web.
+# Candidate: S3 JSON per job, SSE-S3/Block Public Access, conditional PUT ETag/CAS.
+# Common CRUD/lease/idempotency/tombstone/presign; Lambda history/poll/delete.
+# Expiry checked by app; Lifecycle async cleanup, not DynamoDB TTL or transactions.
+# Existing LabRole action checks required; no generated execution roles.
+# Optional async failure records use M3 bucket if permitted; not SQS DLQ.
+# Session reset loses data; backup non-sensitive evidence outside lab.
+# No DynamoDB baseline; RDS PostgreSQL optional after MVP and separate gates.

@@ -1,6 +1,9 @@
-# Module: M2 — Lõi chuyển giọng
-# Người phụ trách: Trung Khang
-# Tài nguyên dự kiến khai báo ở đây:
-# - Lambda tts-synthesize
-# - Lambda tts-voices
-# - Secret cho nhà cung cấp tiếng Việt
+# M2 - Trung Khang: synthesize worker, voices và external provider adapter.
+# PLANNING ONLY / NOT DEPLOYABLE - 2026-11-06, proposed pending group sign-off.
+# Regional resources: us-east-1; Lambda uses existing LabRole if allowed.
+# ElevenLabs is a non-AWS candidate; verify account/model/voices/vi-en-ja/MP3/cost.
+# Use M3 S3 jobs/audio common, CAS/lease and partial-save recovery.
+# M2 owns the ONLY worker EventInvokeConfig in this file; M5 supplies policy.
+# Async Event is not SQS/DLQ. No Polly/Secrets Manager in baseline.
+# Secret storage, egress, destination permissions UNVERIFIED; no safe secret -> BLOCKER.
+# Worker/runtime/provider code not implemented by this comment-only migration.

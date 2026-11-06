@@ -1,7 +1,11 @@
-# Module: M5 — Điều phối TTS, xử lý ngôn ngữ và kiểm thử
-# Người phụ trách: Trung Nghĩa
-# Tài nguyên dự kiến khai báo ở đây:
-# - Lambda tts-submit
-# - Lambda tts-stats
-# - Hàng đợi SQS và DLQ
-# - Secrets Manager secret cho Gemini API key (MR); không lưu key trong repo
+# M5 - Trung Nghĩa: submit, async orchestration, recovery và application telemetry/tests.
+# PLANNING ONLY / NOT DEPLOYABLE - 2026-11-06, proposed pending group sign-off.
+# Regional resources: us-east-1; existing LabRole runtime capabilities need tests.
+# Candidate: submit creates PENDING via M3 common, Invoke Event IDs-only, HTTP 202.
+# M5 proposes retry/event-age/destination policy; M2 owns one worker EventInvokeConfig.
+# No SQS queue/DLQ/consumer/redrive; Lambda async internal queue is AWS-managed.
+# M3 owns S3 common/jobs/audio; M1 owns platform CloudWatch dashboard/alarms/SNS.
+# Explicit language/verified voice and speed; no Comprehend/Translate baseline.
+# MR after real MP3 MVP: Gemini typo-only fail-open original and bounded-scan stats.
+# Secrets/egress/credits require approval and verification; no safe key storage -> BLOCKER.
+# No backend/tests/config implementation in this documentation migration.

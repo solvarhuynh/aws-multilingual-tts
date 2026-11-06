@@ -1,12 +1,9 @@
-# Module: M1 — API, tích hợp và vận hành
-# Người phụ trách: Minh Lý
-# Tài nguyên dự kiến khai báo ở đây:
-# - API Gateway REST và các route; POST /text/correct gọi tts-submit
-# - Tích hợp các route với Lambda của M2, M3 và M5
-# - Cognito User Pool và App Client (MR)
-# - IAM role riêng cho từng Lambda; tts-submit chỉ đọc Gemini secret cần thiết
-# - IAM OIDC role cho workflow deploy frontend của M4
-# - CloudWatch dashboard, log retention, alarm và SNS topic dùng chung
-# - Cấu hình bật AWS X-Ray tracing cho các Lambda
-# - CloudTrail (MR)
-# - AWS Budgets (MR)
+# M1 - Minh Lý: HTTP entry, tích hợp Sandbox và quan sát chung.
+# PLANNING ONLY / NOT DEPLOYABLE - 2026-11-06, proposed pending group sign-off.
+# Regional resources: us-east-1. Existing LabRole only; IAM read-only.
+# Candidate: Lambda HTTP router/Function URL and resource policy, root SAM wiring.
+# CloudWatch Dashboard/Alarms/SNS and session reset/redeploy runbook.
+# Function URL/AddPermission/PassRole/Invoke/SSM-KMS: UNVERIFIED, needs sandbox tests.
+# M4 owns CloudFront distribution/OAC association; M1 owns Lambda URL/policy.
+# No API Gateway, generated IAM roles, new OIDC provider, X-Ray or Budgets baseline.
+# Runtime template/config remain unchanged; see docs/plans and proposed shared contract.

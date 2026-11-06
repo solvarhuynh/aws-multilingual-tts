@@ -1,8 +1,9 @@
-# Module: M4 — Giao diện App/Web và hosting
-# Người phụ trách: Nguyên Khang
-# Tài nguyên dự kiến khai báo ở đây:
-# - Bucket lưu trữ web
-# - CloudFront với Origin Access Control (OAC)
-# - Hosting và CloudFront invalidation cho workflow deploy frontend
-# - Dùng IAM OIDC role do M1 cấp trong GitHub Actions (MR)
-# - CloudWatch RUM (MR)
+# M4 - Nguyên Khang: existing frontend, private S3 web và CloudFront.
+# PLANNING ONLY / NOT DEPLOYABLE - 2026-11-06, proposed pending group sign-off.
+# S3 web in us-east-1; CloudFront global; web bucket separate from M3 jobs/audio.
+# Own distribution, S3 REST origin, OAC associations and API no-cache behaviors.
+# M1 owns Lambda Function URL/resource policy; coordinate SourceArn and POST hash.
+# OAC/permissions/signing remain UNVERIFIED; no public-data-bucket workaround.
+# Preserve existing web/app UI; integrate URL/token runtime/202 polling/voices/history.
+# Manual Lab IDE/CloudShell upload/invalidation/redeploy; no new IAM/OIDC deploy role.
+# Cognito/RUM outside baseline. No deployment workflow implemented in this task.
