@@ -1,6 +1,14 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: aws-multilingual-tts, hệ thống Text-to-Speech đa ngôn ngữ (M1 sở hữu file này)
+Description: aws-multilingual-tts SAM skeleton for proposed AWS Academy Sandbox architecture
+
+Metadata:
+  ConfigurationStatus:
+    Plan: PROPOSED
+    SandboxValidation: PENDING SANDBOX VALIDATION
+    Deployment: NOT DEPLOYED
+    TargetRegion: us-east-1
+    TargetFlow: CloudFront and S3 web to Lambda HTTP entry, async worker, external TTS and private S3
 
 Parameters:
   Env:
@@ -10,25 +18,18 @@ Parameters:
 Globals:
   Function:
     Runtime: python3.12
-    Timeout: 30
-    MemorySize: 256
-    Environment:
-      Variables:
-        ENV: !Ref Env
-        PRESIGN_TTL_SECONDS: "3600"
-        SYNC_MAX_CHARS: "2500"
-        CHUNK_SIZE: "2500"
-        MAX_CHARS: "20000"
-        JOB_TTL_DAYS: "30"
-        # TODO (M1): thêm AUDIO_BUCKET, JOBS_TABLE, QUEUE_URL, SYNTH_FUNCTION_NAME,
-        # EXTERNAL_TTS_SECRET_NAME khi các module tạo tài nguyên tương ứng.
+    # Runtime settings and LabRole ARN are added only after contract and Sandbox checks.
+    # Proposed env names: JOBS_BUCKET, JOBS_PREFIX, AUDIO_BUCKET, SYNTH_FUNCTION_NAME.
+    # TTS_API_PARAMETER_NAME and other secret references depend on an approved mechanism.
 
 Resources:
-  # TODO (M1): nối các file trong infra/ (m1 đến m5) bằng AWS::Serverless::Application,
-  # truyền giá trị chung qua Parameters/Outputs. Xóa ProjectMarker khi đã có tài nguyên thật.
+  # Existing non-secret marker keeps this SAM skeleton structurally valid.
+  # It is not the planned secret store or a deployed TTS resource. Do not deploy this skeleton.
+  # M1 will replace the marker only after Gate 0 verifies permissions and resources.
   ProjectMarker:
     Type: AWS::SSM::Parameter
     Properties:
-      Name: !Sub /tts/${Env}/project
+      Name:
+        Fn::Sub: /tts/${Env}/project
       Type: String
       Value: aws-multilingual-tts

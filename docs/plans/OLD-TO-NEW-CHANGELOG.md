@@ -51,3 +51,9 @@ Năm người và ownership nghiệp vụ; Python 3.12; stack tts-dev; PENDING/P
 6. M2/M3/M5 resilience + M1 monitoring; sau đó MR typo/stats; cuối reset rehearsal/report.
 
 Mọi file backend/frontend/config/template/samconfig/tests/workflow ở bảng là **implementation later**, chưa chỉnh trong lượt này.
+
+## CONFIG-01 — cập nhật cấu hình mục tiêu sau lượt lập kế hoạch
+
+`samconfig.toml` nay chọn `us-east-1`, giữ `tts-dev` và xác nhận changeset thủ công; bỏ `CAPABILITY_IAM CAPABILITY_AUTO_EXPAND` và `resolve_s3` mặc định vì quyền deploy/artifact bucket chưa được Sandbox kiểm chứng. `config/settings.json` mô tả S3 JSON, Lambda async Event và provider ngoài AWS chưa xác minh; các giới hạn ký tự, tốc độ, thời hạn URL và retention để `null` chờ M1–M3 đo/chốt. `config/voices.json` giữ cấu trúc theo ngôn ngữ nhưng xóa Polly voice IDs mẫu; danh sách giọng trống tới khi M2 kiểm chứng provider. `template.yaml` giữ skeleton và ProjectMarker String cũ, bỏ env mặc định/ghi chú DynamoDB, SQS và ngưỡng sync; metadata ghi PROPOSED / PENDING SANDBOX VALIDATION / NOT DEPLOYED. Không thêm resource, IAM role, ARN hay secret.
+
+Đoạn đầu changelog và các câu audit trong AGENTS/README/plan là **snapshot trước CONFIG-01**. `backend/common/python/tts_common/config.py` vẫn đọc các env cũ; backend, frontend và hạ tầng module chưa được migrate. Cấu hình mục tiêu mới chưa đồng nghĩa runtime hoạt động, và ProjectMarker sẽ là SSM String nếu ai cố deploy skeleton; tiếp tục không deploy cho đến Gate 0 và implementation riêng.

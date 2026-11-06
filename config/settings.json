@@ -1,13 +1,16 @@
 {
-  "region": "ap-southeast-1",
+  "_status": "PROPOSED / PENDING SANDBOX VALIDATION / NOT DEPLOYED",
+  "_note": "Backend environment variables remain on the legacy contract until a separate implementation task.",
+  "region": "us-east-1",
   "stackName": "tts-dev",
-  "chunkSize": 2500,
-  "syncMaxChars": 2500,
-  "maxChars": 20000,
-  "presignTtlSeconds": 3600,
-  "jobTtlDays": 30,
-  "audioLifecycleDays": 30,
-  "defaultSpeed": 1.0,
-  "minSpeed": 0.5,
-  "maxSpeed": 2.0
+  "jobStorage": "s3-json",
+  "dispatchMode": "lambda-async-event",
+  "ttsProvider": "external-pending-verification",
+  "maxChars": null,
+  "presignTtlSeconds": null,
+  "jobTtlDays": null,
+  "audioLifecycleDays": null,
+  "defaultSpeed": null,
+  "minSpeed": null,
+  "maxSpeed": null
 }
