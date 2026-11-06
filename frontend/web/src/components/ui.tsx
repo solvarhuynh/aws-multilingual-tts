@@ -122,7 +122,8 @@ export function Spinner() {
   return <Icon name="loading" size={17} className="spinner" />;
 }
 export function Brand() {
-  return <img className="brand-logo" src="/brand/aws.webp" alt="AWS" />;
+  return <span className="brand-logo"><img src="/brand/aws.webp" alt="AWS" />
+    <span className="brand-word" aria-hidden="true"><img src="/brand/aws.webp" alt="" /></span></span>;
 }
 export function ToolArt() {
   const artRef = useRef<HTMLDivElement>(null);

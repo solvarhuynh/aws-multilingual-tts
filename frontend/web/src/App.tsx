@@ -34,6 +34,7 @@ import {
 } from "./lib/data";
 import { useStudio } from "./hooks/useStudio";
 import { useSidebarMotion } from "./hooks/useSidebarMotion";
+import { useTheme } from "./hooks/useTheme";
 import Dashboard from "./views/Dashboard";
 import type { HistoryItem, Page, Preferences } from "./lib/types";
 
@@ -49,6 +50,7 @@ const currentPage = (): Page =>
 function getPreferences(): Preferences {
   const value = readStored<Partial<Preferences> | null>("voxa.preferences.v1", null);
   return {
+    theme: value?.theme === "light" || value?.theme === "dark" ? value.theme : "system",
     reducedMotion: value?.reducedMotion === true,
     highContrast: value?.highContrast === true,
     volume:
@@ -64,6 +66,7 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [preferences, setPreferences] = useState(getPreferences);
+  useTheme(preferences.theme);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStored<boolean>("tts.sidebar.collapsed", false) === true);
   const sidebarMotion = useSidebarMotion(() => setSidebarCollapsed((value) => !value), preferences.reducedMotion);
   const [playbackRequest, setPlaybackRequest] = useState<{ jobId: string; serial: number } | null>(null);
@@ -209,6 +212,17 @@ export default function App() {
   function renderPreferences() {
     return (
       <div className="preferences-content">
+        <fieldset className="theme-preference">
+          <legend>Giao diện</legend>
+          <div className="theme-options">
+            {([{ value: "system", label: "Hệ thống" }, { value: "light", label: "Sáng" }, { value: "dark", label: "Tối" }] as const).map(option =>
+              <label key={option.value}>
+                <input className="sr-only" type="radio" name="theme" value={option.value} checked={preferences.theme === option.value}
+                  onChange={() => setPreferences(p => ({ ...p, theme: option.value }))} />
+                <span>{option.label}</span>
+              </label>)}
+          </div>
+        </fieldset>
         <Toggle
           label="Giảm chuyển động"
           description="Ngừng chuyển động của nền và sóng âm."

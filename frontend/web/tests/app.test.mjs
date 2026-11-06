@@ -37,7 +37,20 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       await click(env.mount.querySelector('[aria-label="Hướng dẫn"]'));
       assert.equal(env.mount.querySelector("h1").textContent, "Hướng dẫn sử dụng");
     });
+    await suite.test("chọn giao diện sáng/tối và lưu cùng tùy chọn cũ", async () => {
+      await click(env.mount.querySelector('.sidebar a[href="#settings"]'));
+      await click(env.mount.querySelector('input[name="theme"][value="dark"]'));
+      assert.equal(document.documentElement.dataset.theme, "dark");
+      assert.equal(document.documentElement.style.colorScheme, "dark");
+      const saved = JSON.parse(localStorage.getItem("voxa.preferences.v1"));
+      assert.equal(saved.theme, "dark");
+      assert.equal(saved.volume, 0.8);
+      assert.equal(saved.highContrast, false);
+      await click(env.mount.querySelector('input[name="theme"][value="light"]'));
+      assert.equal(document.documentElement.dataset.theme, "light");
+    });
     await suite.test("thanh trên chào Nhóm 5, đặt tên trang bên dưới và xuất báo cáo CSV", async () => {
+      await click(env.mount.querySelector('.sidebar a[href="#help"]'));
       const header = env.mount.querySelector('.page-header');
       assert.match(header.querySelector('.header-greeting').textContent, /Chào buổi (sáng|chiều|tối), Nhóm 5/);
       assert.equal(header.querySelector('.header-greeting strong').textContent, "Nhóm 5");

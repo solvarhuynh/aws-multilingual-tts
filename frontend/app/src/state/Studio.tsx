@@ -13,8 +13,8 @@ const light = {
   glassLine: 'rgba(255,255,255,0.88)', danger: '#B7283D', orange: '#B66D00', invert: '#FFFFFF',
 };
 const dark: typeof light = {
-  bg: '#101214', surface: '#1C1F23', raised: '#292D32', text: '#F4F6F8', secondary: '#A6AEB8',
-  faint: '#818B96', line: '#333940', blue: '#64BDF6', blueSoft: '#173346', glass: 'rgba(35,39,44,0.69)',
+  bg: '#000000', surface: '#1C1C1E', raised: '#2C2C2E', text: '#F5F5F7', secondary: '#AEAEB2',
+  faint: '#8E8E93', line: '#38383A', blue: '#64BDF6', blueSoft: '#173346', glass: 'rgba(28,28,30,0.32)',
   glassLine: 'rgba(255,255,255,0.15)', danger: '#FF8F9D', orange: '#FFB653', invert: '#102330',
 };
 async function read(key: string): Promise<unknown> {
@@ -31,8 +31,10 @@ function useStudioState() {
   const [history, setHistory] = useState<Recording[]>([]);
   const [languages, setLanguages] = useState<Language[]>(DEMO ? demoLanguages : []);
   const [draft, setDraft] = useState('');
-  const [lang, setLang] = useState('vi-VN');
-  const [voice, setVoice] = useState('Linh');
+  const [{ lang, voice }, setSelection] = useState({ lang: 'vi-VN', voice: 'Linh' });
+  const [loadingVoices, setLoadingVoices] = useState(!DEMO);
+  const [voiceError, setVoiceError] = useState('');
+  const voiceRequest = useRef(0);
   const [speed, setSpeed] = useState(1);
   const [cursor, setCursor] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -98,24 +100,33 @@ function useStudioState() {
     } catch (error) { if (mounted.current) setNotice(error instanceof Error ? error.message : 'Chưa tải được bản thu.'); }
     finally { loading.current = false; if (mounted.current) setRefreshing(false); }
   }, [cursor]);
-  useEffect(() => {
+  const reloadVoices = useCallback(async () => {
     if (DEMO) return;
-    let alive = true;
-    api.voices().then(result => {
-      if (!alive) return;
+    const request = ++voiceRequest.current;
+    setLoadingVoices(true); setVoiceError('');
+    try {
+      const result = await api.voices();
+      if (!mounted.current || request !== voiceRequest.current) return;
       setLanguages(result);
       const first = result.find(l => l.lang === 'vi-VN' && l.voices.length) ?? result.find(l => l.voices.length);
-      if (first) { setLang(first.lang); setVoice(first.voices[0].id); }
-    }).catch(error => { if (alive) setNotice(error.message); });
+      if (!first) throw new Error('Máy chủ chưa có giọng đọc. Hãy tải lại sau.');
+      setSelection(previous => result.some(l => l.lang === previous.lang && l.voices.some(v => v.id === previous.voice))
+        ? previous : { lang: first.lang, voice: first.voices[0].id });
+    } catch (error) {
+      if (mounted.current && request === voiceRequest.current) setVoiceError(error instanceof Error ? error.message : 'Chưa tải được giọng đọc.');
+    } finally { if (mounted.current && request === voiceRequest.current) setLoadingVoices(false); }
+  }, []);
+  useEffect(() => {
+    if (DEMO) return;
     // Tải dữ liệu ban đầu và phản ánh trạng thái đang tải.
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    void reloadVoices();
     void refresh();
-    return () => { alive = false; };
     // Chỉ tải danh sách đầu tiên khi mở ứng dụng.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const updatePreferences = (patch: Partial<Preferences>) => setPreferences(p => ({ ...p, ...patch }));
-  const selectVoice = (language: string, id: string) => { setLang(language); setVoice(id); };
+  const selectVoice = (lang: string, voice: string) => setSelection({ lang, voice });
   const saveRecording = async (recording: Recording) => {
     const next = [recording, ...historyRef.current.filter(r => r.jobId !== recording.jobId)].slice(0, 200);
     if (DEMO && !await persist(KEYS.recordings, next)) throw new Error('Chưa lưu được bản thu. Hãy kiểm tra dung lượng máy rồi thử lại.');
@@ -131,7 +142,7 @@ function useStudioState() {
     if (preferences.haptics) void Haptics.selectionAsync().catch(() => {});
   };
   return { colors, isDark, preferences, updatePreferences, reducedMotion, active, ready, history, languages, draft, setDraft,
-    lang, voice, speed, setSpeed, selectVoice, saveRecording, removeRecording, refresh, refreshing, cursor,
+    lang, voice, speed, setSpeed, selectVoice, loadingVoices, voiceError, reloadVoices, saveRecording, removeRecording, refresh, refreshing, cursor,
     notice, setNotice, haptic };
 }
 const StudioContext = createContext<ReturnType<typeof useStudioState> | null>(null);

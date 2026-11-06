@@ -9,5 +9,5 @@ export function useLayout() {
   const insets = useInsets();
   const width = Platform.OS === 'web' ? window.width : frame.width || window.width;
   const height = Platform.OS === 'web' ? window.height : frame.height || window.height;
-  return { ...layoutMetrics(width, height, insets, window.fontScale), insets, fontScale: window.fontScale };
+  return { ...layoutMetrics(width, height, insets, window.fontScale, Platform.OS === 'android' ? 'android' : 'ios'), insets, fontScale: window.fontScale };
 }

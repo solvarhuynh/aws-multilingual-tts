@@ -32,6 +32,8 @@ npm run dev
 
 `npm run build` tạo bản chạy trong `web/dist`.
 
+Trong Cài đặt → Giao diện, chọn Hệ thống, Sáng hoặc Tối. Lựa chọn được lưu trên thiết bị; Hệ thống tự đổi theo máy. Chế độ tối dùng nền đen có ánh xanh nhẹ phía sau lớp kính trong; tùy chọn tăng tương phản chuyển các ô kính về nền đặc để dễ đọc.
+
 `npm run test:ui` kiểm tra nút gạt, menu, trình phát, điều hướng, tìm kiếm gợi ý, lời chào theo buổi, chuyển động sidebar, xuất CSV và luồng tạo giọng bằng DOM/API mô phỏng; không gọi AWS. `happy-dom` chỉ phục vụ kiểm thử, không đưa vào bản chạy.
 
 Trong `web/src`: `App.tsx` nối các màn hình, `components/` chứa sidebar/trình phát/điều khiển dùng chung, `views/` chứa Tổng quan, `hooks/useStudio.ts` quản lý luồng tạo giọng, `lib/` chứa API/dữ liệu/đọc tài liệu. Các kiểm thử dùng chung thiết lập trong `web/tests/environment.mjs`.
@@ -50,6 +52,6 @@ Palette lấy từ hai file logo: xanh HCMUTE `#0072BC`, navy AWS `#252F3E`, cam
 
 Nút Xuất báo cáo tải các bản thu đã tải trong lịch sử ra CSV UTF-8, không chứa link nghe tạm thời; tải thêm lịch sử trước khi xuất nếu cần đủ các bản thu. Tổng quan dùng chung lưới ba cột, chuyển sang hai/một cột trên màn hình nhỏ.
 
-Menu chọn dùng [Radix Select](https://www.radix-ui.com/primitives/docs/components/select), cùng một component cho bốn ô ngôn ngữ/bộ lọc. Nút gạt cài đặt dùng một núm CSS giới hạn trong track, không dùng lớp phóng đại SVG. Nền và sóng 3D có chuyển động nhẹ; bật “Giảm chuyển động” sẽ dừng cả hai.
+Menu chọn dùng [Radix Select](https://www.radix-ui.com/primitives/docs/components/select), cùng một component cho bốn ô ngôn ngữ/bộ lọc. Nút gạt cài đặt dùng một núm CSS giới hạn trong track, không dùng lớp phóng đại SVG. Sóng 3D nhún và co giãn lệch nhịp; bật “Giảm chuyển động” sẽ dừng chuyển động của nền và sóng.
 
 Chưa cấu hình máy chủ: nghe thử bằng giọng của thiết bị. Đặt `VITE_API_BASE_URL` lúc build để dùng API của nhóm; không đặt khóa bí mật trong frontend. Khi tạo giọng, web kiểm tra lỗi đánh máy một lần, cho chọn bản gốc/bản sửa nếu có đề xuất rồi mới gửi tạo âm thanh. Nếu API kiểm tra chưa sẵn sàng, web dùng bản gốc.

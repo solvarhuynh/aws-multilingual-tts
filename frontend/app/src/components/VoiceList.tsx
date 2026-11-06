@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { Icon, Label, Empty, SearchField } from './ui';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Action, Icon, Label, Empty, SearchField } from './ui';
 import { useStudio } from '../state/Studio';
 import { usePlayback } from '../state/Playback';
 import { languageNames, normalize } from '../lib/model';
 import { DEMO } from '../lib/api';
 
 export default function VoiceList({ onSelect, selected, onlyLanguage }: { onSelect?: (lang: string, id: string) => void; selected?: { lang: string; voice: string }; onlyLanguage?: string }) {
-  const { languages, colors, lang, voice, selectVoice, preferences, updatePreferences, haptic } = useStudio();
-  const { current, playing, play, stop } = usePlayback();
+  const { languages, colors, lang, voice, selectVoice, preferences, updatePreferences, haptic, loadingVoices, voiceError, reloadVoices } = useStudio();
+  const { current, playing, loading, play, stop } = usePlayback();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const all = useMemo(() => languages.filter(l => !onlyLanguage || l.lang === onlyLanguage).flatMap(l => l.voices.map(v => ({ ...v, lang: l.lang }))), [languages, onlyLanguage]);
@@ -23,12 +23,14 @@ export default function VoiceList({ onSelect, selected, onlyLanguage }: { onSele
           style={{ color: filter === item.id ? colors.bg : colors.secondary }}>{item.title}</Label></Pressable>)}
     </ScrollView>
     {DEMO && <Label muted size={12}>Nghe thử bằng giọng trên thiết bị.</Label>}
-    {filtered.length === 0 && <Empty icon="mic" title="Không tìm thấy giọng" detail={filter === 'saved' ? 'Chạm trái tim để lưu giọng.' : 'Thử tên hoặc ngôn ngữ khác.'} />}
+    {loadingVoices && <View style={{ alignItems: 'center', gap: 12, padding: 24 }}><ActivityIndicator color={colors.blue} /><Label muted>Đang tải giọng đọc…</Label></View>}
+    {!!voiceError && <><Empty icon="mic" title="Chưa tải được giọng đọc" detail={voiceError} /><Action onPress={() => void reloadVoices()}>Tải lại giọng đọc</Action></>}
+    {!loadingVoices && !voiceError && filtered.length === 0 && <Empty icon="mic" title="Không tìm thấy giọng" detail={filter === 'saved' ? 'Chạm trái tim để lưu giọng.' : 'Thử tên hoặc ngôn ngữ khác.'} />}
     {filtered.map((v, index) => {
       const key = `${v.lang}/${v.id}`;
       const saved = preferences.favorites.includes(key);
       const isSelected = (selected?.lang ?? lang) === v.lang && (selected?.voice ?? voice) === v.id;
-      const previewing = current?.jobId === `preview-${key}` && playing;
+      const previewing = current?.jobId === `preview-${key}` && (playing || loading);
       return <View key={key} style={[styles.voice, { borderColor: isSelected ? colors.blue : colors.line, backgroundColor: isSelected ? colors.blueSoft : colors.surface }]}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Chọn giọng ${v.id}, ${languageNames[v.lang]}`} accessibilityState={{ selected: isSelected }}
           onPress={() => { if (!selected) selectVoice(v.lang, v.id); haptic(); onSelect?.(v.lang, v.id); }} style={styles.voiceSelect}>
@@ -44,7 +46,7 @@ export default function VoiceList({ onSelect, selected, onlyLanguage }: { onSele
             void play({ jobId: `preview-${key}`, text, lang: v.lang, voice: v.id, speed: 1, status: 'DONE', audioUrl: null,
               charCount: text.length, createdAt: new Date().toISOString(), local: true });
           }} style={styles.preview}><Icon name={previewing ? 'stop' : 'play'} size={14} color={colors.blue} /><Label size={13} weight="500" style={{ color: colors.blue }}>{previewing ? 'Dừng nghe' : 'Nghe thử'}</Label></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={saved ? `Bỏ lưu giọng ${v.id}` : `Lưu giọng ${v.id}`} hitSlop={10}
+          <Pressable accessibilityRole="button" accessibilityLabel={saved ? `Bỏ lưu giọng ${v.id}` : `Lưu giọng ${v.id}`} style={styles.favorite}
             onPress={() => updatePreferences({ favorites: saved ? preferences.favorites.filter(id => id !== key) : [...preferences.favorites, key] })}>
             <Icon name={saved ? 'heartFill' : 'heart'} size={20} color={saved ? colors.blue : colors.secondary} /></Pressable>
         </View>
@@ -59,5 +61,6 @@ const styles = StyleSheet.create({
   voiceSelect: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 54 },
   avatar: { width: 54, height: 54, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   voiceFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  preview: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingVertical: 3 },
+  preview: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44, paddingRight: 16 },
+  favorite: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });

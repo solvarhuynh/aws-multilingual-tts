@@ -5,14 +5,35 @@
 
 ## TRẠNG THÁI NHANH
 
-- Ngày cập nhật lần cuối: 2026-11-06
+- Ngày cập nhật lần cuối: 2026-11-07
 - Đang làm: xác nhận bố cục app trên thiết bị native thật và nối máy chủ của nhóm.
-- Đã xong: app SDK 58 có khung vùng an toàn riêng cho trang/modal, tiêu đề căn giữa, xử lý bàn phím chung, xoay màn hình và bố cục co theo kích thước/cỡ chữ. TypeScript/lint, 14 kiểm thử, bundle iOS/Android, Expo Doctor 20/20 và 145 kiểm tra bố cục trên 11 cấu hình trình duyệt đạt. Luồng tạo/duyệt nội dung, tài liệu, lịch sử và kéo tab đã chạy lại.
+- Đã xong: hạ dock iOS, giữ khoảng chừa riêng cho Android; sửa thao tác tab, tải giọng, xóa/chia sẻ bản thu. Web có Sáng/Tối/Hệ thống; chế độ tối web/app nền đen, kính trong. TypeScript/lint, 16 kiểm thử app, 59 kiểm thử web, build web và bundle iOS/Android đạt; 145 kiểm tra bố cục app và 40 kiểm tra trang/kích thước web tối đạt trên trình duyệt. Chưa xác nhận native trên máy thật.
 - Việc tiếp theo: mở lại Expo Go SDK 58 trên iPhone/Android, thử bàn phím/xoay màn hình/chữ lớn/kính/âm thanh thật; đặt EXPO_PUBLIC_API_BASE_URL khi M1/M5 cung cấp API.
 - Đang bị chặn bởi: không có Xcode/iOS Simulator hoặc thiết bị kết nối; AVD Android không khởi động vì thiếu dung lượng. Kiểm tra trình duyệt và bundle không thay thế kiểm tra native. Luồng AWS thật vẫn chờ backend.
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-07: Bàn giao thay đổi frontend qua Git
+- Người dùng yêu cầu commit `thêm chế độ tối trong web, sửa chiều cao và bug xóa ko hết trong app` và đồng bộ các nhánh. Phạm vi commit gồm frontend cùng nhật ký M4; không có thay đổi backend/hạ tầng.
+- Đã lấy commit tài liệu mới nhất `446223f` từ main bằng fast-forward, giữ nguyên thay đổi giao diện đang làm và stash định dạng task M4 cũ. Sáu nhánh remote hiện đều là tổ tiên của bản chuẩn bị push nên có thể fast-forward cùng một commit, giữ toàn bộ lịch sử.
+- Bằng chứng local giữ như các entry bên dưới: 59 kiểm thử web, 16 kiểm thử app, TypeScript/lint, build web, bundle iOS/Android và kiểm tra giao diện bằng trình duyệt đã đạt. Chưa kiểm chứng native trên máy thật hoặc triển khai AWS. Push Git không có workflow deploy trong repo.
+
+### 2026-11-07: Thêm ánh xanh nền tối, mây trắng và tăng chuyển động sóng web
+- Theo yêu cầu tiếp theo: phối ba vùng ánh xanh HCMUTE phía sau kính trên nền đen, giữ lớp màu tĩnh để giảm tải; tương phản cao vẫn ẩn nền trang trí. Biểu tượng đám mây trong avatar đổi sang trắng cho cả sáng/tối.
+- Sóng 3D: chu kỳ co giãn từ 2,8 xuống 1,7 giây, biên độ từ 0,94–1,04 lên 0,78–1,14 kèm nhún dọc theo từng thanh; cụm sóng nhún 6 điểm thay vì 3. Giữ dừng khi ngoài màn hình/ẩn tab, thumbnail đứng yên khi chưa phát, hỗ trợ giảm chuyển động của ứng dụng và hệ điều hành. Chỉ dùng transform CSS, không thêm JS mỗi khung hình hoặc dependency.
+- Kiểm tra: production build đạt; trình duyệt kiểm tra nền/kích thước 320/390/1440/2560px, chuyển sáng/tối và tương phản cao. Kiểm tra mây trắng, biên sóng trên mobile/desktop và hai chế độ giảm chuyển động đều đạt, không có lỗi JavaScript. Không đổi bố cục/API hoặc mã app; không commit/push.
+
+### 2026-11-07: Sửa dock/thao tác app và thêm web tối với kính trong
+- Phạm vi: bảo trì giao diện theo yêu cầu riêng của người dùng; không triển khai migration/AWS và không tick checklist Sandbox còn proposed.
+- Dock: iPhone có inset đáy 34 điểm dùng khoảng cách 20 thay vì 42; máy không có home indicator dùng 8, xoay ngang có inset dùng tối thiểu 16. Android giữ đầy đủ vùng thanh hệ thống cộng 8. Khoảng cuộn cuối trang tiếp tục tính từ kích thước dock/trình phát nhỏ.
+- Thao tác: bỏ bộ nhận chạm trùng với Pressable, kéo chỉ đổi tab khi thả và trả thanh chọn về đúng vị trí khi hủy; màn hình mất focus không nhận chạm. Tăng vùng chạm nghe thử/lưu giọng/điều khiển bản thu lên 44 điểm; ẩn glyph trang trí khỏi nhãn trợ năng. Mở danh sách từ trình phát dùng một lệnh điều hướng.
+- Dữ liệu hiển thị: xóa bản thu đang mở đồng thời dọn trình phát nhỏ; khóa xóa/chia sẻ khi đang xử lý, dọn tệp chia sẻ tạm sau khi hoàn tất/hủy. Hiện trạng thái chờ giọng thiết bị, cho dừng lúc đang tải; bỏ kết quả phát cũ khi chuyển bản thu. Danh sách giọng máy chủ có loading/lỗi/thử lại; chọn ngôn ngữ và giọng cùng lúc, chưa có giọng hợp lệ thì khóa tạo. Nội dung trống hiển thị thời lượng 0:00.
+- Web: thêm Cài đặt → Giao diện → Hệ thống/Sáng/Tối, giữ tùy chọn cũ và khóa lưu trữ. Theo dõi đổi màu hệ điều hành, áp dụng màu trước khi React tải để tránh chớp trắng. Nền tối #000000, kính trong trung tính, viền phản sáng mảnh và blur cục bộ; không dùng nền xanh navy. AWS đổi phần chữ sang sáng, giữ mũi tên cam. Menu, cửa sổ, thanh trượt, thông báo lỗi và tùy chọn tương phản cao có màu phù hợp.
+- App tối: nền đen và các ô xám trung tính, sóng âm/nút giữ xanh. GlassView native dùng clear khi tối, regular khi sáng; fallback giảm nền phủ và độ mờ. Không thêm thư viện, shader hoặc hiệu ứng theo con trỏ.
+- Kiểm tra local: app TypeScript/ESLint và 16/16 kiểm thử đạt; web production build và 59/59 kiểm thử đạt; đóng gói Hermes iOS/Android thành công. Không thay API routes, headers, schema, dependency hoặc khóa lưu dữ liệu.
+- Kiểm tra trình duyệt: 145 lượt app trên 11 cấu hình 320–1366px, có mô phỏng inset/xoay/cửa sổ thấp và cuộn cuối danh sách; 40 lượt web tối trên 8 trang × 5 chiều rộng 320/390/768/1440/2560px. Chạy lại điều hướng, kéo tab, tạo hai lần, giọng yêu thích, tài liệu TXT/DOCX/PDF và PDF hỏng, lưu qua reload. API mô phỏng kiểm tra loading giọng/lỗi/thử lại, duyệt nội dung, polling, xóa bản thu và dọn trình phát. Hủy tải giọng không phát kết quả cũ, mở danh sách từ trình phát đúng trang. Không phát hiện lỗi JavaScript trong các luồng đã kiểm tra; ảnh/script kiểm tra ở ngoài repo.
+- Giới hạn: trình duyệt không xác nhận bàn phím native, home indicator thực, khúc xạ clear glass hoặc hiệu năng GPU trên iPhone/Android; vẫn cần Expo Go trên thiết bị thật. Không gọi AWS hoặc provider TTS, không deploy, không commit/push trong lượt này.
 
 ### 2026-11-06: Sửa vùng an toàn và bố cục app nhiều kích thước
 - Vấn đề từ ảnh iPhone: nút đóng/cài đặt nằm cùng vùng đồng hồ; trang soạn thảo dùng modal native riêng, kích thước và khoảng chừa dưới còn cố định.

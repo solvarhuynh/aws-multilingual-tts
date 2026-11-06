@@ -5,6 +5,16 @@
     <link rel="icon" type="image/png" href="/brand/hcmute.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ffffff" />
+    <script>
+      (() => {
+        let theme = "system";
+        try { theme = JSON.parse(localStorage.getItem("voxa.preferences.v1") || "{}")?.theme || "system"; } catch {}
+        const dark = theme === "dark" || (theme !== "light" && theme !== "dark" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
+        document.querySelector('meta[name="theme-color"]').content = dark ? "#000000" : "#edf4f9";
+      })();
+    </script>
     <meta
       name="description"
       content="TTS Studio · HCMUTE | AWS. Chuyển văn bản thành giọng nói đa ngôn ngữ."

@@ -19,11 +19,15 @@ const tabs: { title: string; icon: IconName }[] = [
 const spring = { mass: 0.7, damping: 20, stiffness: 260 };
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
-function TabItem({ index, position, selected, onPress, height, labels }: { index: number; position: SharedValue<number>; selected: boolean; onPress: () => void; height: number; labels: boolean }) {
+function TabItem({ index, position, selected, onPress, onPressIn, onPressOut, height, labels }: {
+  index: number; position: SharedValue<number>; selected: boolean; onPress: () => void;
+  onPressIn: () => void; onPressOut: () => void; height: number; labels: boolean;
+}) {
   const { colors } = useStudio();
   const tint = useAnimatedStyle(() => ({ color: interpolateColor(Math.min(Math.abs(position.get() - index), 1), [0, 1], [colors.text, colors.secondary]) }));
   const foreground = useAnimatedStyle(() => ({ opacity: 1 - Math.min(Math.abs(position.get() - index), 1) }));
-  return <Pressable accessibilityRole="tab" accessibilityLabel={tabs[index].title} accessibilityState={{ selected }} onPress={onPress} style={[styles.tab, { height: height - 10 }]}>
+  return <Pressable accessibilityRole="tab" accessibilityLabel={tabs[index].title} accessibilityState={{ selected }} onPress={onPress}
+    onPressIn={onPressIn} onPressOut={onPressOut} style={[styles.tab, { height: height - 10 }]}>
     <View pointerEvents="none"><Icon name={tabs[index].icon} color={colors.secondary} size={23} />
       <Animated.View style={[StyleSheet.absoluteFill, foreground]}><Icon name={tabs[index].icon} color={colors.text} size={23} /></Animated.View></View>
     {labels && <Animated.Text numberOfLines={1} maxFontSizeMultiplier={1.2} style={[styles.tabLabel, tint]}>{tabs[index].title}</Animated.Text>}
@@ -44,8 +48,9 @@ export default function TabBar({ state, emitter, navigateToTab }: TabBarProps) {
     const route = state.routes[index];
     if (!route) return;
     const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-    if (!event.defaultPrevented && state.index !== index) { haptic(); navigateToTab(route.key); }
-  }, [haptic, emitter, navigateToTab, state]);
+    if (event.defaultPrevented) { position.set(reducedMotion ? state.index : withSpring(state.index, spring)); return; }
+    if (state.index !== index) { haptic(); navigateToTab(route.key); }
+  }, [haptic, emitter, navigateToTab, state, position, reducedMotion]);
   useEffect(() => {
     if (!dragging.get()) position.set(reducedMotion ? state.index : withSpring(state.index, spring));
     return () => { cancelAnimation(pressed); };
@@ -55,7 +60,7 @@ export default function TabBar({ state, emitter, navigateToTab }: TabBarProps) {
       'worklet';
       return scrubIndex(x, width.get());
     };
-    const pan = Gesture.Pan().activeOffsetX([-5, 5]).failOffsetY([-18, 18])
+    return Gesture.Pan().activeOffsetX([-5, 5]).failOffsetY([-18, 18])
       .onStart(() => {
         cancelAnimation(position); dragging.set(true); lastTick.set(Math.round(position.get()));
         pressed.set(reducedMotion ? 0 : withSpring(1, spring));
@@ -70,19 +75,10 @@ export default function TabBar({ state, emitter, navigateToTab }: TabBarProps) {
         position.set(reducedMotion ? next : withSpring(next, spring));
         if (success) runOnJS(choose)(next);
       })
-      .onFinalize(() => {
+      .onFinalize((_, success) => {
+        if (!success) position.set(reducedMotion ? state.index : withSpring(state.index, spring));
         dragging.set(false); pressed.set(reducedMotion ? 0 : withSpring(0, spring));
       });
-    const tap = Gesture.Tap().maxDistance(16).maxDuration(450)
-      .onBegin(() => { pressed.set(reducedMotion ? 0 : withSpring(0.7, spring)); })
-      .onEnd((event, success) => {
-        if (!success) return;
-        const next = Math.round(indexAt(event.x));
-        position.set(reducedMotion ? next : withSpring(next, spring));
-        runOnJS(choose)(next);
-      })
-      .onFinalize(() => { if (!dragging.get()) pressed.set(reducedMotion ? 0 : withSpring(0, spring)); });
-    return Gesture.Race(pan, tap);
   }, [choose, dragging, haptic, lastTick, position, pressed, reducedMotion, state.index, width]);
   const lens = useAnimatedStyle(() => ({
     width: Math.max(0, (width.get() - 10) / 4),
@@ -107,7 +103,10 @@ export default function TabBar({ state, emitter, navigateToTab }: TabBarProps) {
             <Glass interactive style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? '#FFFFFF1A' : '#FFFFFF50', borderRadius: 35 }]} />
           </Animated.View>
           <View style={[styles.tabContent, { height: dockHeight }]}>{state.routes.map((route, index) => <TabItem key={route.key} index={index} position={position}
-            selected={state.index === index} onPress={() => choose(index)} height={dockHeight} labels={showTabLabels} />)}</View>
+            selected={state.index === index} onPress={() => choose(index)}
+            onPressIn={() => pressed.set(reducedMotion ? 0 : withSpring(0.7, spring))}
+            onPressOut={() => { if (!dragging.get()) pressed.set(reducedMotion ? 0 : withSpring(0, spring)); }}
+            height={dockHeight} labels={showTabLabels} />)}</View>
         </View>
       </GestureDetector>
       <Glass interactive style={[styles.create, { width: dockHeight, height: dockHeight }]}><Pressable accessibilityRole="button" accessibilityLabel="Tạo bản thu mới"

@@ -1,7 +1,7 @@
 import type { PropsWithChildren, ReactNode } from 'react';
 import { KeyboardAvoidingView, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 import { Circle, Label } from './ui';
 import { useLayout } from '../hooks/useLayout';
 import { useKeyboardState } from '../hooks/useKeyboard';
@@ -11,7 +11,8 @@ import { usePlayback } from '../state/Playback';
 function FrameBody({ children, bottom = true }: PropsWithChildren<{ bottom?: boolean }>) {
   const { colors } = useStudio();
   const { insets } = useLayout();
-  return <View testID="screen-frame" style={[{ flex: 1, minHeight: 0, backgroundColor: colors.bg,
+  const focused = useIsFocused();
+  return <View testID="screen-frame" pointerEvents={focused ? 'auto' : 'none'} style={[{ flex: 1, minHeight: 0, backgroundColor: colors.bg,
     paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, paddingBottom: bottom ? insets.bottom : 0 }]}>{children}</View>;
 }
 export function ScreenFrame(props: PropsWithChildren<{ bottom?: boolean }>) {

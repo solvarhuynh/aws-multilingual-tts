@@ -29,7 +29,7 @@ export function Icon({ name, size = 22, color }: { name: IconName; size?: number
   const [symbol, fallback] = icons[name];
   if (Platform.OS === 'ios') return <SymbolView accessibilityElementsHidden importantForAccessibility="no-hide-descendants" name={symbol as SymbolViewProps['name']} tintColor={color ?? colors.text}
     size={size} style={{ width: size, height: size }} resizeMode="scaleAspectFit" />;
-  return <Ionicons accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" name={fallback} size={size} color={color ?? colors.text} />;
+  return <Ionicons aria-hidden accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" name={fallback} size={size} color={color ?? colors.text} />;
 }
 export function Label({ children, size = 16, weight = '400', muted, style, lines, maxScale }: PropsWithChildren<{
   size?: number; weight?: TextStyle['fontWeight']; muted?: boolean; style?: StyleProp<TextStyle>; lines?: number; maxScale?: number;
@@ -43,10 +43,10 @@ try { nativeGlass = Platform.OS === 'ios' && isLiquidGlassAvailable() && isGlass
 export function Glass({ children, style, interactive = false }: PropsWithChildren<{ style?: StyleProp<ViewStyle>; interactive?: boolean }>) {
   const { colors, isDark } = useStudio();
   const shape: ViewStyle = { borderRadius: 30, overflow: 'hidden', borderWidth: 1, borderColor: colors.glassLine };
-  if (nativeGlass) return <GlassView colorScheme={isDark ? 'dark' : 'light'} glassEffectStyle="regular" isInteractive={interactive}
+  if (nativeGlass) return <GlassView colorScheme={isDark ? 'dark' : 'light'} glassEffectStyle={isDark ? 'clear' : 'regular'} isInteractive={interactive}
     style={[shape, { overflow: 'visible', borderCurve: 'continuous' }, style]}>{children}</GlassView>;
   return <View style={[shape, { backgroundColor: colors.glass }, style]}>
-    <BlurView pointerEvents="none" intensity={isDark ? 44 : 65} tint={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'} style={StyleSheet.absoluteFill} />
+    <BlurView pointerEvents="none" intensity={isDark ? 32 : 65} tint={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'} style={StyleSheet.absoluteFill} />
     {children}
   </View>;
 }

@@ -15,19 +15,27 @@ const devices: [string, number, number, Insets][] = [
 ];
 
 test('Thanh dưới và lưới nằm trong vùng an toàn khi đổi thiết bị và cỡ chữ', () => {
-  for (const [name, width, height, insets] of devices) for (const scale of [1, 1.3, 1.5, 2, 3]) {
-    const layout = layoutMetrics(width, height, insets, scale);
+  for (const [name, width, height, insets] of devices) for (const scale of [1, 1.3, 1.5, 2, 3]) for (const platform of ['ios', 'android'] as const) {
+    const layout = layoutMetrics(width, height, insets, scale, platform);
     const left = insets.left + layout.dockSide;
     const right = left + layout.dockWidth;
     assert.ok(left >= insets.left + 16, name);
     assert.ok(right <= width - insets.right - 16, name);
-    assert.ok(layout.dockBottom >= insets.bottom, name);
+    assert.ok(layout.dockBottom >= (platform === 'android' ? insets.bottom : insets.bottom ? 16 : 8), name);
     assert.ok(layout.dockHeight >= 56, name);
     assert.ok(layout.dockClearance > layout.dockBottom + layout.dockHeight, name);
     assert.ok(layout.contentWidth > 0 && layout.contentWidth <= 960, name);
     const cardWidth = (layout.contentWidth - (layout.columns - 1) * 12) / layout.columns;
     assert.ok(cardWidth >= 140, name);
   }
+});
+
+test('Dock iOS gần đáy, Android không đè thanh hệ thống', () => {
+  const safe = { top: 59, bottom: 34, left: 0, right: 0 };
+  assert.equal(layoutMetrics(390, 844, safe).dockBottom, 20);
+  assert.equal(layoutMetrics(390, 844, { ...safe, bottom: 0 }).dockBottom, 8);
+  assert.equal(layoutMetrics(844, 390, { ...safe, bottom: 21 }).dockBottom, 16);
+  assert.equal(layoutMetrics(360, 800, { ...safe, bottom: 48 }, 1, 'android').dockBottom, 56);
 });
 
 test('Chữ lớn giảm số cột, cửa sổ thấp thu thanh điều hướng', () => {

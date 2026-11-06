@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isRecording, normalize, splitSpeech, validate, type Input } from '../src/lib/model';
+import { duration, isRecording, normalize, splitSpeech, validate, type Input } from '../src/lib/model';
 
 const input: Input = { text: 'Xin chào.', lang: 'vi-VN', voice: 'Linh', speed: 1, translateTo: null };
+test('Văn bản rỗng hiển thị thời lượng bằng không', () => {
+  for (const text of ['', '  \n ']) assert.equal(duration(text), 0);
+  assert.ok(duration('Xin chào.') >= 1);
+});
 test('Chặn nội dung rỗng, quá dài và tốc độ sai', () => {
   assert.equal(validate(input), null);
   for (const text of ['', '  \n ', 'x'.repeat(20001)]) assert.ok(validate({ ...input, text }));

@@ -17,6 +17,9 @@ function usePlaybackState() {
   const [speechProgress, setSpeechProgress] = useState(0);
   const [repeat, setRepeat] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [speechLoading, setSpeechLoading] = useState(false);
+  const speechLoadingRef = useRef(false);
+  const shareLock = useRef(false);
   const currentRef = useRef(current);
   const token = useRef(0);
   const autoPlay = useRef(false);
@@ -25,7 +28,12 @@ function usePlaybackState() {
   const stop = useCallback(() => {
     token.current += 1; autoPlay.current = false;
     player.pause(); void Speech.stop().catch(() => {}); setSpeaking(false);
+    speechLoadingRef.current = false; setSpeechLoading(false);
   }, [player]);
+  const clear = useCallback((id?: string) => {
+    if (id && currentRef.current?.jobId !== id) return;
+    stop(); currentRef.current = null; setCurrent(null); setSpeechProgress(0); player.replace(null);
+  }, [player, stop]);
   useEffect(() => {
     void setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: false }).catch(() => {});
     return () => { token.current += 1; void Speech.stop().catch(() => {}); };
@@ -53,37 +61,43 @@ function usePlaybackState() {
   }, [player, setNotice]);
   const speak = useCallback(async (record: Recording) => {
     const id = ++token.current;
-    await Speech.stop();
-    if (id !== token.current) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const available = await Promise.race([
-      Speech.getAvailableVoicesAsync(),
-      new Promise<Speech.Voice[]>(resolve => { timer = setTimeout(() => resolve([]), 4000); }),
-    ]).finally(() => clearTimeout(timer));
-    if (id !== token.current) return;
-    const matches = available.filter(v => v.language.toLowerCase().startsWith(record.lang.slice(0, 2)));
-    if (!matches.length) { setNotice('Thiết bị chưa có giọng cho ngôn ngữ này. Hãy tải giọng đọc trong cài đặt iPhone.'); return; }
-    // Giọng thiết bị dùng để nghe thử; tên giọng máy chủ không giả làm giọng đã tải.
-    const selected = matches.find(v => v.identifier === record.voice) ?? matches[0];
-    const chunks = splitSpeech(record.text, Math.min(1800, Speech.maxSpeechInputLength));
-    let offset = 0;
-    const next = (index: number) => {
+    speechLoadingRef.current = true; setSpeechLoading(true);
+    try {
+      if (!record.text.trim()) throw new Error('Bản thu chưa có nội dung để đọc.');
+      await Speech.stop();
       if (id !== token.current) return;
-      if (index >= chunks.length) {
-        if (repeatRef.current) { offset = 0; next(0); }
-        else { setSpeaking(false); setSpeechProgress(1); }
-        return;
-      }
-      setSpeaking(true);
-      Speech.speak(chunks[index], { language: record.lang, voice: selected.identifier, rate: record.speed ?? 1,
-        useApplicationAudioSession: false,
-        onBoundary: (event: { charIndex: number }) => { if (id === token.current) setSpeechProgress((offset + event.charIndex) / record.text.length); },
-        onDone: () => { offset += chunks[index].length; next(index + 1); },
-        onStopped: () => { if (id === token.current) setSpeaking(false); },
-        onError: () => { if (id === token.current) { setSpeaking(false); setNotice('Chưa phát được giọng đọc. Hãy thử lại và bật âm thanh của iPhone.'); } },
-      });
-    };
-    setSpeechProgress(0); next(0);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const available = await Promise.race([
+        Speech.getAvailableVoicesAsync(),
+        new Promise<Speech.Voice[]>(resolve => { timer = setTimeout(() => resolve([]), 4000); }),
+      ]).finally(() => clearTimeout(timer));
+      if (id !== token.current) return;
+      const matches = available.filter(v => v.language.toLowerCase().startsWith(record.lang.slice(0, 2)));
+      if (!matches.length) { setNotice('Thiết bị chưa có giọng cho ngôn ngữ này. Hãy tải giọng đọc trong cài đặt iPhone.'); return; }
+      // Giọng thiết bị dùng để nghe thử; tên giọng máy chủ không giả làm giọng đã tải.
+      const selected = matches.find(v => v.identifier === record.voice) ?? matches[0];
+      const chunks = splitSpeech(record.text, Math.min(1800, Speech.maxSpeechInputLength));
+      let offset = 0;
+      const next = (index: number) => {
+        if (id !== token.current) return;
+        if (index >= chunks.length) {
+          if (repeatRef.current) { offset = 0; next(0); }
+          else { setSpeaking(false); setSpeechProgress(1); }
+          return;
+        }
+        setSpeaking(true);
+        Speech.speak(chunks[index], { language: record.lang, voice: selected.identifier, rate: record.speed ?? 1,
+          useApplicationAudioSession: false,
+          onBoundary: (event: { charIndex: number }) => { if (id === token.current) setSpeechProgress((offset + event.charIndex) / record.text.length); },
+          onDone: () => { offset += chunks[index].length; next(index + 1); },
+          onStopped: () => { if (id === token.current) setSpeaking(false); },
+          onError: () => { if (id === token.current) { setSpeaking(false); setNotice('Chưa phát được giọng đọc. Hãy thử lại và bật âm thanh của iPhone.'); } },
+        });
+      };
+      setSpeechProgress(0); next(0);
+    } finally {
+      if (id === token.current) { speechLoadingRef.current = false; setSpeechLoading(false); }
+    }
   }, [setNotice]);
   const play = useCallback(async (record: Recording) => {
     stop(); currentRef.current = record; setCurrent(record); setSpeechProgress(0);
@@ -98,7 +112,8 @@ function usePlaybackState() {
     if (!record) return;
     if (record.audioUrl) {
       if (status.error && !DEMO) {
-        try { const job = await api.job(record.jobId); await play({ ...record, ...job }); }
+        const request = token.current;
+        try { const job = await api.job(record.jobId); if (request === token.current) await play({ ...record, ...job }); }
         catch { setNotice('Chưa làm mới được liên kết. Hãy tải lại danh sách bản thu.'); }
         return;
       }
@@ -107,7 +122,7 @@ function usePlaybackState() {
         try { if (status.currentTime >= status.duration - 0.1) await player.seekTo(0); player.play(); }
         catch { setNotice('Chưa phát được âm thanh.'); }
       }
-    } else if (speaking) { token.current++; await Speech.stop(); setSpeaking(false); }
+    } else if (speaking || speechLoadingRef.current) stop();
     else { try { await speak(record); } catch { setNotice('Không phát được giọng đọc trên máy.'); } }
   };
   const skip = (direction: number) => {
@@ -120,24 +135,27 @@ function usePlaybackState() {
     if (current?.audioUrl && status.isLoaded) void player.seekTo(value).catch(() => setNotice('Chưa tua được âm thanh.'));
   };
   const share = async () => {
-    if (!current || sharing) return;
-    setSharing(true);
+    if (!current || shareLock.current) return;
+    shareLock.current = true; setSharing(true);
+    let path: string | undefined;
     try {
       if (!current.audioUrl) { await Share.share({ message: current.text }); return; }
       if (Platform.OS === 'web') { await Share.share({ message: current.audioUrl }); return; }
-      const path = `${FileSystem.cacheDirectory}ban-thu-${Date.now()}.mp3`;
+      path = `${FileSystem.cacheDirectory}ban-thu-${Date.now()}.mp3`;
       const result = await FileSystem.downloadAsync(current.audioUrl, path);
-      if (result.status !== 200) { await FileSystem.deleteAsync(path, { idempotent: true }); throw new Error('Tải âm thanh chưa thành công. Hãy tải lại danh sách để làm mới liên kết.'); }
+      if (result.status !== 200) throw new Error('Tải âm thanh chưa thành công. Hãy tải lại danh sách để làm mới liên kết.');
       if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(result.uri, { mimeType: 'audio/mpeg', UTI: 'public.mp3', dialogTitle: 'Lưu hoặc chia sẻ bản thu' });
       else await Share.share({ url: current.audioUrl });
-      await FileSystem.deleteAsync(path, { idempotent: true });
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Chưa chia sẻ được bản thu.'); }
-    finally { setSharing(false); }
+    finally {
+      if (path) await FileSystem.deleteAsync(path, { idempotent: true }).catch(() => {});
+      shareLock.current = false; setSharing(false);
+    }
   };
-  return { current, playing: current?.audioUrl ? status.playing : speaking, play, toggle, stop, seek, skip, repeat, setRepeat, share, sharing,
+  return { current, playing: current?.audioUrl ? status.playing : speaking, play, toggle, stop, clear, seek, skip, repeat, setRepeat, share, sharing,
     position: current?.audioUrl ? status.currentTime : speechProgress * duration(current?.text ?? '', current?.speed),
     total: current?.audioUrl ? status.duration : duration(current?.text ?? '', current?.speed),
-    canSeek: !!current?.audioUrl && status.isLoaded, loading: !!current?.audioUrl && !status.error && (!status.isLoaded || status.isBuffering) };
+    canSeek: !!current?.audioUrl && status.isLoaded, loading: current?.audioUrl ? !status.error && (!status.isLoaded || status.isBuffering) : speechLoading };
 }
 const Context = createContext<ReturnType<typeof usePlaybackState> | null>(null);
 export function PlaybackProvider({ children }: PropsWithChildren) { const value = usePlaybackState(); return <Context.Provider value={value}>{children}</Context.Provider>; }

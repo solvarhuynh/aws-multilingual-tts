@@ -30,7 +30,7 @@ function Player() {
     <PageScroll>
       <View style={[styles.main, { flexDirection: wide ? 'row' : 'column' }]}>
         <View style={[styles.artwork, { width: artSize, height: artSize }]}>
-          <LinearGradient colors={isDark ? ['#233E50', '#15242E'] : ['#DFEDF6', '#B8D5E9']} style={StyleSheet.absoluteFill} />
+          <LinearGradient colors={isDark ? ['#29292C', '#141416'] : ['#DFEDF6', '#B8D5E9']} style={StyleSheet.absoluteFill} />
           <View style={{ transform: [{ scale: artSize / 220 }] }}><Wave moving={playing} /></View>
           <View style={styles.artworkBrand}><Label size={10} maxScale={1.2} weight="600" style={{ color: isDark ? '#B4D3E6' : '#476C87', letterSpacing: 2 }}>HCMUTE | AWS</Label></View>
         </View>
@@ -51,7 +51,7 @@ function Player() {
               onPress={() => void toggle()} style={[styles.play, { backgroundColor: colors.blue }]}>
               {loading ? <ActivityIndicator color={colors.invert} /> : <Icon name={playing ? 'pause' : 'play'} color={colors.invert} size={29} />}</Pressable></Glass>
             <Circle name="forward" label="Bản thu tiếp theo" size={44} onPress={() => skip(1)} />
-            <Pressable accessibilityRole="button" accessibilityLabel="Mở danh sách bản thu" onPress={() => { close(); router.navigate('/library'); }} style={styles.smallControl}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Mở danh sách bản thu" onPress={() => router.dismissTo('/library')} style={styles.smallControl}>
               <Icon name="library" size={23} color={colors.secondary} /></Pressable>
           </View>
           <Action icon="file" onPress={() => setTextOpen(true)}>Xem nội dung</Action>

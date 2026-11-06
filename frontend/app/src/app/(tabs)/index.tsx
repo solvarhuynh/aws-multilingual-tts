@@ -27,7 +27,7 @@ export default function Home() {
       <View style={{ flex: 1 }} /><Label size={13} weight="500" muted>Nhóm 5</Label>
     </View>
     <Pressable accessibilityRole="button" accessibilityLabel="Tạo bản thu mới" onPress={() => router.push('/compose')}
-      style={[styles.hero, { backgroundColor: isDark ? '#162A37' : '#E4F1FA' }]}>
+      style={[styles.hero, { backgroundColor: isDark ? colors.surface : '#E4F1FA' }]}>
       <View style={styles.heroText}><Label size={compact ? 24 : 27} weight="600" style={{ lineHeight: 34 }}>Tạo{'\n'}giọng đọc</Label>
         <View style={[styles.heroArrow, { backgroundColor: colors.blue }]}><Icon name="plus" size={22} color={colors.invert} /></View></View>
       {!(compact && fontScale > 1.5) && <View style={[styles.heroWave, { width: compact || fontScale > 1.3 ? 110 : 156, transform: [{ scale: compact ? 0.62 : 0.85 }] }]}><Wave moving={focused} /></View>}

@@ -25,7 +25,7 @@ export default function Compose() {
 function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: number } }) {
   const params = useLocalSearchParams<{ mode?: string }>();
   const mode = params.mode === 'translation' || params.mode === 'document' ? params.mode : 'speech';
-  const { colors, draft, setDraft, lang, voice, speed, setSpeed, selectVoice, languages, saveRecording, setNotice } = useStudio();
+  const { colors, draft, setDraft, lang, voice, speed, setSpeed, selectVoice, languages, loadingVoices, saveRecording, setNotice } = useStudio();
   const { play, stop } = usePlayback();
   const { gutter, compact, usableHeight } = useLayout();
   const [sheet, setSheet] = useState<'voices' | 'settings' | 'source' | 'target' | null>(null);
@@ -49,6 +49,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const title = mode === 'translation' ? 'Dịch và đọc' : mode === 'document' ? 'Đọc tài liệu' : 'Tạo giọng đọc';
   useEffect(() => () => { token.current++; if (pdfTimer.current) clearTimeout(pdfTimer.current); }, []);
   const selectedTargetVoice = languages.find(l => l.lang === target)?.voices.find(v => v.id === targetVoice)?.id ?? languages.find(l => l.lang === target)?.voices[0]?.id ?? '';
+  const availableVoice = languages.find(l => l.lang === (mode === 'translation' ? target : lang))?.voices.find(v => v.id === (mode === 'translation' ? selectedTargetVoice : voice));
   const finish = () => { locked.current = false; submitting.current = false; setBusy(false); setStage(''); };
   const submit = async (input: Input, id: number) => {
     if (submitting.current) return;
@@ -82,6 +83,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   };
   const generate = async () => {
     if (locked.current || importing) return;
+    if (!availableVoice || loadingVoices) { setError('Hãy chờ tải xong và chọn một giọng đọc.'); return; }
     const input: Input = { text: draft, lang, voice: mode === 'translation' ? selectedTargetVoice : voice, speed, translateTo: mode === 'translation' ? target : null };
     const invalid = validate(input);
     if (invalid) { setError(invalid); return; }
@@ -128,7 +130,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
         </View>}
         <Pressable accessibilityRole="button" accessibilityLabel="Chọn giọng đọc" disabled={busy} onPress={() => setSheet('voices')}
           style={[styles.voicePill, { backgroundColor: colors.raised }]}><View style={[styles.voiceDot, { backgroundColor: colors.blueSoft }]}><Icon name="mic" color={colors.blue} size={18} /></View>
-          <View style={{ flex: 1 }}><Label weight="500" size={16}>{(mode === 'translation' ? selectedTargetVoice : voice) || 'Chọn giọng đọc'}</Label><Label size={12} muted>{languageNames[mode === 'translation' ? target : lang]}</Label></View>
+          <View style={{ flex: 1, minWidth: 0 }}><Label weight="500" size={16}>{loadingVoices ? 'Đang tải giọng đọc…' : availableVoice?.id || 'Chọn giọng đọc'}</Label><Label size={12} muted>{languageNames[mode === 'translation' ? target : lang]}</Label></View>
           <Icon name="next" size={16} color={colors.secondary} /></Pressable>
         {mode === 'document' && <Action icon="upload" disabled={busy || importing} onPress={() => void importFile()}>{importing ? 'Đang đọc tài liệu…' : documentName || 'Chọn PDF, Word hoặc TXT'}</Action>}
         <TextInput accessibilityLabel="Nội dung cần đọc" value={draft} onChangeText={text => { setDraft(text); setError(''); }} editable={!busy && !importing}
@@ -150,7 +152,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
         {busy && <View style={styles.progress}><ActivityIndicator color={colors.blue} size="small" /><Label size={14} muted>{stage || 'Đang chờ bạn chọn nội dung…'}</Label></View>}
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}><Glass interactive style={{ borderRadius: 30 }}><Pressable accessibilityRole="button" accessibilityLabel="Cài đặt giọng đọc" disabled={busy}
           onPress={() => { Keyboard.dismiss(); setSheet('settings'); }} style={{ width: keyboard.visible ? 48 : 56, height: keyboard.visible ? 48 : 56, justifyContent: 'center', alignItems: 'center' }}><Icon name="settings" /></Pressable></Glass>
-          <Action primary style={{ flex: 1 }} disabled={busy || importing || !draft.trim()} icon="wave" onPress={() => void generate()}>{busy ? 'Đang xử lý…' : mode === 'translation' ? 'Dịch và tạo giọng' : 'Tạo giọng đọc'}</Action>
+          <Action primary style={{ flex: 1 }} disabled={busy || importing || loadingVoices || !availableVoice || !draft.trim()} icon="wave" onPress={() => void generate()}>{busy ? 'Đang xử lý…' : mode === 'translation' ? 'Dịch và tạo giọng' : 'Tạo giọng đọc'}</Action>
         </View>
       </View>
     </KeyboardArea>

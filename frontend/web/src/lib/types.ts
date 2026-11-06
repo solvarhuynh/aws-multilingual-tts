@@ -46,7 +46,9 @@ export interface HistoryResponse {
   items: HistoryItem[];
   nextCursor: string | null;
 }
+export type ThemeMode = "system" | "light" | "dark";
 export interface Preferences {
+  theme: ThemeMode;
   reducedMotion: boolean;
   highContrast: boolean;
   volume: number;

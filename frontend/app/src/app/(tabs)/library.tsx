@@ -1,5 +1,5 @@
 import { Alert, Platform, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Action, Circle, Empty, Icon, Label, SearchField } from '../../components/ui';
@@ -10,17 +10,18 @@ import { covers, date, languageNames, normalize, type Recording } from '../../li
 
 export default function Library() {
   const { colors, history, removeRecording, setNotice, refresh, refreshing, cursor, setDraft } = useStudio();
-  const { current, playing, play, toggle, stop } = usePlayback();
+  const { current, playing, play, toggle, clear } = usePlayback();
   const [query, setQuery] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
+  const deleteLock = useRef(false);
   const items = history.filter(r => normalize(`${r.text} ${r.voice} ${languageNames[r.lang]}`).includes(normalize(query)));
   const remove = (record: Recording) => {
     const execute = async () => {
-      if (deleting) return;
-      setDeleting(record.jobId);
-      try { await removeRecording(record.jobId); if (current?.jobId === record.jobId) stop(); }
+      if (deleteLock.current) return;
+      deleteLock.current = true; setDeleting(record.jobId);
+      try { await removeRecording(record.jobId); clear(record.jobId); }
       catch (error) { setNotice(error instanceof Error ? error.message : 'Chưa xóa được bản thu.'); }
-      finally { setDeleting(null); }
+      finally { deleteLock.current = false; setDeleting(null); }
     };
     if (Platform.OS === 'web') { if (window.confirm('Xóa bản thu này?')) void execute(); }
     else Alert.alert('Xóa bản thu?', 'Bạn sẽ không thể khôi phục bản thu đã xóa.', [{ text: 'Giữ lại', style: 'cancel' }, { text: 'Xóa', style: 'destructive', onPress: () => void execute() }]);
@@ -39,11 +40,11 @@ export default function Library() {
             <Circle name="trash" label="Xóa bản thu" size={36} disabled={deleting === record.jobId} onPress={() => remove(record)} />
           </View>
           <View style={[styles.inlinePlayer, { backgroundColor: colors.raised }]}>
-            <Pressable accessibilityRole="button" accessibilityLabel={selected && playing ? 'Dừng bản thu' : 'Nghe bản thu'} onPress={() => selected ? void toggle() : void play(record)} style={{ padding: 9 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel={selected && playing ? 'Dừng bản thu' : 'Nghe bản thu'} onPress={() => selected ? void toggle() : void play(record)} style={styles.inlineControl}>
               <Icon name={selected && playing ? 'pause' : 'play'} size={20} /></Pressable>
             <View accessibilityElementsHidden style={styles.bars}>{Array.from({ length: 36 }, (_, i) =>
               <View key={i} style={{ flex: 1, borderRadius: 4, height: 5 + ((i * 17 + index * 11) % 28), backgroundColor: selected && playing ? colors.blue : colors.faint, opacity: 0.7 }} />)}</View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Chỉnh sửa nội dung" onPress={() => { setDraft(record.text); router.push('/compose'); }} style={{ padding: 9 }}><Icon name="file" size={20} color={colors.secondary} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Chỉnh sửa nội dung" onPress={() => { setDraft(record.text); router.push('/compose'); }} style={styles.inlineControl}><Icon name="file" size={20} color={colors.secondary} /></Pressable>
           </View>
         </View>;
       })}
@@ -58,5 +59,6 @@ const styles = StyleSheet.create({
   recordMain: { flex: 1, minWidth: 0, flexDirection: 'row', gap: 12, alignItems: 'center' },
   cover: { width: 64, height: 82, flexShrink: 0, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   inlinePlayer: { flexDirection: 'row', alignItems: 'center', borderRadius: 28, padding: 6, gap: 10 },
+  inlineControl: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   bars: { flex: 1, height: 34, flexDirection: 'row', alignItems: 'center', gap: 3 },
 });

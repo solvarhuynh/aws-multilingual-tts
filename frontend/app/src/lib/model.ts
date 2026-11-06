@@ -34,7 +34,7 @@ export const samples = [
 ];
 export const number = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
 export const time = (value: number) => `${Math.floor(Math.max(0, value) / 60)}:${String(Math.floor(Math.max(0, value) % 60)).padStart(2, '0')}`;
-export const duration = (text: string, speed = 1) => Math.max(1, Math.round(text.trim().split(/\s+/).filter(Boolean).length / (2.5 * speed)));
+export const duration = (text: string, speed = 1) => text.trim() ? Math.max(1, Math.round(text.trim().split(/\s+/).length / (2.5 * speed))) : 0;
 export const date = (value: string) => new Date(value).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' });
 export const normalize = (text: string) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/đ/g, 'd');
 export const covers: [string, string][] = [['#416F98', '#193A59'], ['#9E8CB1', '#50425F'], ['#639E9A', '#244F56'], ['#BB936C', '#66503D']];
