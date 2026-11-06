@@ -14,11 +14,9 @@
     <img src="https://img.shields.io/badge/AWS%20Sandbox-Proposed-F59E0B?style=for-the-badge&logo=amazonaws&logoColor=white" alt="AWS Sandbox proposed" />
   </p>
 
-  <p><strong>Đồ án web và ứng dụng di động chuyển văn bản thành giọng nói đa ngôn ngữ.</strong></p>
+  <p><strong>Đồ án học phần Điện Toán Đám Mây - chuyển văn bản thành giọng nói đa ngôn ngữ.</strong></p>
 </div>
 
-> [!IMPORTANT]
-> Kiến trúc AWS trong repo đang ở trạng thái **PROPOSED / PENDING GROUP SIGN-OFF / NOT DEPLOYED**. Một số quyền và tích hợp cần được xác minh trong AWS Academy Sandbox. Không coi sơ đồ, cấu hình hoặc stub là tính năng đã chạy.
 
 ## Mục lục
 
