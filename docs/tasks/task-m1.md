@@ -1,63 +1,134 @@
-# M1: API, tích hợp và vận hành
+# M1 — Minh Lý: HTTP API, tích hợp Sandbox và quan sát chung
 
-**Người phụ trách:** Minh Lý  |  **Nhật ký:** `logs/log-m1.md`
+**2026-11-06 — PLANNED / PROPOSED / PENDING GROUP SIGN-OFF.** Phân công cho implementation sau; chưa code/deploy trong lượt re-plan. Task chỉ tick khi có output và kiểm chứng phù hợp, không chấm mức độ module.
 
-> M1 phụ trách để request TTS đi từ API tới đúng Lambda và để cả hệ thống triển khai, theo dõi được.
+## 1. Vai trò trong luồng TTS
 
-## Mục tiêu
+AWS deliverables: Lambda HTTP entry/Function URL candidate, CloudFormation/SAM với LabRole hiện hữu, CloudWatch Dashboard/Alarms và SNS.
 
-Tạo API Gateway, nối các module vào luồng TTS, đóng gói hệ thống bằng SAM và thiết lập giám sát chung.
+Nhận: M2–M5 giao handler contracts/ARNs; M3 bucket/common; M4 origin/header/OAC; trường cấp LabRole và quyền thực.
 
-## Thư mục sở hữu
+Giao: Capability evidence, HTTP route map, existing-role wiring, root IaC, dashboard/alarm/SNS, manifest/runbook redeploy.
 
-`template.yaml, samconfig.toml, infra/m1-api-security.yaml, scripts/, config/settings.json, docs/overview/, docs/guides/, README.md, .github/PULL_REQUEST_TEMPLATE.md`
 
-M1 cung cấp IAM role cho workflow của M4; M4 sở hữu file workflow trong `.github/workflows/`.
 
-## Dịch vụ AWS chính
+## 2. Hiện trạng có bằng chứng
 
-API Gateway REST, Lambda integrations, CloudFormation/SAM, IAM, CloudWatch, SNS, X-Ray. Cognito, CloudTrail và AWS Budgets là phần mở rộng.
+template.yaml:29 chỉ ProjectMarker; samconfig.toml:11 và config/settings.json:2 còn region cũ. Xem [audit file:line](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md#1-executive-summary-và-audit-thực-tế). Log cũ là lịch sử, không phải test mới.
 
-## Danh sách việc
+## 3. Phạm vi files
 
-| Bước | Việc phải làm | Loại | Giải thích |
-|---|---|---|---|
-| 1.1 | Chuẩn bị repo, profile AWS cá nhân và hướng dẫn nhóm cài AWS CLI, SAM CLI | Cơ bản | Cả nhóm dùng chung một quy trình phát triển |
-| 1.2 | Tạo API Gateway REST với `POST /synthesize`, `POST /text/correct`, `GET /jobs/{id}`, `/history`, `/voices`, `/stats` và `DELETE /history/{id}` | Cơ bản | Đây là cửa để giao diện gọi chức năng TTS |
-| 1.3 | Nối từng route tới đúng Lambda; cấu hình CORS, kiểm tra request và giới hạn tốc độ | Cơ bản | Request tới đúng phần xử lý và phản hồi đúng định dạng |
-| 1.4 | Tích hợp đường ngắn gọi đồng bộ và đường dài trả `202` để M5 gửi SQS | Cơ bản | Hai kiểu văn bản đều đi được qua API |
-| 1.5 | Cấp IAM role tối thiểu cho mỗi Lambda, gồm quyền `tts-submit` đọc Gemini secret theo tên do M5 khai báo | Cơ bản | Mỗi hàm được gọi đúng AWS service cần thiết |
-| 1.6 | Viết SAM template gốc để nối các module, truyền Parameters/Outputs và biến môi trường | Cơ bản | Toàn bộ hạ tầng được triển khai cùng nhau bằng mã |
-| 1.7 | Deploy stack và smoke test các API chính: văn bản ngắn, văn bản dài, sửa chính tả và danh sách giọng | Cơ bản | Chứng minh các module đã ghép thành luồng chạy được |
-| 1.8 | Tạo CloudWatch dashboard, log retention, alarm và SNS topic cảnh báo chung | Cơ bản | Nhóm thấy được lỗi và trạng thái hệ thống |
-| 1.9 | Bật X-Ray tracing cho Lambda và kiểm tra đường đi qua API, SQS và Lambda xử lý giọng | Mở rộng | Tìm được đoạn xử lý chậm hoặc lỗi |
-| 1.10 | Tạo IAM OIDC role cho GitHub Actions deploy frontend; M4 viết workflow sử dụng role này | Mở rộng | Không lưu AWS key dài hạn trong GitHub |
-| 1.11 | Cognito authorizer cho API | Mở rộng | Người dùng đăng nhập và có lịch sử riêng |
-| 1.12 | CloudTrail và AWS Budgets cho tài khoản nhóm | Mở rộng | Theo dõi thao tác quản trị và cảnh báo chi phí |
+template.yaml, samconfig.toml, infra/m1-api-security.yaml, scripts/, config/settings.json; backend/http/ dự kiến, chưa tạo.
 
-## Ghi chú kỹ thuật riêng
+Chỉ sửa runtime khi được giao implementation. M1 tích hợp root IaC, không nhận logic Lambda mọi module. Lượt này chỉ cập nhật tài liệu/comment infra.
 
-- Dùng API Gateway REST, stage `dev`. Mỗi route dùng Lambda proxy integration; cấu hình `OPTIONS` cho CORS.
-- Route `POST /text/correct` gọi `tts-submit`. Key Gemini không nằm trong API Gateway hay biến cấu hình frontend; IAM của `tts-submit` chỉ được `secretsmanager:GetSecretValue` trên secret được cấu hình.
-- Request ngắn phải hoàn thành trước giới hạn thời gian tích hợp API Gateway; request dài nhận phản hồi `202` và được M5 đưa vào SQS.
-- M1 tích hợp route và phản hồi, còn M5 sở hữu xử lý nghiệp vụ trong `tts-submit`.
-- M1 quản lý dashboard, alarm, SNS, tracing và quyền nền tảng. M5 ghi log/metric trong code và xác minh trace của luồng nghiệp vụ.
-- OIDC role đặt trong hạ tầng M1; workflow build và deploy giao diện nằm trong `.github/workflows/` do M4 sở hữu.
-- Không tạo hoặc commit API key Gemini. IAM chỉ cấp quyền đọc secret cần thiết cho `tts-submit`.
-- WAF và customer-managed KMS key có thể xem xét sau khi luồng cơ bản chạy ổn; không phải điều kiện để demo TTS.
+## 4. Constraints Sandbox
 
-## Đầu ra khi xong
+Regional us-east-1; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. Allowlist không chứng minh quyền từng action. Function URL/OAC/Invoke/SSM SecureString còn UNVERIFIED / NEEDS SANDBOX TEST. Runtime/config vẫn cũ, chỉ đổi ở Gate 1.
 
-API nối đúng các Lambda; luồng ngắn, dài và sửa chính tả gọi được; stack SAM deploy được; dashboard và cảnh báo hoạt động; cả nhóm có thể kiểm tra hệ thống bằng API.
+## 5. IAM và secret cần kiểm
 
-## Nhận từ
+LabRole/PassRole/HTTP URL/resource policy/Invoke; CloudFormation/Logs/CloudWatch/SNS. Không tạo/sửa role hay OIDC.
 
-M2-M5: tên Lambda, contract request/response, file hạ tầng và quyền cần dùng. M5: tên Gemini secret. M4: workflow cần IAM OIDC role.
+Lambda dùng existing LabRole, không tạo/sửa policy/role/OIDC. LabRole không phải least privilege nhóm tự tạo. KMS handout chỉ list; nếu không có cơ chế bảo vệ key/token được trường duyệt thì BLOCKER live provider. Mocks vẫn tiếp tục được; không gửi keys qua chat/repo/log.
 
-## Giao cho
+## 6. API và dữ liệu phải giữ
 
-M4: URL API và OIDC role. M2, M3, M5: API routes, IAM role và stack đã tích hợp.
+Đọc [QUY-UOC-CHUNG](../overview/QUY-UOC-CHUNG.md): bảy public paths; job mới 202 async; errors giữ {"error":{"code":"...","message":"..."}}; schema S3 v1 giữ field chính. Proposed auth X-Demo-Token/runtime memory và scope backend demo cần nhóm duyệt, không multi-user isolation. Không nhận scope/bucket/ARN từ client.
 
-## Khi báo cáo nói được
+## 7. Phần chưa vào baseline
 
-Chứng minh request từ giao diện đến đúng Lambda; giải thích cách hệ thống xử lý văn bản ngắn/dài; trình bày SAM đã ghép các module và dashboard giúp theo dõi TTS.
+API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Comprehend/Translate/Cognito/X-Ray/RUM/EventBridge/Budgets ngoài allowlist. Gemini chỉ MR sau MP3 thật: typo-only, skipped bản gốc khi lỗi, user review, UTF-16 offsets, không tạo job ở correct. Không tự dịch/đoán lang cho synthesize; provider voice/speed phải kiểm chứng.
+
+## 8. Checklist chưa thực hiện
+
+- [ ] SB-M1-01 — Xác minh capability và quyền lab.
+- [ ] SB-M1-02 — Di trú region và root IaC dùng role hiện hữu.
+- [ ] SB-M1-03 — HTTP router và compatibility.
+- [ ] SB-M1-04 — Giám sát và alarm Sandbox.
+- [ ] SB-M1-05 — IaC/session reset và fallback decision.
+
+## 9. Task chi tiết và acceptance
+
+Effort bên dưới là ước lượng theo buổi/phiên, không phải độ khó hoặc tiến độ thực. Các CLI/probe là hướng dẫn, NOT RUN trong re-plan.
+
+### SB-M1-01 — Xác minh capability và quyền lab
+
+- **Owner:** M1 Minh Lý. **Phase:** Gate 0. **Mục tiêu:** Xác minh capability và quyền lab. **Kiến thức AWS:** Lambda HTTP entry/Function URL candidate, CloudFormation/SAM với LabRole hiện hữu, CloudWatch Dashboard/Alarms và SNS.
+- **Dependencies và input:** Handout + phiên lab đang mở, không credentials trong repo. **Files implementation later:** Không sửa code ở task probe; evidence ngoài account, docs/plans.
+- **Steps cấp cao:** Đọc metadata rồi lập probe được duyệt cho LabRole/PassRole/Function URL/resource policy/Invoke/SSM/KMS; tách caller và runtime. **CLI/test khi được duyệt:** T2-01, T2-03, T2-06; Level 1 runbook. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** Capability matrix có status/error/principal thật. **Evidence AWS/local:** Screenshot role/config và kết quả mock, không value secret. Tách local mock với sandbox verified.
+- **Risk / rollback:** Denied → giữ BLOCKER hoặc fallback B được duyệt, không sửa LabRole. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** Gate 0 có kết luận cho HTTP/invoke/secret hoặc blocker rõ. **Effort tương đối:** 1 phiên khảo sát dự kiến, chưa đo. **Can run without account:** Một phần: audit/docs/mock không account; sandbox probes cần account. **Blocking status:** BLOCKED chờ phiên lab + approval Level 2.
+
+### SB-M1-02 — Di trú region và root IaC dùng role hiện hữu
+
+- **Owner:** M1 Minh Lý. **Phase:** Gate 1. **Mục tiêu:** Di trú region và root IaC dùng role hiện hữu. **Kiến thức AWS:** Lambda HTTP entry/Function URL candidate, CloudFormation/SAM với LabRole hiện hữu, CloudWatch Dashboard/Alarms và SNS.
+- **Dependencies và input:** SB-M1-01; Outputs M3/M2/M5/M4. **Files implementation later:** template.yaml, samconfig.toml, config/settings.json, infra/m1-api-security.yaml.
+- **Steps cấp cao:** Đổi region/runtime wiring sau Gate 0; explicit Role ARN; kiểm transform không sinh IAM/API Gateway; tách Parameters/Outputs từng module. **CLI/test khi được duyệt:** sam validate --lint; sam build sau implementation; T2-01 nếu duyệt. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** Root stack us-east-1, existing role, no unsupported services. **Evidence AWS/local:** Transformed resources/changeset và stack sau deploy được duyệt. Tách local mock với sandbox verified.
+- **Risk / rollback:** Config cũ deploy nhầm → review region; rollback code/changeset trước execute. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** Validate/build và review resource inventory; deploy có evidence riêng. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho local review/build; deploy cần account. **Blocking status:** PLANNED, phụ thuộc Gate 0.
+
+### SB-M1-03 — HTTP router và compatibility
+
+- **Owner:** M1 Minh Lý. **Phase:** Gate 1. **Mục tiêu:** HTTP router và compatibility. **Kiến thức AWS:** Lambda HTTP entry/Function URL candidate, CloudFormation/SAM với LabRole hiện hữu, CloudWatch Dashboard/Alarms và SNS.
+- **Dependencies và input:** SB-M1-01; proposed contract sign-off, handler interfaces. **Files implementation later:** backend/http/ dự kiến, infra/m1-api-security.yaml, template.yaml; không tạo lượt này.
+- **Steps cấp cao:** Parse v2 method/path/query/base64/JSON, token auth context backend, route tới 4 owner handlers qua Invoke; CORS một nguồn, body limits, không cache API. **CLI/test khi được duyệt:** Unit/contract router fixtures; T2-03/04 sau duyệt. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** 7 paths giữ nguyên, normalized internal context và JSON errors. **Evidence AWS/local:** Function URL/config, OPTIONS/POST/401/404 responses. Tách local mock với sandbox verified.
+- **Risk / rollback:** Invoke denied → routing nhiều URL candidate; NONE chỉ exception có duyệt. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** 7 routes và invalid/missing token/base64/malformed JSON pass tests. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho mock; URL/OAC cần account. **Blocking status:** PLANNED; token secret là blocker trước public.
+
+### SB-M1-04 — Giám sát và alarm Sandbox
+
+- **Owner:** M1 Minh Lý. **Phase:** Gate 3. **Mục tiêu:** Giám sát và alarm Sandbox. **Kiến thức AWS:** Lambda HTTP entry/Function URL candidate, CloudFormation/SAM với LabRole hiện hữu, CloudWatch Dashboard/Alarms và SNS.
+- **Dependencies và input:** Logs/functions thật; M5 metric schema; quyền action thật. **Files implementation later:** infra/m1-api-security.yaml, docs/guides/DEPLOY.md.
+- **Steps cấp cao:** Dashboard Lambda/errors/throttle/async age/drop/destination failures; nhận metric nghiệp vụ M5, SNS xác nhận subscription và cảnh báo test. **CLI/test khi được duyệt:** CloudWatch Console; T2-08 được duyệt. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** Dashboard và alarm/SNS phù hợp service thật, không X-Ray/RUM baseline. **Evidence AWS/local:** Dashboard + notification test đã nhận. Tách local mock với sandbox verified.
+- **Risk / rollback:** Alarm giả do thiếu metric → kiểm dimensions; rollback alarm test riêng. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** Theo dõi được job và lỗi mẫu; ghi rõ action denied nếu chưa đủ. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Một phần: config design offline. **Blocking status:** PLANNED sau MVP.
+
+### SB-M1-05 — IaC/session reset và fallback decision
+
+- **Owner:** M1 Minh Lý. **Phase:** Gate 5. **Mục tiêu:** IaC/session reset và fallback decision. **Kiến thức AWS:** Lambda HTTP entry/Function URL candidate, CloudFormation/SAM với LabRole hiện hữu, CloudWatch Dashboard/Alarms và SNS.
+- **Dependencies và input:** Gate 0 decisions, Gate 1–3 outputs, M4 frontend requirements. **Files implementation later:** scripts/ dự kiến, docs/guides/DEPLOY.md, template.yaml nếu được giao implementation.
+- **Steps cấp cao:** Script tái deploy không secret trong Lab IDE/CloudShell; manifest suffix/URLs; review fallback B khi A không khả thi, không tự tạo EC2. **CLI/test khi được duyệt:** Reset/redeploy rehearsal T2-08, không lệnh destroy chung. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** Một phiên lab dựng lại được, account credentials ở lab. **Evidence AWS/local:** Manifest sanitized + thời gian thao tác thực + URL mới. Tách local mock với sandbox verified.
+- **Risk / rollback:** Reset mất evidence → backup ngoài lab trước; rollback chỉ probe/resource được duyệt. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** Phiên mới demo lại được hoặc blocker cụ thể có owner. **Effort tương đối:** 1 phiên rehearsal dự kiến. **Can run without account:** Có cho runbook; rehearsal cần account. **Blocking status:** PLANNED; không thực hiện reset phiên người khác.
+
+## 10. Quy tắc owner và bàn giao
+
+M3 common/schema/CAS trước M2/M5 callers; M1 HTTP capability trước M4 integration; M2 MP3 thật trước Gemini. M2 sở hữu **một EventInvokeConfig** của worker trong infra/m2-tts-core.yaml; M5 bàn giao retry/event-age/destination policy. M1 sở hữu URL/resource policy; M4 sở hữu distribution/OAC association. S3 web M4 khác jobs/audio M3. Giữ UI web/app hiện có.
+
+## 11. Kiểm thử local dự kiến
+
+Mock-by-default; không credentials và không gọi AWS/provider mặc định. Phối hợp fixture success/input invalid/expiry/path traversal/duplicate/retry/partial failure/redaction theo owner. Frontend có tests riêng; M5 sẽ tạo backend tests/ trong implementation được giao.
+
+## 12. Kiểm thử Sandbox dự kiến
+
+Theo [validation runbook](../plans/SANDBOX-VALIDATION-RUNBOOK.md): Level 1 chỉ đọc khi được yêu cầu; Level 2 resource mutation/call trả phí cần approval cụ thể. Evidence ghi action/principal/region/status/error sanitized, tách local mock với sandbox verified.
+
+## 13. Retry và dữ liệu dở
+
+S3 conditional write kiểm ETag để tránh ghi đè; không có transaction đa object. Worker lease/idempotency giảm trùng, không exactly-once billing. Duplicate thấy active lease có thể ACK nhưng stale inspector/manual recovery vẫn phải phát hiện worker timeout. Runtime retry khác lỗi business đã ghi FAILED rồi return success. Failure destination không tự sửa trạng thái job.
+
+## 14. Giới hạn và fallback
+
+Function URL bị chặn → M1 đánh giá EC2/Beanstalk cùng LabInstanceProfile/HTTPS/network/cost, không tự triển khai. RDS PostgreSQL optional sau MVP. AuthType NONE chỉ exception demo có duyệt, token/cap trước public. Thiếu secret bảo vệ được → giữ mocks.
+
+## 15. Reset và evidence
+
+Session hết mất resource/data theo handout. Backup source/config mẫu không nhạy cảm và evidence ngoài lab. Không backup credentials/text riêng tư/presigned signatures. Provider credit không reset theo AWS; ghi lại usage thực và cap trước call thật.
+
+## 16. Nghiệm thu và báo cáo
+
+Nêu output trong luồng TTS, bằng chứng AWS và một failure case đã test. Nói rõ TTS/Gemini là ngoài AWS; chưa chạy ghi planned. Không lấy diagram/comment làm deployed. Xem [khung báo cáo](../guides/KHUNG-BAO-CAO.md).
+
+## 17. Nhật ký
+
+Thành viên chỉ cập nhật logs/log-m1.md của mình sau thực hiện, giữ nguyên lịch sử. Lượt migration toàn repo chỉ append log M5 ghi doc-only; không tick task implementation.
+
+## 18. Bước tiếp theo
+
+SB-M1-01 theo dependency/approval trong task. **CURRENT RUNTIME CONFIG STILL OLD — Gate 1**; chưa sửa code/config/deployable templates. [Backlog đầy đủ](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md) và [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md) là tài liệu bàn giao chung.

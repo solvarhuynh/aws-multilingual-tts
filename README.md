@@ -1,64 +1,57 @@
 # aws-multilingual-tts
 
-Ứng dụng chuyển văn bản thành giọng nói đa ngôn ngữ, chạy serverless trên AWS (API Gateway, Lambda, Polly, S3, DynamoDB).
+Đồ án web/app chuyển văn bản thành MP3 đa ngôn ngữ của nhóm năm sinh viên. Kế hoạch đang chuyển sang **AWS Academy Cloud Foundations Sandbox**, regional resources ở **us-east-1**, Lambda dùng LabRole có sẵn và tài nguyên có thể bị reset cuối mỗi phiên lab.
 
-## Luồng xử lý chính
+**Đây là kế hoạch đề xuất, chưa triển khai AWS.** Scope lượt cập nhật: tài liệu và comment hạ tầng; chưa thay code hoặc cấu hình chạy.
 
-```text
-Người dùng (trình duyệt / app)
-  → App/Web trên S3 + CloudFront (M4)
-  → API Gateway + Cognito đăng nhập (M1)
-  → Nhấn Chuyển giọng: POST /text/correct → Comprehend (nếu tự nhận diện) → Gemini
-      ├─ không có lỗi hoặc kiểm tra không khả dụng → tiếp tục bằng văn bản gốc
-      └─ có đề xuất → M4 cho người dùng chọn bản sửa hoặc giữ bản gốc
-  → POST /synthesize chỉ nhận nội dung cuối cùng đã chọn
-  → Lambda tts-submit (M5)
-      kiểm tra đầu vào, tạo job PENDING trong DynamoDB
-      Comprehend nhận diện ngôn ngữ (MR), Translate dịch (MR)
-      làm sạch văn bản và tách thành các đoạn
-      ├─ Văn bản ngắn → gọi thẳng tts-synthesize → trả kết quả ngay
-      └─ Văn bản dài  → SQS + DLQ → tts-synthesize chạy nền
-  → Lambda tts-synthesize (M2)
-      đọc job từ DynamoDB
-      ├─ Amazon Polly cho các ngôn ngữ được hỗ trợ
-      └─ Nhà cung cấp ngoài cho tiếng Việt, khóa lưu trong Secrets Manager
-      ghép các đoạn mp3 → lưu file riêng tư vào S3
-      cập nhật trạng thái và tiến độ trong DynamoDB (M3)
-  → Presigned URL tạm thời → web phát hoặc tải file mp3
+## Luồng ưu tiên để kiểm chứng
 
-Các API dữ liệu đi riêng:
-  GET /voices                 → tts-voices (M2)
-  GET /jobs/{id}, /history    → tts-history (M3)
-  DELETE /history/{id}        → tts-history (M3)
-  GET /stats                  → tts-stats (M5)
+~~~text
+Web/App M4 → CloudFront + S3 web private M4
+  → Lambda Function URL / HTTP router M1 (candidate cần test quyền)
+  → tts-submit M5 → Lambda async Event → tts-synthesize M2
+  → external multilingual TTS provider (ElevenLabs candidate, ngoài AWS)
+  → S3 audio + S3 job JSON private M3
+  → GET /jobs/{id}, presigned URL → phát hoặc tải MP3
+CloudWatch Dashboard/Alarms và SNS M1; application metrics M5.
+~~~
 
-Trong suốt luồng: M5 ghi log/metric; M1 cấu hình CloudWatch dashboard, SNS alarm và X-Ray.
-SAM / CloudFormation + IAM dùng để dựng hạ tầng và cấp quyền cần thiết (M1).
-```
+MVP ưu tiên vi-VN/en-US/ja-JP với voices thực được kiểm chứng từ provider. Mới tạo job trả 202 và frontend polling. Function URL/OAC/Invoke/secret storage chưa được sandbox test; nếu bị chặn xem fallback EC2/Beanstalk có điều kiện trong kế hoạch, không tự triển khai server.
 
-## Kiểm tra lỗi đánh máy
+Gemini typo là MR sau MP3 MVP. Frontend vẫn gọi POST /text/correct một lần khi nhấn Chuyển giọng; có đề xuất thì người dùng chọn, không có điều kiện kiểm tra thì skipped và giữ nguyên text. Không sửa ngữ pháp/văn phong. Chọn ngôn ngữ rõ, dịch tự động chưa baseline.
 
-Theo workflow được phân công, khi người dùng nhấn **Chuyển giọng**, M4 sẽ gọi `POST /text/correct`. Nếu Gemini có đề xuất, người dùng chọn bản sửa hoặc giữ bản gốc trước khi gửi sang TTS. Nếu bước kiểm tra không khả dụng, hệ thống dùng văn bản gốc. Đây hiện là thiết kế trong tài liệu; phần code chưa bắt đầu. API key dự kiến được lưu trong AWS Secrets Manager, không đưa vào frontend hoặc Git.
+## Phân công
 
-## Các module
+| Module | Người phụ trách | Deliverables AWS/Sandbox |
+|---|---|---|
+| M1 | Minh Lý | HTTP entry/routing, root SAM/CloudFormation existing LabRole, capability validation, CloudWatch/SNS |
+| M2 | Trung Khang | Lambda synthesize/voices, adapter provider ngoài AWS, MP3 và worker retry |
+| M3 | Trung Đức | S3 jobs/audio, common repository/CAS, history/presign/Lifecycle |
+| M4 | Nguyên Khang | Frontend hiện có, S3 web/CloudFront/OAC, manual deployment/redeploy |
+| M5 | Trung Nghĩa | Submit/async orchestration/recovery, application telemetry/tests, typo/stats MR |
 
-| Mã | Tên | Dịch vụ AWS chính | Người phụ trách |
-|---|---|---|---|
-| M1 | API, tích hợp và vận hành | API Gateway, SAM, IAM, CloudWatch, SNS, X-Ray | Minh Lý |
-| M2 | Lõi chuyển giọng | Lambda, Polly, Secrets Manager | Trung Khang |
-| M3 | Lưu trữ và dữ liệu | S3, DynamoDB, Lambda Layer | Trung Đức |
-| M4 | Giao diện, hosting và trải nghiệm văn bản | S3, CloudFront, Cognito, GitHub Actions | Nguyên Khang |
-| M5 | Điều phối TTS và xử lý ngôn ngữ | Comprehend, Translate, SQS/DLQ, Gemini API | Trung Nghĩa |
+M4 có source web/app; giữ làm deliverable hiện có và tích hợp tối thiểu, không giao xây lại UI. Không tạo IAM role/OIDC mới trong lab read-only. S3 frontend tách hoàn toàn dữ liệu jobs/audio private.
 
-## Bắt đầu nhanh
+## Hiện trạng cần biết
 
-1. Clone repo về máy.
-2. Cài AWS CLI, SAM CLI và Python 3.12.
-3. Đọc `AGENTS.md`.
-4. Làm theo hướng dẫn trong [`docs/guides/DEPLOY.md`](docs/guides/DEPLOY.md).
+Audit 2026-11-06: các handler Lambda chính trả 501/TODO; common DB/storage và provider còn NotImplemented. Root template mới có ProjectMarker; infra module comment-only. Frontend có code/tests riêng; .github/workflows/ có .gitkeep nhưng chưa có deploy workflow; chưa có tests/ cấp root. [Audit file:line và migration](docs/plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md).
+
+**CURRENT RUNTIME CONFIG STILL OLD — Gate 1:** samconfig.toml:11 và config/settings.json:2 vẫn ap-southeast-1; code còn JOBS_TABLE/QUEUE_URL/secret env cũ. Chưa chỉnh runtime trong lượt re-plan, không dùng cấu hình đó để deploy baseline Sandbox.
+
+## Bắt đầu từ đâu
+
+1. Đọc [AGENTS.md](AGENTS.md) và [Migration plan](docs/plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md).
+2. Xem [Service matrix](docs/plans/SANDBOX-SERVICE-MATRIX.md) để phân biệt allowlist với quyền thật.
+3. Khi có phiên lab và được yêu cầu, làm Level 1 trong [Validation runbook](docs/plans/SANDBOX-VALIDATION-RUNBOOK.md); Level 2 cần approval cụ thể.
+4. Nhóm duyệt [proposed contract](docs/overview/QUY-UOC-CHUNG.md), rồi mới triển khai từng [backlog module](docs/plans/MODULE-BACKLOG-AND-ACCEPTANCE.md).
+
+Các dịch vụ Polly/DynamoDB/API Gateway/SQS/Secrets Manager/Comprehend/Translate/Cognito/X-Ray/RUM/EventBridge/Budgets của kiến trúc cũ không nằm trong allowlist được cung cấp, nên **OUT OF BASELINE**, không đường bắt buộc của MVP.
 
 ## Tài liệu
 
-- [Kiến trúc](docs/overview/ARCHITECTURE.md) và [quy ước chung](docs/overview/QUY-UOC-CHUNG.md)
-- [Hướng dẫn deploy](docs/guides/DEPLOY.md) và [Git, nhật ký](docs/guides/GIT-VA-LOGS.md)
-- Danh sách việc: [M1](docs/tasks/task-m1.md), [M2](docs/tasks/task-m2.md), [M3](docs/tasks/task-m3.md), [M4](docs/tasks/task-m4.md), [M5](docs/tasks/task-m5.md)
+- [Architecture](docs/overview/ARCHITECTURE.md), [Quy ước API/data](docs/overview/QUY-UOC-CHUNG.md).
+- [M1](docs/tasks/task-m1.md), [M2](docs/tasks/task-m2.md), [M3](docs/tasks/task-m3.md), [M4](docs/tasks/task-m4.md), [M5](docs/tasks/task-m5.md).
+- [Old-to-new changelog](docs/plans/OLD-TO-NEW-CHANGELOG.md).
+- [Deploy một phiên lab](docs/guides/DEPLOY.md), [Git/log](docs/guides/GIT-VA-LOGS.md), [Báo cáo/evidence](docs/guides/KHUNG-BAO-CAO.md).
+
+Không commit secrets/.env, không gửi credential qua chat. Chưa gọi external TTS, chưa test/deploy AWS và chưa sửa PDF/DOCX trong lượt migration.

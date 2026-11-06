@@ -1,53 +1,134 @@
-# M3: Lưu trữ và dữ liệu
+# M3 — Trung Đức: S3 jobs/audio, common và history
 
-**Người phụ trách:** Trung Đức  |  **Nhật ký:** `logs/log-m3.md`
+**2026-11-06 — PLANNED / PROPOSED / PENDING GROUP SIGN-OFF.** Phân công cho implementation sau; chưa code/deploy trong lượt re-plan. Task chỉ tick khi có output và kiểm chứng phù hợp, không chấm mức độ module.
 
-> Tick `[x]` ngay khi xong từng bước. Mỗi lần làm việc, đọc file này cùng với nhật ký của module.
+## 1. Vai trò trong luồng TTS
 
-## Mục tiêu
+AWS deliverables: S3 private jobs JSON, S3 private audio, Lambda tts-history, common packaging/Layer candidate, S3 Lifecycle.
 
-Thiết kế nơi lưu file âm thanh và trạng thái job, cung cấp thư viện dữ liệu chung và API lịch sử.
+Nhận: M1 LabRole/action evidence; M2 metadata/audio behavior; M5 create/update/dispatch/idempotency contract; M4 history paging requirements.
 
-## Thư mục sở hữu
+Giao: Schema v1, interface common giữ tên, S3 repository/CAS/lease/idempotency storage, history/presign, lifecycle và recovery primitives.
 
-`backend/common/, backend/history/, infra/m3-storage-data.yaml`
 
-`backend/stats/` và API `/stats` do M5 sở hữu.
 
-## Dịch vụ AWS chính
+## 2. Hiện trạng có bằng chứng
 
-S3, DynamoDB, S3 Lifecycle, DynamoDB TTL, Lambda Layer
+backend/common/python/tts_common/db.py:6 và storage.py:6 còn stub; backend/history/app.py:12 trả 501. Xem [audit file:line](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md#1-executive-summary-và-audit-thực-tế). Log cũ là lịch sử, không phải test mới.
 
-## Danh sách việc
+## 3. Phạm vi files
 
-| Bước | Việc phải làm | Loại | Giải thích |
-|---|---|---|---|
-| 3.1 | Thiết kế bảng DynamoDB tts-jobs (khóa chính, chỉ mục phụ, TTL) | Cơ bản | Thiết kế theo cách truy vấn: xem lịch sử của một người, tìm theo mã băm |
-| 3.2 | Tạo bucket S3 tts-audio-dev: riêng tư, mã hóa, chặn truy cập công khai, quy ước đặt tên file | Cơ bản | File chỉ nghe được qua link tạm thời |
-| 3.3 | Viết thư viện dùng chung backend/common: tạo job, cập nhật job, lưu mp3, lấy link nghe, liệt kê lịch sử | Cơ bản | Không ai tự viết lại phần đọc/ghi dữ liệu, cả nhóm ghép khớp |
-| 3.4 | Tạo link nghe tạm thời có thời hạn (presigned URL), tạo mới mỗi lần mở lịch sử | Cơ bản | Bảo mật mà vẫn phát trực tiếp trên web |
-| 3.5 | Lambda tts-history: xem danh sách, xem chi tiết job, xóa (xóa cả bản ghi lẫn file S3) | Cơ bản | Cung cấp dữ liệu cho màn hình lịch sử |
-| 3.6 | Chống trùng: băm (text + ngôn ngữ + giọng + tốc độ), đã có thì trả lại file cũ | Mở rộng | Không gọi Polly lần nữa, nhanh hơn và rẻ hơn |
-| 3.7 | Tự xóa dữ liệu cũ: S3 lifecycle và DynamoDB TTL | Cơ bản | Không tốn tiền lưu file không dùng |
+backend/common/, backend/history/, infra/m3-storage-data.yaml.
 
-## Ghi chú kỹ thuật riêng
+Chỉ sửa runtime khi được giao implementation. M1 tích hợp root IaC, không nhận logic Lambda mọi module. Lượt này chỉ cập nhật tài liệu/comment infra.
 
-- DynamoDB chế độ `PAY_PER_REQUEST`. Khóa: `userId` (HASH), `jobId` (RANGE). Chỉ mục phụ `textHash-index` (HASH `textHash`). Thuộc tính TTL: `expiresAt`.
-- `jobId` dạng `<epoch_ms 13 chữ số>-<8 ký tự hex ngẫu nhiên>` để tự sắp xếp theo thời gian; `list_jobs` trả mới nhất trước.
-- S3: khóa file `audio/{userId}/{jobId}.mp3`; chặn toàn bộ truy cập công khai; mã hóa mặc định; lifecycle xóa sau 30 ngày; CORS cho phép GET.
-- Link nghe tạo bằng presigned URL, thời hạn lấy từ `PRESIGN_TTL_SECONDS`, **tạo mới mỗi lần** trả về (không lưu URL trong DynamoDB).
-- Thư viện `backend/common` đóng gói thành Lambda Layer (thư mục `python/tts_common/`). Mọi hàm có docstring tiếng Việt ghi rõ đầu vào, đầu ra.
-- Chống trùng (MR): `text_hash` = SHA-256 của chuỗi gồm text đã chuẩn hóa + lang + voice + speed. M3 cung cấp `find_cached`; M5 quyết định dùng kết quả cache trong luồng nhận request.
-- M3 cung cấp hàm dữ liệu để M5 thống kê; M5 sở hữu cách tính và Lambda `tts-stats`.
+## 4. Constraints Sandbox
 
-## Đầu ra khi xong
+Regional us-east-1; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. Allowlist không chứng minh quyền từng action. Function URL/OAC/Invoke/SSM SecureString còn UNVERIFIED / NEEDS SANDBOX TEST. Runtime/config vẫn cũ, chỉ đổi ở Gate 1.
 
-Bảng tts-jobs; bucket tts-audio-dev; thư viện common; Lambda `tts-history`; presigned URL và tra cứu cache.
+## 5. IAM và secret cần kiểm
 
-## Nhận từ
+S3 Get/Put/List/Delete theo bucket/prefix; HEAD dùng GetObject; presign, SSE-S3 và Lifecycle phải kiểm.
 
-M1: IAM role cho Lambda của mình.
+Lambda dùng existing LabRole, không tạo/sửa policy/role/OIDC. LabRole không phải least privilege nhóm tự tạo. KMS handout chỉ list; nếu không có cơ chế bảo vệ key/token được trường duyệt thì BLOCKER live provider. Mocks vẫn tiếp tục được; không gửi keys qua chat/repo/log.
 
-## Giao cho
+## 6. API và dữ liệu phải giữ
 
-M2, M5: thư viện common. M4 (qua API): history, trạng thái job và audio URL. M1: file `infra/m3-storage-data.yaml`.
+Đọc [QUY-UOC-CHUNG](../overview/QUY-UOC-CHUNG.md): bảy public paths; job mới 202 async; errors giữ {"error":{"code":"...","message":"..."}}; schema S3 v1 giữ field chính. Proposed auth X-Demo-Token/runtime memory và scope backend demo cần nhóm duyệt, không multi-user isolation. Không nhận scope/bucket/ARN từ client.
+
+## 7. Phần chưa vào baseline
+
+API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Comprehend/Translate/Cognito/X-Ray/RUM/EventBridge/Budgets ngoài allowlist. Gemini chỉ MR sau MP3 thật: typo-only, skipped bản gốc khi lỗi, user review, UTF-16 offsets, không tạo job ở correct. Không tự dịch/đoán lang cho synthesize; provider voice/speed phải kiểm chứng.
+
+## 8. Checklist chưa thực hiện
+
+- [ ] SB-M3-01 — Schema v1 và S3 repository giữ interface.
+- [ ] SB-M3-02 — Audio private và presigned playback.
+- [ ] SB-M3-03 — CAS, lease và idempotency storage.
+- [ ] SB-M3-04 — History, job polling và delete terminal.
+- [ ] SB-M3-05 — Retention và reset-safe data/evidence.
+
+## 9. Task chi tiết và acceptance
+
+Effort bên dưới là ước lượng theo buổi/phiên, không phải độ khó hoặc tiến độ thực. Các CLI/probe là hướng dẫn, NOT RUN trong re-plan.
+
+### SB-M3-01 — Schema v1 và S3 repository giữ interface
+
+- **Owner:** M3 Trung Đức. **Phase:** Gate 0 và 1. **Mục tiêu:** Schema v1 và S3 repository giữ interface. **Kiến thức AWS:** S3 private jobs JSON, S3 private audio, Lambda tts-history, common packaging/Layer candidate, S3 Lifecycle.
+- **Dependencies và input:** Proposed contract sign-off; T2-02 quyền object. **Files implementation later:** backend/common/python/tts_common/db.py, config.py, infra/m3-storage-data.yaml.
+- **Steps cấp cao:** Duyệt object keys/scope/paging; implement create/get/update/list/delete dưới tên cũ; JOBS_BUCKET/PREFIX config sau review; không global index JSON. **CLI/test khi được duyệt:** Mock CRUD/paging/expired/path traversal; T2-02. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** Per-job JSON v1 trong private jobs bucket, API callers giữ import. **Evidence AWS/local:** Object schema/CAS headers/GET response sanitized. Tách local mock với sandbox verified.
+- **Risk / rollback:** Không query/index/transaction → bounded dataset, RDS chỉ phase riêng. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** CRUD đúng field, reject client scope, expiry lọc khi đọc. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho mocks. **Blocking status:** PLANNED; common trước M2/M5.
+
+### SB-M3-02 — Audio private và presigned playback
+
+- **Owner:** M3 Trung Đức. **Phase:** Gate 1. **Mục tiêu:** Audio private và presigned playback. **Kiến thức AWS:** S3 private jobs JSON, S3 private audio, Lambda tts-history, common packaging/Layer candidate, S3 Lifecycle.
+- **Dependencies và input:** T2-02, M2 audio format. **Files implementation later:** backend/common/python/tts_common/storage.py, infra/m3-storage-data.yaml.
+- **Steps cấp cao:** Tách audio/jobs/web buckets; put_audio/get_audio_url/delete_audio; SSE-S3/BPA; TTL presign không dài hơn credential/session còn lại. **CLI/test khi được duyệt:** Mock object keys/expiry; private direct deny + playback sau approval. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** MP3 private, URL mới mỗi response, không lưu URL trong metadata. **Evidence AWS/local:** Bucket policy/BPA và audio object/URL test đã che signature. Tách local mock với sandbox verified.
+- **Risk / rollback:** Rò presign→TTL ngắn/redaction; reset URL hết hạn phải refresh. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** Không public audio, URL còn hạn nghe được, lỗi missing/expired rõ. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Có mocks; presign effective test cần account. **Blocking status:** PLANNED sau Gate 0.
+
+### SB-M3-03 — CAS, lease và idempotency storage
+
+- **Owner:** M3 Trung Đức. **Phase:** Gate 1 và 3. **Mục tiêu:** CAS, lease và idempotency storage. **Kiến thức AWS:** S3 private jobs JSON, S3 private audio, Lambda tts-history, common packaging/Layer candidate, S3 Lifecycle.
+- **Dependencies và input:** SB-M3-01, M2/M5 transition agreement. **Files implementation later:** backend/common/python/tts_common/db.py và helper mới trong common nếu duyệt.
+- **Steps cấp cao:** Conditional create/update ETag, version/lease/attempt, idempotency mapping/tombstone; primitives cho M2/M5; bounded conflict retry, không claim exactly-once. **CLI/test khi được duyệt:** Race fixtures 412/409, stale lease, crash mapping/job/audio; T2-02. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** Single-writer claim và safe transitions; mapping recovery có test. **Evidence AWS/local:** Conflict status/ETag/result logs không text. Tách local mock với sandbox verified.
+- **Risk / rollback:** S3 multi-object không transaction→document reconciliation; rollback không delete job đang chạy. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** Concurrent claims không double call trong lease; terminal state không regress. **Effort tương đối:** 2 buổi dự kiến. **Can run without account:** Có mocks; semantics runtime cần sandbox. **Blocking status:** PLANNED; M2/M5 cùng review contract.
+
+### SB-M3-04 — History, job polling và delete terminal
+
+- **Owner:** M3 Trung Đức. **Phase:** Gate 2. **Mục tiêu:** History, job polling và delete terminal. **Kiến thức AWS:** S3 private jobs JSON, S3 private audio, Lambda tts-history, common packaging/Layer candidate, S3 Lifecycle.
+- **Dependencies và input:** SB-M3-01/02/03, HTTP context M1. **Files implementation later:** backend/history/app.py, infra/m3-storage-data.yaml.
+- **Steps cấp cao:** GET history/jobs tạo URL theo state; opaque cursor scoped; shared controlled demo; busy delete 409; tombstone terminal delete retry. **CLI/test khi được duyệt:** API fixtures paging/404/expiry/delete partial/job busy; E2E after approval. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** History API theo 7-path contract, không claim user isolation. **Evidence AWS/local:** API response + object state sau delete. Tách local mock với sandbox verified.
+- **Risk / rollback:** Delete race/partial failure→tombstone recovery; cursor tampering reject. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** Không thấy expired/deleting items; polling DONE/audio hợp lệ. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có local contract. **Blocking status:** PLANNED sau common.
+
+### SB-M3-05 — Retention và reset-safe data/evidence
+
+- **Owner:** M3 Trung Đức. **Phase:** Gate 3 và 5. **Mục tiêu:** Retention và reset-safe data/evidence. **Kiến thức AWS:** S3 private jobs JSON, S3 private audio, Lambda tts-history, common packaging/Layer candidate, S3 Lifecycle.
+- **Dependencies và input:** SB-M3-01/04 và handout reset. **Files implementation later:** infra/m3-storage-data.yaml, common helpers, docs/guides/DEPLOY.md qua M1 coordination.
+- **Steps cấp cao:** Lifecycle theo prefix, app expiresAt, bounded stale-job inspection helpers; hướng dẫn backup sample config/evidence không PII, không nghĩ S3 bền qua reset. **CLI/test khi được duyệt:** Lifecycle config read-only sau deploy; reset rehearsal có duyệt. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** Retention rõ, recovery dữ liệu dở, sample manifest không secret. **Evidence AWS/local:** Console lifecycle + expired fixture + phiên mới. Tách local mock với sandbox verified.
+- **Risk / rollback:** Lifecycle không đúng giây/reset xóa sớm→evidence backup ngoài lab. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** Không gọi Lifecycle là DynamoDB TTL; rehearsal dữ liệu mẫu đạt. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Có design offline; rehearsal cần account. **Blocking status:** PLANNED, không EventBridge sweeper baseline.
+
+## 10. Quy tắc owner và bàn giao
+
+M3 common/schema/CAS trước M2/M5 callers; M1 HTTP capability trước M4 integration; M2 MP3 thật trước Gemini. M2 sở hữu **một EventInvokeConfig** của worker trong infra/m2-tts-core.yaml; M5 bàn giao retry/event-age/destination policy. M1 sở hữu URL/resource policy; M4 sở hữu distribution/OAC association. S3 web M4 khác jobs/audio M3. Giữ UI web/app hiện có.
+
+## 11. Kiểm thử local dự kiến
+
+Mock-by-default; không credentials và không gọi AWS/provider mặc định. Phối hợp fixture success/input invalid/expiry/path traversal/duplicate/retry/partial failure/redaction theo owner. Frontend có tests riêng; M5 sẽ tạo backend tests/ trong implementation được giao.
+
+## 12. Kiểm thử Sandbox dự kiến
+
+Theo [validation runbook](../plans/SANDBOX-VALIDATION-RUNBOOK.md): Level 1 chỉ đọc khi được yêu cầu; Level 2 resource mutation/call trả phí cần approval cụ thể. Evidence ghi action/principal/region/status/error sanitized, tách local mock với sandbox verified.
+
+## 13. Retry và dữ liệu dở
+
+S3 conditional write kiểm ETag để tránh ghi đè; không có transaction đa object. Worker lease/idempotency giảm trùng, không exactly-once billing. Duplicate thấy active lease có thể ACK nhưng stale inspector/manual recovery vẫn phải phát hiện worker timeout. Runtime retry khác lỗi business đã ghi FAILED rồi return success. Failure destination không tự sửa trạng thái job.
+
+## 14. Giới hạn và fallback
+
+Function URL bị chặn → M1 đánh giá EC2/Beanstalk cùng LabInstanceProfile/HTTPS/network/cost, không tự triển khai. RDS PostgreSQL optional sau MVP. AuthType NONE chỉ exception demo có duyệt, token/cap trước public. Thiếu secret bảo vệ được → giữ mocks.
+
+## 15. Reset và evidence
+
+Session hết mất resource/data theo handout. Backup source/config mẫu không nhạy cảm và evidence ngoài lab. Không backup credentials/text riêng tư/presigned signatures. Provider credit không reset theo AWS; ghi lại usage thực và cap trước call thật.
+
+## 16. Nghiệm thu và báo cáo
+
+Nêu output trong luồng TTS, bằng chứng AWS và một failure case đã test. Nói rõ TTS/Gemini là ngoài AWS; chưa chạy ghi planned. Không lấy diagram/comment làm deployed. Xem [khung báo cáo](../guides/KHUNG-BAO-CAO.md).
+
+## 17. Nhật ký
+
+Thành viên chỉ cập nhật logs/log-m3.md của mình sau thực hiện, giữ nguyên lịch sử. Lượt migration toàn repo chỉ append log M5 ghi doc-only; không tick task implementation.
+
+## 18. Bước tiếp theo
+
+SB-M3-01 theo dependency/approval trong task. **CURRENT RUNTIME CONFIG STILL OLD — Gate 1**; chưa sửa code/config/deployable templates. [Backlog đầy đủ](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md) và [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md) là tài liệu bàn giao chung.

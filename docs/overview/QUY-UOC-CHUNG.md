@@ -1,232 +1,271 @@
-# Quy ước chung
+# Quy ước chung — proposed Sandbox contract
 
-> Cả nhóm dùng giống nhau để phần việc của 5 người ghép khớp. Muốn đổi thì báo cả nhóm trước, rồi mới sửa file này và ghi vào nhật ký của các module bị ảnh hưởng.
+**2026-11-06 — PROPOSED / PENDING GROUP SIGN-OFF.** Đây là hợp đồng đích để nhóm review trước implementation. Giữ bảy public paths và các field chính; auth/scope, async mặc định, storage và giới hạn provider thay đổi cần duyệt như mục 10. Không khẳng định đã chạy.
 
-## 1. Thông số cố định
+**CURRENT RUNTIME CONFIG STILL OLD — Gate 1:** samconfig.toml và config/settings.json còn ap-southeast-1; code/config/common/template chưa migrate. Không dùng tài liệu này như cấu hình deploy đã sẵn sàng. Đọc [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md), [service matrix](../plans/SANDBOX-SERVICE-MATRIX.md) và [backlog](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md).
 
-| Hạng mục | Giá trị |
+## 1. Phạm vi và thông số
+
+| Hạng mục | Hợp đồng đích |
 |---|---|
-| Region | `ap-southeast-1` |
-| Tên stack | `tts-dev` |
-| Đặt tên tài nguyên | `tts-<tên>-dev` |
-| Backend | Python 3.12, boto3 |
-| Mã ngôn ngữ | `vi-VN`, `en-US`, `ja-JP`... |
-| Trạng thái job | `PENDING` → `PROCESSING` → `DONE` hoặc `FAILED` |
-| Định dạng thời gian | ISO 8601 UTC, ví dụ `2026-11-10T14:30:00Z` (trong DynamoDB `createdAt`, `updatedAt` dạng chuỗi ISO; `expiresAt` dạng số giây epoch) |
+| Region tài nguyên regional | us-east-1 theo handout Academy |
+| Global | IAM/CloudFront; tên bucket S3 duy nhất toàn cầu, bucket đặt trong region |
+| Stack/tên | tts-dev; tts-<tên>-dev khi hỗ trợ, bucket thêm suffix tránh trùng |
+| Backend | Python 3.12/boto3; handler(event, context) |
+| Ngôn ngữ | Chọn rõ vi-VN/en-US/ja-JP nếu registry provider đã kiểm chứng |
+| Trạng thái | PENDING → PROCESSING → DONE hoặc FAILED |
+| Thời gian | createdAt/updatedAt ISO 8601 UTC; expiresAt Unix epoch seconds |
+| Error shape | {"error":{"code":"...","message":"..."}} |
+| Trạng thái lab | Mọi action UNVERIFIED / NEEDS SANDBOX TEST |
+| Reset | Tài nguyên/data mất cuối mỗi phiên theo handout; retention không vượt reset |
 
-## 2. Biến môi trường
+Baseline chỉ có dịch vụ allowlisted và các capability có điều kiện: Lambda, S3, CloudFront, CloudFormation/SAM, CloudWatch/SNS; SSM SecureString còn phải thử quyền KMS. Provider TTS và Gemini ở ngoài AWS. API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Comprehend/Translate/Cognito/X-Ray/RUM/EventBridge/Budgets là **NOT ALLOWLISTED / OUT OF BASELINE**, chỉ nêu trong lịch sử/so sánh.
 
-| Tên | Ý nghĩa | Ai tạo giá trị | Ai dùng |
-|---|---|---|---|
-| `ENV` | môi trường, mặc định `dev` | M1 | tất cả |
-| `AUDIO_BUCKET` | tên bucket mp3 | M3 | M2, M3, M5 |
-| `JOBS_TABLE` | tên bảng DynamoDB | M3 | M2, M3, M5 |
-| `QUEUE_URL` | địa chỉ hàng đợi SQS | M5 | M5 (tts-submit) |
-| `SYNTH_FUNCTION_NAME` | tên Lambda tts-synthesize | M2 | M5 (tts-submit) |
-| `EXTERNAL_TTS_SECRET_NAME` | tên secret chứa key nhà cung cấp tiếng Việt | M2 | M2 |
-| `GEMINI_API_SECRET_NAME` | tên secret chứa Gemini API key cho sửa chính tả (MR) | M5 | M5 (`tts-submit`); M1 cấp IAM đọc secret |
-| `GEMINI_MODEL` | tên model Gemini dùng kiểm tra lỗi đánh máy | M1 | M5 (`tts-submit`) |
-| `GEMINI_TIMEOUT_SECONDS` | thời gian chờ tối đa khi gọi Gemini, mặc định `8` | M1 | M5 (`tts-submit`) |
-| `TYPO_CHECK_MAX_CHARS` | độ dài tối đa được gửi kiểm tra, mặc định `5000` | M1 | M5 (`tts-submit`) |
-| `PRESIGN_TTL_SECONDS` | thời hạn link nghe, mặc định `3600` | M1 | M3 |
-| `SYNC_MAX_CHARS` | ngưỡng văn bản ngắn xử lý ngay, mặc định `2500` | M1 | M5 |
-| `CHUNK_SIZE` | độ dài tối đa mỗi đoạn, mặc định `2500` | M1 | M2, M5 |
-| `MAX_CHARS` | độ dài tối đa cho phép, mặc định `20000` | M1 | M5 |
-| `JOB_TTL_DAYS` | số ngày giữ job, mặc định `30` | M1 | M3 |
+## 2. HTTP entry, auth và CORS
 
-M1 đưa các giá trị mặc định vào `Globals.Function.Environment.Variables` của `template.yaml`. File `config/settings.json` ghi lại các giá trị mặc định này để cả nhóm tra cứu.
+Ứng viên ưu tiên: một Lambda HTTP router do M1 quản lý, Function URL nhận event payload v2.0; router gọi handlers của owner bằng RequestResponse. Function URL chỉ là cửa HTTP, không tự cung cấp bảng route API Gateway.
 
-## 3. API
+Router parse requestContext.http.method/rawPath/queryStringParameters/headers/body/isBase64Encoded. Giới hạn byte trước decode, kiểm base64/UTF-8/JSON, phân biệt 404 route và 405 method. Router xác lập internal context rồi chuyển nghiệp vụ; không tin userId, bucket, function ARN hoặc scope client gửi.
 
-Mọi phản hồi là JSON và luôn có header `Access-Control-Allow-Origin` (giá trị `*` khi phát triển). Khi bật Cognito, web gửi header `Authorization: Bearer <token>`. `userId` lấy từ `sub` của token; nếu chưa bật đăng nhập thì `userId` là `guest`.
+**Đề xuất giảm phạm vi:** demo một dataset chung có scope backend cố định "demo", kiểm X-Demo-Token cho cả bảy route. Token được cung cấp riêng khi demo, frontend chỉ giữ trong memory, không build-time env/localStorage/query string. Không thêm endpoint cấp token. Đây không phải xác thực/độc lập dữ liệu nhiều người dùng; mọi người có token thấy cùng lịch sử mẫu. Nhóm phải duyệt giảm scope trước implement.
+
+Cần một cơ chế bảo vệ token ở backend và API keys được trường cho phép. SSM SecureString chỉ là candidate; nếu KMS/SSM không đủ quyền và chưa có phương án an toàn được duyệt thì **BLOCKER cho live provider/token demo**, tiếp tục mocks. Không gửi keys qua chat.
+
+CORS một nguồn do M1 chốt cùng M4: exact frontend origin, allow GET/POST/DELETE/OPTIONS; Content-Type, X-Demo-Token, Idempotency-Key và x-amz-content-sha256 khi cần. OPTIONS preflight không token, không gọi nghiệp vụ/provider. Không dùng CORS như cơ chế phân quyền.
+
+CloudFront default → S3 REST origin private (không website endpoint). API behaviors /synthesize, /text/*, /voices, /jobs/*, /history, /history/*, /stats → router; OriginPath rỗng, path/query được giữ; không cache response API kể cả error. Không forward viewer Host tới Lambda; không để SPA fallback biến JSON lỗi thành HTML 200.
+
+OAC (Origin Access Control) ký request từ CloudFront tới origin, không xác thực người dùng cuối. Lambda OAC candidate dùng AWS_IAM/SigV4, policy giới hạn distribution SourceArn, cả lambda:InvokeFunctionUrl và lambda:InvokeFunction theo yêu cầu hiện hành. POST/PUT cần x-amz-content-sha256 của đúng body bytes. X-Demo-Token tránh xung đột Authorization dùng cho SigV4. M1 kiểm policy; M4 kiểm association/header. Nếu chỉ NONE khả thi, cần security exception cho demo giới hạn, cap ký tự/job/credits và thời điểm tắt; không được duyệt thì giữ mock.
+
+## 3. Biến môi trường đích — chưa sửa runtime
+
+M1 nối Parameters/Outputs, module gửi yêu cầu; tên tài nguyên không hardcode trong handler. Tên parameter là cấu hình không nhạy cảm; **value key/token không được đưa vào repo/template/env frontend/log**.
+
+| Tên proposed | Ý nghĩa / owner | Caller |
+|---|---|---|
+| ENV | Môi trường dev, M1 | Backend |
+| JOBS_BUCKET | S3 jobs private, M3 | Common cho M2/M3/M5 |
+| JOBS_PREFIX | jobs/; common nối scope/job, M3 | Common |
+| AUDIO_BUCKET | S3 audio private, M3 | Common M2/M3 |
+| SYNTH_FUNCTION_NAME | Worker ARN/name từ Outputs M2 | M5 |
+| TTS_API_PARAMETER_NAME | Reference parameter secret provider nếu cơ chế được duyệt, M2 | Worker |
+| GEMINI_API_PARAMETER_NAME | Reference secret MR nếu được duyệt, M5 | Submit |
+| DEMO_TOKEN_PARAMETER_NAME | Reference token backend nếu được duyệt, M1 | Router |
+| GEMINI_MODEL | Model đã chọn sau kiểm chứng, M5/M1 | Submit MR |
+| GEMINI_TIMEOUT_SECONDS | Timeout hữu hạn; 8 giây là giá trị đề xuất cũ cần kiểm | Submit MR |
+| TYPO_CHECK_MAX_CHARS | Giới hạn typo; 5000 là đề xuất cũ cần kiểm quota | Submit MR |
+| MAX_CHARS | Giới hạn request theo benchmark/provider/cost cap, M5/M2 | Submit |
+| CHUNK_SIZE | Chỉ chốt nếu provider cần chia đoạn và M2 có ghép MP3 hợp lệ | Worker |
+| PRESIGN_TTL_SECONDS | TTL ngắn do M3/M1 chốt, không quá credential/session còn lại | Common |
+| JOB_TTL_DAYS | App expiry + lifecycle sau review, không bảo đảm qua reset | Common |
+| VITE_API_BASE_URL | URL HTTP/CloudFront công khai, M4 | Web |
+| EXPO_PUBLIC_API_BASE_URL | URL API công khai, M4 | App |
+
+JOBS_TABLE, QUEUE_URL, EXTERNAL_TTS_SECRET_NAME, GEMINI_API_SECRET_NAME và SYNC_MAX_CHARS thuộc runtime/plan cũ; mapping chi tiết ở mục 10. Không tự bật code bằng cách đổi tên env trong lượt này. Các config giới hạn scan/retry/lease/budget sẽ được chốt qua task owner, chưa tự tạo env names mới.
+
+## 4. API bảy route
+
+Mọi route auth như mục 2; OPTIONS là preflight. Response JSON và headers HTTP/CORS do adapter thống nhất.
+
+| Method/path | Owner handler | Request | Success | Errors đặc trưng |
+|---|---|---|---|---|
+| POST /text/correct | M5, MR | text, lang | 200 checked/skipped với original/corrected/changes | 400 input; provider lỗi → 200 skipped |
+| POST /synthesize | M5 | text, lang, voice?, speed?, translateTo?; Idempotency-Key? | 202 job mới; 200 DONE replay có kết quả | 400/409/429/503 |
+| GET /voices | M2 | Không | 200 languages | 503 chưa có registry thật |
+| GET /jobs/{id} | M3 | ID path | 200 job/status/progress/audioUrl/error | 404 missing/expired |
+| GET /history | M3 | limit?, cursor? | 200 items/nextCursor | 400 cursor sai |
+| DELETE /history/{id} | M3 | ID path | 200 deleted:true | 409 job đang chạy |
+| GET /stats | M5, MR | Không | 200 totalJobs/totalChars/byLang/cacheHits | 501 chưa bật; 503 scan cap |
 
 ### POST /synthesize
 
-Yêu cầu:
+text không rỗng; chọn lang rõ trong registry, auto/thiếu lang trả LANG_REQUIRED để người dùng chọn. voice mặc định chỉ lấy từ registry đã kiểm. speed mặc định 1.0 nếu provider hỗ trợ; phạm vi cũ 0.5–2.0 **không được hứa áp dụng mọi provider**. M2 benchmark range, nhóm duyệt; giá trị không hỗ trợ trả UNSUPPORTED_SPEED, không bỏ qua ngầm. translateTo khác null trả FEATURE_NOT_ENABLED; không dịch ngầm.
 
-```json
-{
-  "text": "Xin chào mọi người",
-  "lang": "vi-VN",
-  "voice": "ten-giong-trong-voices.json",
-  "speed": 1.0,
-  "translateTo": null
-}
-```
+Ví dụ schema, voice chỉ là placeholder, chưa là ID thật:
 
-- `lang` có thể bỏ trống hoặc `"auto"` để tự nhận diện (MR). `voice` bỏ trống thì dùng giọng đầu tiên của ngôn ngữ. `speed` từ 0.5 đến 2.0, mặc định 1.0. `translateTo` (MR) là mã ngôn ngữ đích, ví dụ `"en-US"`.
+~~~json
+{"text":"Xin chào","lang":"vi-VN","voice":"verified-provider-voice-id","speed":1.0,"translateTo":null}
+~~~
 
-Phản hồi khi xong ngay (`200`):
+Tất cả job mới dùng async, kể cả câu ngắn. Khi Invoke Event accepted, trả:
 
-```json
-{ "jobId": "1731234567890-a1b2c3d4", "status": "DONE", "audioUrl": "https://...", "cached": false }
-```
+~~~json
+{"jobId":"1793966400000-a1b2c3d4","status":"PENDING","audioUrl":null,"cached":false}
+~~~
 
-Phản hồi khi chạy nền (`202`):
+Đây là HTTP 202, không chứng minh provider đã chạy. HTTP 200 DONE chỉ cho kết quả hoàn tất có sẵn/replay hoặc sync optimization được duyệt sau benchmark. Không giữ ngưỡng sync 2500 ký tự. Replay job chưa xong trả 202 với state hiện hữu; terminal FAILED replay trả 200 trạng thái FAILED, không tự tạo job/gọi provider lại. Response lỗi nghiệp vụ HTTP 4xx/5xx luôn dùng error shape chung. cached phản ánh audio được tái sử dụng, không mặc nhiên true chỉ vì replay. Cache cross-user chưa bật.
 
-```json
-{ "jobId": "1731234567890-a1b2c3d4", "status": "PENDING", "audioUrl": null, "cached": false }
-```
+Idempotency-Key đề xuất: client tạo ngẫu nhiên, giữ nguyên khi retry cùng input; cùng key khác input trả 409 IDEMPOTENCY_CONFLICT. Không có key thì không bảo đảm deduplicate POST độc lập. M5 gửi IDs-only khi dispatch; invoke từ chối trả sanitized 503 DISPATCH_FAILED, cập nhật FAILED nếu common còn ghi được. Crash giữa create/invoke cần reconciliation, không có giao dịch atomic.
 
-### POST /text/correct (MR, trả `200`)
+### POST /text/correct — lịch sử quyết định được giữ
 
-M4 tự gọi API này khi người dùng nhấn **Chuyển giọng**; không gọi trong lúc người dùng đang gõ. M5 xác định ngôn ngữ (dùng Comprehend khi `lang` là `auto` hoặc bị bỏ trống), rồi gửi văn bản tới Gemini bên ngoài AWS để chỉ kiểm tra lỗi đánh máy. Nếu có đề xuất, M4 phải cho người dùng chọn bản sửa hoặc bản gốc trước khi gọi `POST /synthesize`. Nếu không có lỗi, hoặc không thể kiểm tra, M4 tiếp tục bằng chính xác văn bản gốc.
+Khi bấm Chuyển giọng, M4 gọi đúng một lần, không checkbox và không gọi khi gõ. Endpoint không tạo job/MP3; nếu có đề xuất thì người dùng chọn bản gốc/bản sửa trước POST /synthesize. MR chỉ làm sau MP3 MVP.
 
-Yêu cầu:
+~~~json
+{"text":"Xin chàoo","lang":"vi-VN"}
+~~~
 
-```json
-{ "text": "toi muon nghe mot cau chuyen", "lang": "vi-VN" }
-```
+~~~json
+{"status":"checked","language":"vi-VN","hasTypos":true,"originalText":"Xin chàoo","correctedText":"Xin chào","changes":[{"from":"chàoo","to":"chào","start":4,"end":8}]}
+~~~
 
-Phản hồi:
+start bao gồm và end không bao gồm, tính theo UTF-16 code units trong correctedText (chuỗi đã sửa), không Python code point; cần test emoji/ký tự ngoài BMP. Chỉ lỗi đánh máy rõ ràng; không ngữ pháp/văn phong/ý nghĩa, không tự sửa tên riêng/số/URL/email/thuật ngữ. Output cần kiểm schema, offsets và giới hạn số thay đổi.
 
-```json
-{
-  "status": "checked",
-  "language": "vi-VN",
-  "hasTypos": true,
-  "originalText": "toi muon nghe mot cau chuyen",
-  "correctedText": "tôi muốn nghe một câu chuyện",
-  "changes": [
-    {"from": "toi", "to": "tôi", "start": 0, "end": 3},
-    {"from": "muon", "to": "muốn", "start": 4, "end": 8},
-    {"from": "mot", "to": "một", "start": 14, "end": 17},
-    {"from": "cau", "to": "câu", "start": 18, "end": 21},
-    {"from": "chuyen", "to": "chuyện", "start": 22, "end": 28}
-  ]
-}
-```
+Chưa bật MR, thiếu key, timeout/provider lỗi, không chắc, quá giới hạn hoặc language không hỗ trợ → skipped, nguyên text, changes rỗng. lang auto/thiếu và chưa nhận diện đáng tin cậy → language "und", không giả vi-VN. Không dùng Comprehend baseline; thư viện local nhẹ chỉ MR sau đánh giá confidence.
 
-`status` là `checked` hoặc `skipped`. `hasTypos` chỉ bật khi có đề xuất rõ ràng. `changes` chứa vị trí UTF-16 trong `correctedText` để giao diện đánh dấu. Chỉ sửa lỗi đánh máy rõ ràng; không sửa ngữ pháp, văn phong, tên riêng, số, URL, email hoặc thuật ngữ. Backend bỏ đề xuất với từ viết hoa, mã định danh hoặc từ xuất hiện nhiều lần không phân biệt được vị trí. Khi Gemini lỗi, không xác định được ngôn ngữ, secret chưa cấu hình hoặc văn bản vượt giới hạn kiểm tra, API trả `200` với `status: "skipped"`, văn bản gốc và không có thay đổi. M4 tự tiếp tục TTS bằng bản gốc. Không tạo job hay file âm thanh trong bước kiểm tra.
+~~~json
+{"status":"skipped","language":"und","hasTypos":false,"originalText":"Xin chào","correctedText":"Xin chào","changes":[]}
+~~~
 
-### GET /jobs/{id}
-
-```json
-{ "jobId": "...", "status": "PROCESSING", "progress": {"done": 2, "total": 5}, "audioUrl": null, "error": null }
-```
-
-`audioUrl` chỉ có khi `status` là `DONE`. `error` chỉ có khi `FAILED`.
-
-### GET /history
-
-Tham số tùy chọn: `limit` (mặc định 20), `cursor`.
-
-```json
-{ "items": [ { "jobId": "...", "text": "đoạn đầu của văn bản...", "lang": "vi-VN", "voice": "...", "status": "DONE", "audioUrl": "https://...", "charCount": 120, "createdAt": "2026-11-10T14:30:00Z" } ], "nextCursor": null }
-```
-
-`text` trong danh sách chỉ lấy tối đa 120 ký tự đầu.
-
-### DELETE /history/{id}
-
-Xóa bản ghi DynamoDB và file mp3 trong S3. Trả `{"deleted": true}`.
+Transport/auth/input JSON hỏng vẫn trả 4xx theo contract; fail-open không bỏ qua kiểm soát truy cập. M4 dùng bản gốc nếu bước typo không dùng được, nhưng synthesize vẫn cần lang rõ và token hợp lệ.
 
 ### GET /voices
 
-```json
-{ "languages": [ { "lang": "en-US", "provider": "polly", "engine": "neural", "voices": [ {"id": "Joanna", "gender": "F"} ] } ] }
-```
+Giữ envelope languages với lang/provider/engine/voices. Voice item phải map types frontend hiện hữu trước implementation. Chỉ publish registry đã kiểm quyền sử dụng/model/language trên account provider; engine null hợp lệ cho external. Ví dụ Polly trong config/voices.json chưa migrate, không phải ElevenLabs registry. Chưa có danh mục thật → 503 VOICES_UNAVAILABLE, không danh sách bịa.
 
-Dựng từ `config/voices.json` (M2).
+### GET /jobs/{id}, GET /history
 
-### GET /stats (MR)
+Job polling:
 
-```json
-{ "totalJobs": 42, "totalChars": 18250, "byLang": {"vi-VN": 10, "en-US": 25}, "cacheHits": 7 }
-```
+~~~json
+{"jobId":"1793966400000-a1b2c3d4","status":"PROCESSING","progress":{"done":0,"total":1},"audioUrl":null,"error":null}
+~~~
 
-## 4. Mã lỗi
+audioUrl mới chỉ khi DONE, error sanitized chỉ khi FAILED. Tạo URL mỗi response, không persist signed URL. Job thiếu/hết hạn/deleting trả 404 NOT_FOUND. Không lấy scope từ query/body.
 
-Định dạng: `{"error": {"code": "...", "message": "..."}}`.
+history limit mặc định 20, max đề xuất 50 cần sign-off, opaque cursor giới hạn độ dài và gắn scope; response giữ items/nextCursor. Item giữ jobId/text tối đa 120 ký tự/lang/voice/status/audioUrl/charCount/createdAt. Chỉ dữ liệu mẫu không nhạy cảm vì shared demo. S3 ListObjectsV2 theo key, không hứa newest-first/query; bounded sort hoặc reverse timestamp key phải review trước khi UI phụ thuộc. Lọc expiry/tombstone có thể làm page ít hơn limit; cursor vẫn phải tiến.
 
-| HTTP | `code` | Khi nào |
+### DELETE /history/{id}
+
+Chỉ terminal jobs; PENDING/PROCESSING trả 409 JOB_BUSY. CAS tombstone, xóa audio rồi metadata qua common; không atomic nhiều object. Retry cùng ID đã mất trả {"deleted":true} để idempotent; reject malformed ID/scope trước khi xử lý. Worker phải kiểm tombstone không tái tạo job đã xóa. Không sửa dữ liệu job đang có lease.
+
+### GET /stats — MR
+
+Giữ totalJobs/totalChars/byLang/cacheHits cho scope demo. Quét S3 JSON có giới hạn objects/time, lọc expired/deleting; không claim query/index hoặc thống kê realtime ở quy mô lớn. Chưa bật trả 501 FEATURE_NOT_ENABLED; vượt cap trả 503 STATS_UNAVAILABLE, không trả 0 giả. cacheHits chỉ 0 khi đã kiểm rằng cache chưa dùng trong dataset đó.
+
+### Mã lỗi
+
+| HTTP | code | Ý nghĩa |
 |---|---|---|
-| 400 | `INVALID_INPUT` | thiếu `text`, `speed` ngoài khoảng, JSON sai |
-| 400 | `TEXT_TOO_LONG` | vượt `MAX_CHARS` |
-| 400 | `LANG_NOT_SUPPORTED` | ngôn ngữ hoặc giọng không có trong `voices.json` |
-| 401 | `UNAUTHORIZED` | thiếu hoặc sai token (khi đã bật Cognito) |
-| 404 | `NOT_FOUND` | không có job |
-| 429 | `TOO_MANY_REQUESTS` | vượt giới hạn tần suất |
-| 502 | `PROVIDER_ERROR` | Polly hoặc nhà cung cấp ngoài lỗi |
-| 500 | `INTERNAL` | lỗi khác |
+| 400 | INVALID_INPUT | JSON/field/ID/cursor sai |
+| 400 | TEXT_TOO_LONG | Vượt byte/char cap đã chốt |
+| 400 | LANG_REQUIRED | Thiếu/auto lang, cần chọn rõ |
+| 400 | LANG_NOT_SUPPORTED | Lang/voice không ở registry đã kiểm |
+| 400 | UNSUPPORTED_SPEED | Provider không hỗ trợ speed yêu cầu |
+| 400 | FEATURE_NOT_ENABLED | translateTo không null ở MVP |
+| 401 | UNAUTHORIZED | Thiếu/sai token demo |
+| 404 | NOT_FOUND | Route/job thiếu hoặc expired |
+| 405 | METHOD_NOT_ALLOWED | Method không khớp route |
+| 409 | IDEMPOTENCY_CONFLICT | Cùng key khác input |
+| 409 | JOB_BUSY | Không xóa job đang chạy |
+| 429 | TOO_MANY_REQUESTS | Chạm giới hạn demo/cost guard |
+| 501 | FEATURE_NOT_ENABLED | Stats MR chưa bật |
+| 502 | PROVIDER_ERROR | Lỗi provider trong đường HTTP nếu có; async ghi FAILED |
+| 503 | DISPATCH_FAILED | Async invoke chưa accepted |
+| 503 | VOICES_UNAVAILABLE | Registry chưa kiểm/chưa sẵn |
+| 503 | STATS_UNAVAILABLE | Scan cap/quyền/network không đủ |
+| 500 | INTERNAL | Lỗi đã sanitize chưa phân loại |
 
-## 5. DynamoDB: bảng `tts-jobs-dev`
+~~~json
+{"error":{"code":"LANG_REQUIRED","message":"Vui lòng chọn ngôn ngữ trước khi chuyển giọng."}}
+~~~
 
-- Khóa: `userId` (HASH, chuỗi), `jobId` (RANGE, chuỗi).
-- Chỉ mục phụ: `textHash-index` (HASH `textHash`) cho chống trùng.
-- TTL: thuộc tính `expiresAt`.
-- Chế độ tính tiền: `PAY_PER_REQUEST`.
+## 5. S3 repository và schema v1
 
-| Trường | Kiểu | Ghi chú |
+Ba bucket riêng: web private M4; jobs private M3; audio private M3. Block Public Access, SSE-S3 candidate cần kiểm; không dùng KMS customer key baseline. jobs/<scope>/<jobId>.json và audio/<scope>/<jobId>.mp3; scope "demo" gán server. Reject slash, "..", encoded traversal/null bytes trong ID.
+
+Schema đầy đủ ở [plan mục 7](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md#7-json-v1-consistency-privacy-và-idempotency): schemaVersion=1, userId/jobId/text/lang/translateTo/voice/provider/engine/speed/status/createdAt/updatedAt/expiresAt/charCount/textHash (null khi cache chưa bật)/chunkCount/chunksDone/audioKey/errorMessage/attempt/leaseUntil/dispatchState/deleting. Bổ sung version số nguyên tăng mỗi update CAS khi implementation, không dùng version thay ETag. provider đúng thực tế, engine null external; progress API map chunksDone/chunkCount. Không persist presigned URL.
+
+Conditional write nghĩa là chỉ ghi nếu điều kiện còn đúng: If-None-Match "*" khi create, If-Match ETag khi update. CAS (compare and swap) chống ghi đè dữ liệu đã đổi; ETag không luôn là MD5. 412 → đọc lại, kiểm transition, retry hữu hạn; 409 xử lý conflict theo SDK. Không dùng một index.json chung, không S3 transaction/GSI/TTL.
+
+Common giữ tên public interface cũ để giảm sửa callers:
+- db.py: create_job/get_job/update_job/list_jobs/delete_job/find_cached.
+- storage.py: put_audio/get_audio_url/delete_audio.
+- utils.py: make_job_id/text_hash/get_user_id.
+- Helpers mới cho CAS/claim lease/idempotency/tombstone được M3 đề xuất và M2/M5 review trước coding; không tự viết repository thay thế trong caller.
+
+find_cached chưa bật, không scan cache toàn người dùng. TTL URL giới hạn bởi credential/session thực; expiresAt lọc lúc đọc, Lifecycle dọn tuổi/prefix bất đồng bộ, không chính xác giây và không giữ data qua reset. S3 list+GET có cost/latency, phải bounded; RDS chỉ nâng cấp sau MVP khi có quyền/network/secret.
+
+## 6. Async Event, retry và recovery
+
+M5 create PENDING qua common rồi lambda Invoke InvocationType=Event tới worker M2, payload:
+
+~~~json
+{"userId":"demo","jobId":"1793966400000-a1b2c3d4"}
+~~~
+
+Không text/key trong event. Lambda có hàng đợi nội bộ/retry, **không SQS/DLQ do nhóm quản lý**, không visibility timeout/redrive/SQS consumer. Worker đọc job, CAS claim PROCESSING/lease, provider, put audio rồi DONE.
+
+**M2 sở hữu một EventInvokeConfig duy nhất trong infra/m2-tts-core.yaml.** M5 bàn giao policy retry/event age/destination; số cụ thể cần đo timeout/lease/provider credits, chưa đặt theo SQS. M1 hỗ trợ kiểm quyền; không duplicate resource cùng function/qualifier.
+
+Idempotency mapping riêng idempotency/demo/<digest>.json do M3 quản lý, tạo conditional trước job, chứa jobId/fingerprint/dispatchState. Crash giữa objects/invoke có thể làm orphan/duplicate dispatch; M5 reconciliation phối hợp common.
+
+Worker DONE/active lease không gọi provider lại. Lease phải dài hơn timeout + margin; duplicate thấy active lease có thể return success để tránh concurrency, nhưng **không coi duplicate ACK là bảo đảm hoàn tất**: nếu worker gốc timeout thì stale inspector/manual recovery phải phát hiện. Runtime retry trước lease hết có thể bị skip; sau hết retry vẫn có stale job, không nhất thiết có on-failure record. Đây là residual risk cần test Gate 3.
+
+Lỗi business vĩnh viễn → ghi FAILED và return success (Lambda không retry/failure destination). Lỗi transient → CAS release nếu còn quyền rồi raise; runtime timeout có thể không release, cần stale recovery. Sau audio write nhưng trước DONE: kiểm audio/config fingerprint, reconcile state, không tổng hợp lại ngầm. Không hứa exactly-once provider billing.
+
+S3 on-failure destination candidate lưu invocation record, không tự đổi job FAILED, chỉ hỗ trợ on-failure; SNS cũng conditional. Payload IDs-only giảm rò text, nhưng record có thể có error context nên sanitize. Quyền ghi destination và DestinationDeliveryFailures phải kiểm. Không dùng EventBridge sweeper; M5 định nghĩa bounded inspection/manual replay có approval, M3 cung cấp helpers, M1 alarm cảnh báo.
+
+## 7. Owner duy nhất và IAM requests
+
+| Deliverable | Owner | Bàn giao/phối hợp |
 |---|---|---|
-| `userId` | chuỗi | Cognito `sub` hoặc `guest` |
-| `jobId` | chuỗi | `<epoch_ms>-<8 hex>` |
-| `text` | chuỗi | văn bản sau khi làm sạch (và sau dịch nếu có) |
-| `lang` | chuỗi | mã ngôn ngữ dùng để đọc |
-| `translateTo` | chuỗi | chỉ có khi có dịch |
-| `voice` | chuỗi | mã giọng |
-| `provider` | chuỗi | `polly` hoặc `external` |
-| `engine` | chuỗi | engine thực tế đã dùng |
-| `speed` | số | 0.5 đến 2.0 |
-| `status` | chuỗi | `PENDING`, `PROCESSING`, `DONE`, `FAILED` |
-| `audioKey` | chuỗi | khóa file trong S3 |
-| `charCount` | số | số ký tự |
-| `chunkCount` | số | số đoạn |
-| `chunksDone` | số | số đoạn đã đọc xong (cho tiến độ) |
-| `textHash` | chuỗi | SHA-256 phục vụ chống trùng |
-| `errorMessage` | chuỗi | chỉ có khi `FAILED` |
-| `createdAt`, `updatedAt` | chuỗi | ISO 8601 UTC |
-| `expiresAt` | số | giây epoch, dùng cho TTL |
+| HTTP router/Function URL/resource policy/root SAM/region/config | M1 Minh Lý | Handler ARNs/contracts từ M2/M3/M5, headers M4 |
+| LabRole capability audit (không sở hữu/cấp role) | M1 | Trường quản lý IAM; mọi module gửi action/resource |
+| CloudWatch Dashboard/Alarms/SNS | M1 | Metric schema M5, logs từng Lambda owner |
+| Worker/voices/provider/MP3/worker EventInvokeConfig | M2 Trung Khang | M3 common, M5 retry policy |
+| S3 jobs/audio/common/history/Lifecycle | M3 Trung Đức | Interface cho M2/M5, paging cho M4 |
+| Existing web/app/S3 web/CloudFront/OAC association/upload | M4 Nguyên Khang | M1 URL/policy/CORS; M2 voices; M3 history |
+| Submit/async dispatch/recovery/typo/stats/backend tests/application telemetry | M5 Trung Nghĩa | M2 worker, M3 CAS, M1 alarms |
+| Failure S3 prefix hoặc SNS topic | M3 bucket / M1 topic | M2 cấu hình destination, M5 recovery policy |
 
-## 6. S3: bucket `tts-audio-dev`
+Lambda dùng existing LabRole, không tạo role/policy/OIDC. LabRole không phải least-privilege role nhóm tự thiết kế. Bảng sau là **capability requests**, chưa được cấp/kiểm:
 
-- Khóa file: `audio/{userId}/{jobId}.mp3`.
-- Riêng tư hoàn toàn. Người dùng nghe qua presigned URL (thời hạn `PRESIGN_TTL_SECONDS`), tạo mới mỗi lần trả về, không lưu URL trong DynamoDB.
-
-## 7. Cách gọi `tts-synthesize`
-
-Cùng một nội dung cho cả hai đường:
-
-```json
-{ "userId": "guest", "jobId": "1731234567890-a1b2c3d4" }
-```
-
-- **Văn bản ngắn:** `tts-submit` gọi trực tiếp (`lambda.invoke`, đồng bộ).
-- **Văn bản dài:** `tts-submit` gửi message SQS có `body` là chuỗi JSON ở trên; Lambda nhận qua `Records`.
-- Văn bản không đi qua message; `tts-synthesize` đọc văn bản từ DynamoDB bằng `userId` và `jobId`.
-
-## 8. `config/voices.json`
-
-```json
-{
-  "en-US": { "provider": "polly", "engine": "neural", "voices": [ {"id": "Joanna", "gender": "F"} ] },
-  "vi-VN": { "provider": "external", "engine": null, "voices": [ {"id": "...", "gender": "F"} ] }
-}
-```
-
-`provider` là `polly` hoặc `external`. M2 giữ file này; M4 và M5 chỉ đọc.
-
-## 9. Quy đổi mã ngôn ngữ
-
-| Mã dự án | Comprehend / Translate | Polly |
-|---|---|---|
-| `vi-VN` | `vi` | (không hỗ trợ, dùng nhà cung cấp ngoài) |
-| `en-US` | `en` | `en-US` |
-| `ja-JP` | `ja` | `ja-JP` |
-| `ko-KR` | `ko` | `ko-KR` |
-| `fr-FR` | `fr` | `fr-FR` |
-| `de-DE` | `de` | `de-DE` |
-| `es-ES` | `es` | `es-ES` |
-| `cmn-CN` | `zh` | `cmn-CN` |
-
-## 10. Quyền IAM của từng Lambda (M1 cấu hình)
-
-| Lambda | Quyền |
+| Caller | Actions/resource đích |
 |---|---|
-| `tts-submit` | DynamoDB: PutItem, UpdateItem, Query; Lambda: InvokeFunction trên `tts-synthesize`; SQS: SendMessage; Comprehend: DetectDominantLanguage; Translate: TranslateText; Secrets Manager: GetSecretValue trên Gemini secret |
-| `tts-synthesize` | DynamoDB: GetItem, UpdateItem; S3: PutObject trên `audio/*`; Polly: SynthesizeSpeech; Secrets Manager: GetSecretValue; SQS: nhận và xóa message |
-| `tts-voices` | chỉ ghi log |
-| `tts-history` | DynamoDB: Query, GetItem, DeleteItem; S3: GetObject, DeleteObject |
-| `tts-stats` (M5) | DynamoDB: Query |
+| Lab deploy principal | iam:GetRole/PassRole; CloudFormation/resource actions; lambda URL/AddPermission |
+| Router | lambda:InvokeFunction tới handlers từ config server |
+| Submit | lambda:InvokeFunction worker; S3 jobs/idempotency qua common |
+| Worker | S3 jobs/audio GetObject/PutObject; SSM/KMS nếu secret được duyệt |
+| History/common | S3 ListBucket/GetObject/PutObject/DeleteObject theo scope prefix |
+| Stats | S3 ListBucket/GetObject bounded |
+| CloudFront service | Lambda InvokeFunctionUrl + InvokeFunction; S3 frontend GetObject, SourceArn policy |
+| Logs/monitoring | Logs write; CloudWatch dashboard/alarm; SNS actions thực cần dùng |
+| Failure destination | S3 PutObject/ListBucket hoặc SNS Publish, cần test principal runtime |
 
-Tất cả Lambda đều có quyền ghi log CloudWatch.
+HEAD dùng s3:GetObject; không có action IAM s3:HeadObject riêng. CAPABILITY_IAM không cấp quyền hay vượt IAM read-only. SecureString cần SSM + quyền KMS tương ứng, handout KMS chỉ list nên chưa chứng minh dùng được.
+
+## 8. Bàn giao và thứ tự
+
+1. M1 xác minh HTTP/Invoke/secret/LabRole; M4 cùng kiểm CloudFront/OAC; M3 kiểm S3 CAS; M2 khảo sát provider, chưa call thật khi chưa duyệt.
+2. Nhóm duyệt proposed contract/token/scope/limits trước coding. M3 common/schema/CAS trước callers M2/M5.
+3. M2 adapter/registry/worker, M1 router có thể làm bằng mocks song song. M5 ghép submit khi common/worker contract rõ.
+4. M4 giữ UI, nối API base/token/runtime/hash/202 polling/voices; không dựng lại UI cơ bản.
+5. M2 MP3 thật → M3 history/presign → M4 E2E. M5 retry/recovery/tests và M1 alarm; cap/token trước mở demo trả phí.
+6. Gemini/stats MR sau MVP, không đưa vào critical path.
+7. M1/M4 phối hợp reset/redeploy; mọi người backup evidence không nhạy cảm ngoài lab.
+
+## 9. Logging và trạng thái nghiệm thu
+
+Log JSON một dòng: correlationId/jobId/module/operation/status/durationMs/attempt/errorCode sanitized; không text, API key, token/header auth hay presigned signature. Mỗi module instrument Lambda mình, M5 định nghĩa metric nghiệp vụ, M1 dashboard/alarm. EMF (Embedded Metric Format: log JSON để tạo metric CloudWatch) chỉ dùng sau kiểm quyền/config.
+
+Chỉ ghi planned/coded/locally tested/sandbox verified/deployed & demoed đúng evidence. Lượt này chưa tick implementation/test AWS. Log M1–M4 giữ nguyên; log M5 append ngữ cảnh, không viết lại lịch sử.
+
+## 10. Compatibility và quyết định chờ duyệt
+
+| Cũ | Proposed | Ảnh hưởng / người duyệt |
+|---|---|---|
+| Cognito/guest identity | X-Demo-Token + server scope demo | Thay auth; không multi-user; nhóm/M1/M3/M4 duyệt |
+| API Gateway events | Function URL payload v2 router | Public paths giữ; M1 normalized context cho owner review |
+| Sync ngắn 200/SQS dài 202 | Async job mới 202, DONE replay 200 | M4 polling, M5 tests; bỏ SYNC_MAX_CHARS |
+| DynamoDB JOBS_TABLE | JOBS_BUCKET/JOBS_PREFIX | M3 common trước M2/M5, runtime chưa sửa |
+| QUEUE_URL/SQS | SYNTH_FUNCTION_NAME + Event | M5/M2; không đổi payload field userId/jobId, backend gán scope |
+| Secrets Manager env names | TTS_API_PARAMETER_NAME/GEMINI_API_PARAMETER_NAME | Conditional SSM; M1/M2/M5 và trường duyệt secret mechanism |
+| Lang auto/optional | Explicit lang cho synthesize | M4 cần thông báo/chọn lang; typo unknown dùng und |
+| speed 0.5–2.0 | Chỉ range provider đã đo | M2 khảo sát; nhóm duyệt supported range hoặc reject |
+| translateTo MR | Giữ field, non-null reject MVP | Nhóm duyệt feature reduction, không dịch ngầm |
+| Polly engine/voices | Provider registry thật, engine null | M2/M4 cập nhật types/fixtures lúc implementation |
+| History theo DB query | Shared demo + S3 paging/cap | M3/M4 duyệt ordering/limits; stats MR có cap |
+| ap-southeast-1 | us-east-1 plan | Gate 1 mới đổi runtime; không deploy file cũ |
+
+OPEN: URL/OAC/resource policies; Invoke/PassRole; secret KMS/SSM; HTTPS egress; provider voice/price/license/quota; token/scope sign-off; cap/cursor ordering; retry/lease/destination; fallback B HTTPS/profile. Theo [validation runbook](../plans/SANDBOX-VALIDATION-RUNBOOK.md), không biến candidate thành SANDBOX VERIFIED chỉ vì tài liệu AWS có tính năng.

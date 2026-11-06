@@ -1,83 +1,124 @@
-# M4: Giao diện App/Web và đưa lên cloud
+# M4 — Nguyên Khang: Frontend hiện có, CloudFront hosting và tái triển khai
 
-**Người phụ trách:** Nguyên Khang  |  **Nhật ký:** `logs/log-m4.md`
+**2026-11-06 — PLANNED / PROPOSED / PENDING GROUP SIGN-OFF.** Phân công cho implementation sau; chưa code/deploy trong lượt re-plan. Task chỉ tick khi có output và kiểm chứng phù hợp, không chấm mức độ module.
 
-> Tick `[x]` ngay khi xong từng bước. Mỗi lần làm việc, đọc file này cùng với nhật ký của module.
+## 1. Vai trò trong luồng TTS
 
-## Mục tiêu
+AWS deliverables: S3 frontend private, CloudFront distribution/OAC candidate, upload/invalidation thủ công trong lab; frontend integration tối thiểu.
 
-App/Web cho người dùng, gọi API TTS, cho duyệt văn bản được sửa chính tả, đưa lên S3 + CloudFront và tự động deploy.
+Nhận: M1 HTTP URL/path/auth/OAC policy; M2 verified voices; M3 history/presign/paging; M5 202/typo/stats compatibility.
 
-## Thư mục sở hữu
+Giao: Existing UI dùng API thật, CloudFront HTTPS/private S3, no-cache API behaviors, manual deploy/reset checklist, evidence không secret.
 
-`frontend/, infra/m4-frontend-hosting.yaml, .github/workflows/deploy-frontend.yml`
 
-## Dịch vụ AWS chính
 
-S3 (hosting), CloudFront, Cognito (phía web), CloudWatch RUM, GitHub Actions. M1 cung cấp IAM OIDC role.
+## 2. Hiện trạng có bằng chứng
 
-## Danh sách việc
+frontend/web/package.json:8 và frontend/app/package.json:50 có scripts; web/app API adapters và tests tồn tại, chưa chạy lại. Xem [audit file:line](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md#1-executive-summary-và-audit-thực-tế). Log cũ là lịch sử, không phải test mới.
 
-| Bước | Việc phải làm | Loại | Giải thích |
-|---|---|---|---|
-| 4.1 | Thiết kế giao diện, dựng bằng dữ liệu giả theo danh sách API cố định | Cơ bản | Không cần chờ backend |
-| 4.2 | Màn hình chính: nhập văn bản (đếm ký tự), chọn ngôn ngữ/giọng từ /voices, tốc độ, trình phát, nút tải mp3, báo đang xử lý/lỗi | Cơ bản | Đáp ứng đúng yêu cầu đề bài |
-| 4.3 | Khi nhấn Chuyển giọng, tự gọi `POST /text/correct` một lần; không kiểm tra trong lúc gõ | Mở rộng | Tìm lỗi đánh máy trước khi đọc mà không cần chế độ bật riêng |
-| 4.4 | Nếu có đề xuất, hiển thị bản gốc/bản sửa và chờ người dùng chọn; nếu không có đề xuất hoặc API kiểm tra lỗi thì dùng bản gốc | Mở rộng | Người dùng luôn kiểm soát nội dung được đọc |
-| 4.5 | Gửi đúng nội dung cuối cùng một lần tới `POST /synthesize`; hiển thị trạng thái xử lý, hoàn tất hoặc lỗi | Cơ bản | Không tạo job trùng hoặc gửi lại Gemini sau khi chọn |
-| 4.6 | Màn hình lịch sử: nghe lại, xóa, tìm kiếm | Cơ bản | Dùng dữ liệu DynamoDB qua API |
-| 4.7 | Văn bản dài: gọi `GET /jobs/{id}` định kỳ để hiện tiến độ | Cơ bản | Web không bị treo khi xử lý lâu |
-| 4.8 | Đưa web lên S3 (private) + CloudFront (HTTPS, tải nhanh) | Cơ bản | Web chạy thật trên cloud, có địa chỉ công khai |
-| 4.9 | Tự động deploy: GitHub Actions build, đẩy lên S3, làm mới CloudFront bằng IAM OIDC role do M1 cung cấp | Mở rộng | Push code là web tự cập nhật mà không lưu AWS key dài hạn |
-| 4.10 | Tích hợp đăng nhập Cognito và CloudWatch RUM | Mở rộng | Mỗi người có lịch sử riêng và đo trải nghiệm web |
-| 4.11 | Kiểm thử trên trình duyệt luồng TTS, kiểm tra và duyệt lỗi đánh máy, lịch sử và job dài | Cơ bản | Có bằng chứng từ góc nhìn người dùng |
-| 4.12 | Bản app di động dùng chung API | Mở rộng | Làm nếu còn thời gian |
+## 3. Phạm vi files
 
-## Ghi chú kỹ thuật riêng
+frontend/, infra/m4-frontend-hosting.yaml; .github/workflows/ chỉ bảo trì, không OIDC deploy baseline.
 
-- [x] Sửa khung app và vùng an toàn riêng cho trang/modal; gộp tiêu đề, vùng cuộn, tìm kiếm và xử lý bàn phím. Hỗ trợ xoay, màn hình nhỏ/tablet, chữ lớn, dock và trình phát co theo khung. Ngày 2026-11-06: TypeScript/lint, 14 kiểm thử, Expo Doctor 20/20, bundle iOS/Android và 145 kiểm tra bố cục trên 11 cấu hình trình duyệt đạt; còn xác nhận bằng thiết bị native thật, không đánh dấu hoàn tất 4.11/4.12.
-- [x] Nâng app lên Expo SDK 58 khớp Expo Go trên iPhone ngày 2026-11-06; đồng bộ React/React Native/thư viện, sửa thanh tab theo Router 58, yêu cầu Node 22+ và xác nhận manifest iOS 58.0.0. TypeScript/lint, 12 kiểm thử, đóng gói iOS, Expo Doctor 20/20 và luồng trình duyệt đạt; vẫn cần xác nhận chạy thực trên iPhone.
-- [x] Tạo app Expo SDK 57 tại frontend/app với bốn tab, nút tạo riêng, kính native/blur dự phòng, kéo chọn tab, hai logo không nền trắng AWS, sáng/tối/hệ thống và nhãn tiếng Việt ngắn. Có nghe thử trên máy, nháp, giọng yêu thích, lịch sử và trình phát.
-- [x] App giữ hợp đồng API kiểm tra/duyệt nội dung, synthesize một lần và polling; đọc PDF/DOCX/TXT cục bộ. Cài mới, lint/TypeScript, 12 kiểm thử, đóng gói iOS, Expo Doctor 21/21 và luồng trình duyệt/API mô phỏng đạt ngày 2026-11-05. Còn kiểm tra iPhone/Expo Go và API AWS thật trước khi đánh dấu hoàn tất 4.11/4.12.
-- [x] Gộp nút Tạo giọng đọc vào đáy ô nhập, bỏ hàng/khoảng trống bên ngoài; nháp/lỗi/tiến độ nằm cùng composer và điều khiển tự xuống dòng khi hẹp. Kiểm thử ứng dụng 9/9 đạt ngày 2026-11-05, gồm chống submit trùng và lỗi văn bản rỗng.
-- [x] Đổi thành Nhóm 5, lời chào tiếng Việt theo buổi không hiển thị giờ, avatar đám mây và logo/lời chào lớn hơn. Tìm kiếm inline gợi ý theo ký tự/không dấu, không mở Modal/hiện nhãn phím tắt; không tác động bộ lọc từng trang.
-- [x] Đồng bộ palette lấy từ logo HCMUTE/AWS (#0072BC, #252F3E, #FF9900), giữ kính và màu trạng thái có mục đích. 55 kiểm thử mô phỏng và build đạt ngày 2026-11-05; còn đối chiếu trực quan trên máy thật.
-- [x] Bỏ hoàn toàn khung/nền/viền/blur/bóng của header theo ảnh; tách tiêu đề trang thành H1 riêng bên dưới, 28px desktop/24px mobile. Kiểm thử ứng dụng 8/8 đạt ngày 2026-11-05; còn đối chiếu trực quan trên máy thật.
-- [x] Header ShipCODE theo ảnh mới: HCMUTE ở header, AWS ở sidebar, tên trang bên dưới lời chào và nút Xuất báo cáo CSV từ lịch sử đã tải. Dashboard dùng lưới/spacing chung, KPI bằng nhau và card dưới cùng chiều cao theo nội dung.
-- [x] Tối ưu thu/mở sidebar bằng FLIP/Web Animations API, bỏ layout mỗi frame, SVG viền nav và blur chữ; xử lý đảo chiều, resize/unmount, giảm chuyển động và fallback. 47 kiểm thử mô phỏng đạt ngày 2026-11-05; vẫn cần đo FPS/đối chiếu trực quan trên máy thật, chưa hoàn tất 4.11.
-- [x] Dựng sidebar theo video tham chiếu: kính mỏng, nút mép, chuyển đổi chiều rộng/cao, chữ hiện trễ, pill chọn mục và tooltip ở dạng hẹp; giữ giảm chuyển động/mobile. 38 kiểm thử mô phỏng đạt ngày 2026-11-05; còn đối chiếu chuyển động trên trình duyệt thực, chưa khẳng định khớp 100%.
-- [x] Tách workspace thành các ô kính rời (thanh trên, soạn thảo, cài đặt giọng, trình phát), tăng độ trong và dùng chung token CSS; giữ sóng 3D và tùy chọn trợ năng. Build thành công ngày 2026-11-05; chưa xác nhận hình ảnh/FPS trên trình duyệt thật.
-- [x] Tinh gọn bộ bọc nút bấm, bỏ lớp kính/CSS trùng và gom thiết lập kiểm thử; build không sinh tsconfig.tsbuildinfo. Giữ các font/logo/giấy phép và mã đang được dùng.
-- [x] Hoàn thiện frontend cho bước 4.3–4.5: kiểm tra lỗi đánh máy một lần, duyệt bản gốc/bản sửa, giữ bản gốc khi API lỗi, chống gửi trùng và hủy đề xuất cũ. Đã kiểm thử bằng API mô phỏng; còn chờ API thật của M1/M5.
-- [x] Sửa phát từ danh sách, khôi phục âm lượng khi bật tiếng, Escape khi modal bận, trạng thái tải/lỗi và phản hồi đến chậm. 37/37 kiểm thử DOM/dữ liệu đạt ngày 2026-11-05; chưa đánh dấu xong bước 4.11.
-- [x] Đặt tên “TTS Studio” trên giao diện, menu điện thoại, tiêu đề tab và mô tả trang theo lựa chọn của người dùng. Đã build thành công ngày 2026-11-05; chưa đánh dấu hoàn tất toàn bộ bước 4.1.
-- [x] Mở rộng Liquid Glass bằng Glisse MIT sẵn có cho điều hướng, thanh trên, trình phát và nút bấm; dùng chung nền tĩnh và CSS. Build thành công ngày 2026-11-05; còn kiểm tra trực quan trên máy tính/điện thoại, chưa hoàn tất bước 4.11.
-- [x] Giảm tải Liquid Glass sau phản hồi: bỏ viền SVG trên nút đặc và khúc xạ nền toàn màn hình; dùng kính CSS cho panel lớn, giữ khúc xạ ở bề mặt nhỏ. Chưa đo FPS thực tế hoặc hoàn tất bước 4.11.
-- [x] Đổi palette sang trắng sữa và xanh slate theo ảnh tham chiếu, nền loang tĩnh và card viền trắng; giữ bố cục hiện tại. Build thành công ngày 2026-11-05; còn đối chiếu trực quan trên trình duyệt.
-- [x] Thay icon UI bằng Framework7 Icons 5.0.5 (MIT), thống nhất phong cách iOS, gỡ Lucide. Build và kiểm tra render 32 SVG cùng spinner thành công ngày 2026-11-05; còn kiểm tra trực quan.
-- [x] Giữ và hoàn thiện sóng 3D, chuyển động nền và độ trong hai khung chính; sửa kéo nút gạt, thay bốn native select bằng menu đồng bộ. Build và 10 kiểm thử DOM thành công ngày 2026-11-05; chưa thay thế kiểm thử trình duyệt thực tế ở bước 4.11.
-- [x] Bỏ khung nền/viền bọc icon công cụ và vòng viền trang trí trong bản thu gần đây; build thành công ngày 2026-11-05.
+Chỉ sửa runtime khi được giao implementation. M1 tích hợp root IaC, không nhận logic Lambda mọi module. Lượt này chỉ cập nhật tài liệu/comment infra.
 
-- Địa chỉ API đọc từ cấu hình frontend, không ghi cứng trong logic và **không chứa key bí mật**.
-- Dùng danh sách API cố định trong `docs/overview/QUY-UOC-CHUNG.md`. Khi backend chưa sẵn sàng, dùng dữ liệu giả đúng định dạng đó để làm trước.
-- Hosting: bucket S3 riêng tư + CloudFront (Origin Access Control), trang lỗi 404 trả về `index.html` nếu là ứng dụng một trang.
-- Cognito (MR): gửi `Authorization: Bearer <token>` trong mỗi request. CI/CD (MR): GitHub Actions dùng IAM role qua OIDC, không lưu key AWS dài hạn trong GitHub.
-- Với job đang chạy nền, gọi `GET /jobs/{id}` mỗi 2 đến 3 giây, dừng khi `DONE` hoặc `FAILED`.
-- Tự kiểm tra khi nhấn Chuyển giọng; không kiểm tra từng phím và không có nút bật/tắt.
-- Khi không có đề xuất hoặc API kiểm tra lỗi, tiếp tục bằng bản gốc. Khi có đề xuất, giữ nguyên textarea gốc, đánh dấu thay đổi và chờ người dùng chọn trước khi gọi `/synthesize`.
-- Nếu người dùng sửa nội dung trong lúc màn hình duyệt đang mở, hủy kết quả cũ. Ngăn gửi trùng khi double click. Không gọi kiểm tra lần hai sau khi đã chọn.
-- Địa chỉ API Gateway là cấu hình frontend không bí mật; Gemini API key không được đưa vào frontend.
-- M1 quản lý IAM OIDC role; M4 sở hữu workflow trong `.github/workflows/`.
+## 4. Constraints Sandbox
 
-## Đầu ra khi xong
+Regional us-east-1; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. Allowlist không chứng minh quyền từng action. Function URL/OAC/Invoke/SSM SecureString còn UNVERIFIED / NEEDS SANDBOX TEST. Runtime/config vẫn cũ, chỉ đổi ở Gate 1.
 
-Web/App chạy trên CloudFront; có chuyển giọng, kiểm tra và duyệt đề xuất sửa lỗi đánh máy, nghe/tải mp3, theo dõi job dài, lịch sử và workflow deploy.
+## 5. IAM và secret cần kiểm
 
-## Nhận từ
+Lab principal upload/invalidate; CloudFront/OAC/BucketPolicy actions có điều kiện. Không AWS credentials trong browser/GitHub.
 
-M1: địa chỉ API và IAM OIDC role. M2: `/voices`. M3: history và audio URL. M5: API sửa chính tả và xử lý TTS.
+Lambda dùng existing LabRole, không tạo/sửa policy/role/OIDC. LabRole không phải least privilege nhóm tự tạo. KMS handout chỉ list; nếu không có cơ chế bảo vệ key/token được trường duyệt thì BLOCKER live provider. Mocks vẫn tiếp tục được; không gửi keys qua chat/repo/log.
 
-## Giao cho
+## 6. API và dữ liệu phải giữ
 
-M1: file infra/m4-frontend-hosting.yaml. Cả nhóm: giao diện để chạy demo.
+Đọc [QUY-UOC-CHUNG](../overview/QUY-UOC-CHUNG.md): bảy public paths; job mới 202 async; errors giữ {"error":{"code":"...","message":"..."}}; schema S3 v1 giữ field chính. Proposed auth X-Demo-Token/runtime memory và scope backend demo cần nhóm duyệt, không multi-user isolation. Không nhận scope/bucket/ARN từ client.
 
+## 7. Phần chưa vào baseline
+
+API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Comprehend/Translate/Cognito/X-Ray/RUM/EventBridge/Budgets ngoài allowlist. Gemini chỉ MR sau MP3 thật: typo-only, skipped bản gốc khi lỗi, user review, UTF-16 offsets, không tạo job ở correct. Không tự dịch/đoán lang cho synthesize; provider voice/speed phải kiểm chứng.
+
+## 8. Checklist chưa thực hiện
+
+- [ ] SB-M4-01 — Kiểm kê frontend hiện có và migration surface.
+- [ ] SB-M4-02 — Hosting private và CloudFront/OAC.
+- [ ] SB-M4-03 — Tích hợp API/token/voices/async vào UI sẵn có.
+- [ ] SB-M4-04 — Manual web deploy và reset/rebind.
+
+## 9. Task chi tiết và acceptance
+
+Effort bên dưới là ước lượng theo buổi/phiên, không phải độ khó hoặc tiến độ thực. Các CLI/probe là hướng dẫn, NOT RUN trong re-plan.
+
+### SB-M4-01 — Kiểm kê frontend hiện có và migration surface
+
+- **Owner:** M4 Nguyên Khang. **Phase:** Gate 0 và 1. **Mục tiêu:** Kiểm kê frontend hiện có và migration surface. **Kiến thức AWS:** S3 frontend private, CloudFront distribution/OAC candidate, upload/invalidation thủ công trong lab; frontend integration tối thiểu.
+- **Dependencies và input:** Current workspace và proposed contract M1/M5. **Files implementation later:** frontend/web/src/lib/api.ts, lib/data.ts, app/src/lib/api.ts, lib/model.ts; tests tương ứng sau duyệt.
+- **Steps cấp cao:** Giữ web/app, ghi build scripts/Node và API wrappers; xác định token runtime input/headers/API base/voice demo cần sửa tối thiểu; không dựng lại màn hình. **CLI/test khi được duyệt:** Đọc source; build/test có sẵn ở implementation, không chạy trong re-plan. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** Checklist integrations từ source hiện có, không UI tasks trùng. **Evidence AWS/local:** File:line adapters + local build report khi thực chạy. Tách local mock với sandbox verified.
+- **Risk / rollback:** Mock/device speech dễ bị hiểu MP3 AWS→nhãn đúng, không claim cloud demo. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** UI giữ, adapter routes giữ, planned diff chỉ integration cần thiết. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Có. **Blocking status:** PLANNED; không gọi frontend missing.
+
+### SB-M4-02 — Hosting private và CloudFront/OAC
+
+- **Owner:** M4 Nguyên Khang. **Phase:** Gate 0 và 2. **Mục tiêu:** Hosting private và CloudFront/OAC. **Kiến thức AWS:** S3 frontend private, CloudFront distribution/OAC candidate, upload/invalidation thủ công trong lab; frontend integration tối thiểu.
+- **Dependencies và input:** T2-04, API URL/policy M1, S3 rights. **Files implementation later:** infra/m4-frontend-hosting.yaml.
+- **Steps cấp cao:** S3 REST origin private, distribution HTTPS/default root, API behaviors no-cache; Lambda OAC association phối hợp M1; không global SPA error rewrite API. **CLI/test khi được duyệt:** T2-04 sau approval, GET/OPTIONS/POST/DELETE/deep-link/cache/header tests. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** HTTPS static web, S3 direct deny, API responses không cache. **Evidence AWS/local:** Distribution/OAC/bucket policy và request responses. Tách local mock với sandbox verified.
+- **Risk / rollback:** OAC denied→report blocker hoặc NONE exception riêng; không public bucket. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** Private static works, JSON 401/404 không thành HTML, POST hash/signing đúng. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho IaC design; AWS test cần account. **Blocking status:** UNVERIFIED capability.
+
+### SB-M4-03 — Tích hợp API/token/voices/async vào UI sẵn có
+
+- **Owner:** M4 Nguyên Khang. **Phase:** Gate 2. **Mục tiêu:** Tích hợp API/token/voices/async vào UI sẵn có. **Kiến thức AWS:** S3 frontend private, CloudFront distribution/OAC candidate, upload/invalidation thủ công trong lab; frontend integration tối thiểu.
+- **Dependencies và input:** SB-M1-03, SB-M2-04, SB-M3-04, SB-M5-01/02; group sign-off token. **Files implementation later:** frontend/web và frontend/app API/state/tests cần thiết.
+- **Steps cấp cao:** Runtime X-Demo-Token memory, API base URL, exact POST hash nếu OAC, verified voice registry; 202 polling/history/typo skipped; reject translate/auto rõ. **CLI/test khi được duyệt:** Existing frontend tests + mock contract; sandbox E2E khi được duyệt. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** TTS flow không submit trùng, token không bundle, không key browser. **Evidence AWS/local:** Network sanitized + UI polling/playback video từ AWS thật. Tách local mock với sandbox verified.
+- **Risk / rollback:** SigV4 Authorization conflict→custom header; token không localStorage. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** 7 routes compatible, user thấy lỗi tính năng chưa bật, không xây lại UI cơ bản. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có mock frontend. **Blocking status:** PLANNED, auth field pending sign-off.
+
+### SB-M4-04 — Manual web deploy và reset/rebind
+
+- **Owner:** M4 Nguyên Khang. **Phase:** Gate 2 và 5. **Mục tiêu:** Manual web deploy và reset/rebind. **Kiến thức AWS:** S3 frontend private, CloudFront distribution/OAC candidate, upload/invalidation thủ công trong lab; frontend integration tối thiểu.
+- **Dependencies và input:** Hosting/output M1/M4, gate deploy approval. **Files implementation later:** infra/m4-frontend-hosting.yaml; frontend config sau; scripts/ M1 nhận yêu cầu M4, DEPLOY phối hợp.
+- **Steps cấp cao:** Build web/dist, Lab IDE/CloudShell upload private S3/invalidate; lưu manifest URL không secret, rebuild URL mới sau reset; app native không upload như website. **CLI/test khi được duyệt:** Upload/invalidation có duyệt; reset rehearsal T2-08. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
+- **Expected output:** Repeatable manual deploy không OIDC/key dài hạn/GitHub credentials. **Evidence AWS/local:** CloudFront URL và artifact/version trước/sau phiên. Tách local mock với sandbox verified.
+- **Risk / rollback:** URL stale khi reset→rebuild/rebind, rollback static artifact chỉ từ source tin cậy. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
+- **Acceptance:** Phiên mới web trỏ API mới, key/token không trong artifact. **Effort tương đối:** 1 phiên rehearsal dự kiến. **Can run without account:** Có runbook/build offline; upload cần account. **Blocking status:** PLANNED; không GitHub OIDC deploy baseline.
+
+## 10. Quy tắc owner và bàn giao
+
+M3 common/schema/CAS trước M2/M5 callers; M1 HTTP capability trước M4 integration; M2 MP3 thật trước Gemini. M2 sở hữu **một EventInvokeConfig** của worker trong infra/m2-tts-core.yaml; M5 bàn giao retry/event-age/destination policy. M1 sở hữu URL/resource policy; M4 sở hữu distribution/OAC association. S3 web M4 khác jobs/audio M3. Giữ UI web/app hiện có.
+
+## 11. Kiểm thử local dự kiến
+
+Mock-by-default; không credentials và không gọi AWS/provider mặc định. Phối hợp fixture success/input invalid/expiry/path traversal/duplicate/retry/partial failure/redaction theo owner. Frontend có tests riêng; M5 sẽ tạo backend tests/ trong implementation được giao.
+
+## 12. Kiểm thử Sandbox dự kiến
+
+Theo [validation runbook](../plans/SANDBOX-VALIDATION-RUNBOOK.md): Level 1 chỉ đọc khi được yêu cầu; Level 2 resource mutation/call trả phí cần approval cụ thể. Evidence ghi action/principal/region/status/error sanitized, tách local mock với sandbox verified.
+
+## 13. Retry và dữ liệu dở
+
+S3 conditional write kiểm ETag để tránh ghi đè; không có transaction đa object. Worker lease/idempotency giảm trùng, không exactly-once billing. Duplicate thấy active lease có thể ACK nhưng stale inspector/manual recovery vẫn phải phát hiện worker timeout. Runtime retry khác lỗi business đã ghi FAILED rồi return success. Failure destination không tự sửa trạng thái job.
+
+## 14. Giới hạn và fallback
+
+Function URL bị chặn → M1 đánh giá EC2/Beanstalk cùng LabInstanceProfile/HTTPS/network/cost, không tự triển khai. RDS PostgreSQL optional sau MVP. AuthType NONE chỉ exception demo có duyệt, token/cap trước public. Thiếu secret bảo vệ được → giữ mocks.
+
+## 15. Reset và evidence
+
+Session hết mất resource/data theo handout. Backup source/config mẫu không nhạy cảm và evidence ngoài lab. Không backup credentials/text riêng tư/presigned signatures. Provider credit không reset theo AWS; ghi lại usage thực và cap trước call thật.
+
+## 16. Nghiệm thu và báo cáo
+
+Nêu output trong luồng TTS, bằng chứng AWS và một failure case đã test. Nói rõ TTS/Gemini là ngoài AWS; chưa chạy ghi planned. Không lấy diagram/comment làm deployed. Xem [khung báo cáo](../guides/KHUNG-BAO-CAO.md).
+
+## 17. Nhật ký
+
+Thành viên chỉ cập nhật logs/log-m4.md của mình sau thực hiện, giữ nguyên lịch sử. Lượt migration toàn repo chỉ append log M5 ghi doc-only; không tick task implementation.
+
+## 18. Bước tiếp theo
+
+SB-M4-01 theo dependency/approval trong task. **CURRENT RUNTIME CONFIG STILL OLD — Gate 1**; chưa sửa code/config/deployable templates. [Backlog đầy đủ](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md) và [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md) là tài liệu bàn giao chung.
