@@ -27,6 +27,7 @@ import {
   MAX_CHARS,
   MAX_SPEED,
   MIN_SPEED,
+  providerLabel,
   voiceLabel,
   navigation,
   readStored,
@@ -327,7 +328,7 @@ export default function App() {
                 </p>
                 <div className="voice-card-bottom">
                   <small>
-                    {DEMO ? "Giọng minh họa" : v.provider === "elevenlabs" ? "ElevenLabs" : v.provider}
+                    {DEMO ? "Giọng minh họa" : providerLabel(v.provider)}
                   </small>
                   <Button
                     className="secondary-button"
@@ -713,11 +714,7 @@ export default function App() {
                     <div className="engine-label">
                       <Icon name="layers" size={17} />
                       <span>
-                        {DEMO
-                          ? "Giọng trên máy"
-                          : studio.language?.provider === "polly"
-                            ? "Amazon Polly"
-                            : "Giọng tiếng Việt"}
+                        {DEMO ? "Giọng trên máy" : providerLabel(studio.language?.provider)}
                       </span>
                     </div>
                   </div>
