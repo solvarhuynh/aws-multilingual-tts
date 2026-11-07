@@ -2,7 +2,7 @@
 
 **2026-11-06 — PROPOSED / PENDING GROUP SIGN-OFF.** Đây là hợp đồng đích để nhóm review trước implementation. Giữ bảy public paths và các field chính; auth/scope, async mặc định, storage và giới hạn provider thay đổi cần duyệt như mục 10. Không khẳng định đã chạy.
 
-**CURRENT RUNTIME CONFIG STILL OLD — Gate 1:** samconfig.toml và config/settings.json còn ap-southeast-1; code/config/common/template chưa migrate. Không dùng tài liệu này như cấu hình deploy đã sẵn sàng. Đọc [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md), [service matrix](../plans/SANDBOX-SERVICE-MATRIX.md) và [backlog](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md).
+**Cấu hình runtime:** samconfig.toml và config/settings.json đã dùng us-east-1; backend và template.yaml đã theo hợp đồng này nhưng toàn hệ thống chưa deploy. Chỉ M2 đã thử riêng trên Sandbox. Đọc [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md), [service matrix](../plans/SANDBOX-SERVICE-MATRIX.md) và [backlog](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md).
 
 ## 1. Phạm vi và thông số
 
@@ -19,7 +19,7 @@
 | Trạng thái lab | Mọi action UNVERIFIED / NEEDS SANDBOX TEST |
 | Reset | Tài nguyên/data mất cuối mỗi phiên theo handout; retention không vượt reset |
 
-Baseline chỉ có dịch vụ allowlisted và các capability có điều kiện: Lambda, S3, CloudFront, CloudFormation/SAM, CloudWatch/SNS; SSM SecureString còn phải thử quyền KMS. Provider TTS và Gemini ở ngoài AWS. API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Comprehend/Translate/Cognito/X-Ray/RUM/EventBridge/Budgets là **NOT ALLOWLISTED / OUT OF BASELINE**, chỉ nêu trong lịch sử/so sánh.
+Baseline chỉ có dịch vụ allowlisted và các capability có điều kiện: Lambda, S3, CloudFront, CloudFormation/SAM, CloudWatch/SNS; SSM SecureString đã thử đạt trên Sandbox và giảng viên đồng ý dùng cho API key. Provider TTS và Gemini ở ngoài AWS. API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Comprehend/Translate/Cognito/X-Ray/RUM/EventBridge/Budgets là **NOT ALLOWLISTED / OUT OF BASELINE**, chỉ nêu trong lịch sử/so sánh.
 
 ## 2. HTTP entry, auth và CORS
 
@@ -29,7 +29,7 @@ Router parse requestContext.http.method/rawPath/queryStringParameters/headers/bo
 
 **Đề xuất giảm phạm vi:** demo một dataset chung có scope backend cố định "demo", kiểm X-Demo-Token cho cả bảy route. Token được cung cấp riêng khi demo, frontend chỉ giữ trong memory, không build-time env/localStorage/query string. Không thêm endpoint cấp token. Đây không phải xác thực/độc lập dữ liệu nhiều người dùng; mọi người có token thấy cùng lịch sử mẫu. Nhóm phải duyệt giảm scope trước implement.
 
-Cần một cơ chế bảo vệ token ở backend và API keys được trường cho phép. SSM SecureString chỉ là candidate; nếu KMS/SSM không đủ quyền và chưa có phương án an toàn được duyệt thì **BLOCKER cho live provider/token demo**, tiếp tục mocks. Không gửi keys qua chat.
+Cần một cơ chế bảo vệ token ở backend và API keys được trường cho phép. Cơ chế đã duyệt cho API key provider là SSM SecureString: đã thử đạt với LabRole và giảng viên đồng ý. Không gửi keys qua chat.
 
 CORS một nguồn do M1 chốt cùng M4: exact frontend origin, allow GET/POST/DELETE/OPTIONS; Content-Type, X-Demo-Token, Idempotency-Key và x-amz-content-sha256 khi cần. OPTIONS preflight không token, không gọi nghiệp vụ/provider. Không dùng CORS như cơ chế phân quyền.
 
@@ -54,7 +54,7 @@ M1 nối Parameters/Outputs, module gửi yêu cầu; tên tài nguyên không h
 | GEMINI_MODEL | Model đã chọn sau kiểm chứng, M5/M1 | Submit MR |
 | GEMINI_TIMEOUT_SECONDS | Timeout hữu hạn; 8 giây là giá trị đề xuất cũ cần kiểm | Submit MR |
 | TYPO_CHECK_MAX_CHARS | Giới hạn typo; 5000 là đề xuất cũ cần kiểm quota | Submit MR |
-| MAX_CHARS | Giới hạn request theo benchmark/provider/cost cap, M5/M2 | Submit |
+| MAX_CHARS | 2000, đề xuất từ đo thật: 2.000 ký tự chạy 6,8 giây, tốn khoảng 1.000 credit; chờ nhóm duyệt | Submit |
 | CHUNK_SIZE | Chỉ chốt nếu provider cần chia đoạn và M2 có ghép MP3 hợp lệ | Worker |
 | PRESIGN_TTL_SECONDS | TTL ngắn do M3/M1 chốt, không quá credential/session còn lại | Common |
 | JOB_TTL_DAYS | App expiry + lifecycle sau review, không bảo đảm qua reset | Common |
@@ -79,12 +79,12 @@ Mọi route auth như mục 2; OPTIONS là preflight. Response JSON và headers 
 
 ### POST /synthesize
 
-text không rỗng; chọn lang rõ trong registry, auto/thiếu lang trả LANG_REQUIRED để người dùng chọn. voice mặc định chỉ lấy từ registry đã kiểm. speed mặc định 1.0 nếu provider hỗ trợ; phạm vi cũ 0.5–2.0 **không được hứa áp dụng mọi provider**. M2 benchmark range, nhóm duyệt; giá trị không hỗ trợ trả UNSUPPORTED_SPEED, không bỏ qua ngầm. translateTo khác null trả FEATURE_NOT_ENABLED; không dịch ngầm.
+text không rỗng; chọn lang rõ trong registry, auto/thiếu lang trả LANG_REQUIRED để người dùng chọn. voice mặc định chỉ lấy từ registry đã kiểm. speed mặc định 0.9, dải 0.7–1.2 theo số đo M2 với ElevenLabs (0.5 và 2.0 bị từ chối), chờ nhóm duyệt; giá trị không hỗ trợ trả UNSUPPORTED_SPEED, không bỏ qua ngầm. translateTo khác null trả FEATURE_NOT_ENABLED; không dịch ngầm.
 
 Ví dụ schema, voice chỉ là placeholder, chưa là ID thật:
 
 ~~~json
-{"text":"Xin chào","lang":"vi-VN","voice":"verified-provider-voice-id","speed":1.0,"translateTo":null}
+{"text":"Xin chào","lang":"vi-VN","voice":"verified-provider-voice-id","speed":0.9,"translateTo":null}
 ~~~
 
 Tất cả job mới dùng async, kể cả câu ngắn. Khi Invoke Event accepted, trả:
@@ -121,7 +121,7 @@ Transport/auth/input JSON hỏng vẫn trả 4xx theo contract; fail-open không
 
 ### GET /voices
 
-Giữ envelope languages với lang/provider/engine/voices. Voice item phải map types frontend hiện hữu trước implementation. Chỉ publish registry đã kiểm quyền sử dụng/model/language trên account provider; engine null hợp lệ cho external. Ví dụ Polly trong config/voices.json chưa migrate, không phải ElevenLabs registry. Chưa có danh mục thật → 503 VOICES_UNAVAILABLE, không danh sách bịa.
+Giữ envelope languages với lang/provider/engine/voices. Voice item gồm id, gender và name (đề xuất của M2, chờ nhóm duyệt); giao diện hiển thị name vì id là chuỗi ngẫu nhiên. Chỉ publish registry đã kiểm quyền sử dụng/model/language trên account provider; engine null hợp lệ cho external. Ví dụ Polly trong config/voices.json chưa migrate, không phải ElevenLabs registry. Chưa có danh mục thật → 503 VOICES_UNAVAILABLE, không danh sách bịa.
 
 ### GET /jobs/{id}, GET /history
 
@@ -262,7 +262,7 @@ Chỉ ghi planned/coded/locally tested/sandbox verified/deployed & demoed đúng
 | QUEUE_URL/SQS | SYNTH_FUNCTION_NAME + Event | M5/M2; không đổi payload field userId/jobId, backend gán scope |
 | Secrets Manager env names | TTS_API_PARAMETER_NAME/GEMINI_API_PARAMETER_NAME | Conditional SSM; M1/M2/M5 và trường duyệt secret mechanism |
 | Lang auto/optional | Explicit lang cho synthesize | M4 cần thông báo/chọn lang; typo unknown dùng und |
-| speed 0.5–2.0 | Chỉ range provider đã đo | M2 khảo sát; nhóm duyệt supported range hoặc reject |
+| speed 0.5–2.0 | 0.7–1.2, mặc định 0.9 | M2 đã đo; M4/M5 đã áp dụng; nhóm duyệt |
 | translateTo MR | Giữ field, non-null reject MVP | Nhóm duyệt feature reduction, không dịch ngầm |
 | Polly engine/voices | Provider registry thật, engine null | M2/M4 cập nhật types/fixtures lúc implementation |
 | History theo DB query | Shared demo + S3 paging/cap | M3/M4 duyệt ordering/limits; stats MR có cap |

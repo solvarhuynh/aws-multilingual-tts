@@ -6,13 +6,82 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: code và registry M2 đã push lên nhánh `m2-trungkhang`, mở PR vào `main` cho Trung Nghĩa kiểm tra; chuẩn bị deploy thử riêng cho M2 trên Sandbox
-- Đã xong: khảo sát ElevenLabs trên tài liệu; registry 33 ngôn ngữ đã nghe duyệt; `tts-voices`, adapter, worker, lưu job/audio S3, `infra/m2-tts-core.yaml` ở mức locally tested. Chưa task nào được tick vì chưa có bằng chứng chạy trên AWS
-- Việc tiếp theo: Trung Khang chạy T2-06 trong Lab; báo M4, M5 tốc độ mặc định 0.9; sau đó thử trên Sandbox và thử lỗi Gate 3
-- Đang bị chặn bởi: lưu key cho Lambda chờ kết quả T2-06; chạy trên AWS chờ bucket, Layer và root SAM; hợp đồng nhóm chưa duyệt
-- Tài nguyên AWS tôi đã tạo: (chưa có)
+- Đang làm: code nối toàn hệ thống trên nhánh `m2-tich-hop-nhom`, chưa commit, chưa chạy trên AWS. Giảng viên đã đồng ý SSM SecureString
+- Đã xong: SB-M2-01, SB-M2-02, SB-M2-03 (đã tick); Lambda tạo được MP3 vi/en/ja bằng ElevenLabs thật và qua thử lỗi Gate 3 trên stack thử. SB-M2-04 chờ M1 và M4 nối frontend
+- Việc tiếp theo: Trung Khang commit và push nhánh, deploy thử toàn hệ thống bằng `TRUNGKHANG/thu-he-thong.sh`; gửi nhóm kết quả
+- Đang bị chặn bởi: hợp đồng nhóm chưa duyệt; SB-M2-04 cần chạy thử trên AWS qua router và frontend
+- Tài nguyên AWS tôi đã tạo: không còn; Trung Khang đã bấm End Lab, stack thử `tts-m2-test` đã kết thúc
 
 ## NHẬT KÝ
+
+### 2026-11-07: Nối phần M2 cần từ các module khác
+
+- Đã làm: Trung Khang báo giảng viên đồng ý lưu key bằng SSM SecureString, và giao làm luôn phần cần các module khác, gồm M3, M5, `template.yaml`, miễn an toàn. Làm trên nhánh `m2-tich-hop-nhom`. Trạng thái: locally tested, chưa chạy trên AWS, chưa commit.
+- M4: web và app hiển thị `name` thay ID ngẫu nhiên ở thẻ giọng, avatar, lịch sử, trình phát, tìm kiếm; tốc độ 0.7 đến 1.2, mặc định 0.9; `MAX_CHARS` 2.000; tên tiếng Việt cho 33 mã.
+- M3: `create_job`, `get_job`, `update_job`, `list_jobs`, `delete_job`, `fail_stale_job`, `get_audio_url`, `delete_audio`; Lambda history cho `GET /jobs/{id}`, `GET /history`, `DELETE /history/{id}`; `infra/m3-storage-data.yaml` có bucket, Layer, history.
+- M5: `tts-submit` kiểm tra đầu vào theo registry, tạo job, gửi Event chỉ gồm mã; `/text/correct` trả skipped và `/stats` trả 501 theo hợp đồng vì là MR; `infra/m5-language-async-monitor.yaml`.
+- Job kẹt: `GET /jobs/{id}` đánh FAILED bằng CAS khi job quá 900 giây không cập nhật và không có lease. Không cần bộ lập lịch; worker đến muộn thấy trạng thái cuối nên không gọi provider.
+- M1: chép `backend/http`, `infra/m1-api-security.yaml`, `tests/test_http_router.py` từ `origin/m1-minhly`, sửa hai chỗ trong template: thêm `Transform` và bỏ `OPTIONS` khỏi CORS của Function URL vì `cfn-lint` báo sai. `template.yaml` ghép 4 stack con.
+- Lỗi ghép đã sửa: router gọi `tts-voices-dev` trong khi M2 đặt `tts-voices`; M2 đổi sang `tts-<tên>-${Env}` theo quy ước.
+- Đã chạy: test Python M2 59, M3 26, M5 16, router 15 đều đạt, gồm test đi hết luồng router, submit, worker, polling, lịch sử, xóa. boto3 thật trên moto đạt 12 kiểm tra. Web 59 test, app 18 test, `tsc`, `vite build`, `expo lint` đạt. `cfn-lint`, `sam validate --lint`, `sam build` đạt.
+- Chưa làm: Idempotency-Key vì frontend chưa gửi; client chưa gửi `X-Demo-Token`; hosting web M4; Gemini và stats là MR. Hết retry vẫn cần polling mới đánh FAILED.
+- Tick: không tick thêm. Task của M3, M5 do chủ module tick sau khi xác minh. SB-M2-04 chờ chạy qua router trên AWS.
+- File đã đổi: `backend/`, `frontend/`, `infra/`, `tests/`, `template.yaml`, `samconfig.toml`, `config/settings.json`, `AGENTS.md`, `docs/overview/`, `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Việc tiếp theo: commit, push, deploy thử toàn hệ thống.
+- Cần báo module khác: M1, M3, M4, M5 xem lại phần tôi làm trong module của mình.
+
+### 2026-11-07: Đo văn bản dài từ Lambda
+
+- Đã làm: deploy lại stack thử từ commit `a35df10`, chạy `thu-m2.sh dai` với 2.000 ký tự tiếng Việt, Matilda, tốc độ 0.9. Trạng thái: sandbox verified trên stack thử.
+- Kết quả: DONE, attempt 1, 6.802 ms ở lần đầu sau deploy. MP3 hợp lệ 3.488.748 byte, ước tính khoảng 3 phút 38 giây theo 128 kbps.
+- Quyết định và lý do: giữ timeout 120 giây và memory 256 MB vì lần chạy này chỉ dùng gần 6% timeout. Đề xuất nhóm chốt `MAX_CHARS` 2.000. Giới hạn chính là credit, không phải thời gian: theo mức Flash, một job 2.000 ký tự tốn khoảng 1.000 credit, bằng 10% hạn mức Free.
+- Chưa đo: bộ nhớ thực dùng, văn bản trên 2.000 ký tự, credit thực dùng từ Lambda.
+- File đã đổi: `logs/log-m2.md`. Ngoài repo: `TRUNGKHANG/thu-m2.sh` thêm bước `dai`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): stack `tts-m2-test`, 3 bucket `tts-m2-test-*`, Layer, tham số key, us-east-1.
+- Việc tiếp theo: chạy `don-dep`, thu hồi key, End Lab.
+- Cần báo module khác: M4, M5 dùng `MAX_CHARS` 2.000 sau khi nhóm duyệt. Demo nên dùng câu ngắn để giữ credit.
+
+### 2026-11-07: Thử lỗi Gate 3 trên Sandbox
+
+- Đã làm: Trung Khang chạy `thu-m2.sh loi` trong CloudShell, 7/7 kiểm tra đạt. Trạng thái: sandbox verified trên stack thử, chưa deployed & demoed.
+- CAS: ghi bằng ETag cũ bị S3 từ chối với `PreconditionFailed`.
+- Lưu dở: MP3 đã có, job chưa xong thì job về DONE, attempt 1, file giữ nguyên 10 byte nên không gọi provider.
+- Lease còn hạn: event trả SKIPPED `LEASE_ACTIVE`, job không đổi. Lease hết hạn: worker sau xử lý tiếp, DONE attempt 2.
+- Lỗi tạm thời: đổi `AUDIO_BUCKET` sang bucket không tồn tại, lần đầu `NoSuchBucket`, log RETRY, job còn PROCESSING. Sửa lại cấu hình thì Lambda tự retry sau khoảng 1 phút và DONE attempt 2, version 5, MP3 14.253 byte.
+- Tick: SB-M2-03 vì đạt nghiệm thu: event trùng không gọi provider, lưu dở được xử lý, hai loại lỗi đúng kỳ vọng. Phụ thuộc còn mở: M3 chưa xem lại phần `tts_common`, M5 chưa chốt retry và event age.
+- Rủi ro đã thấy: lần retry trên gọi provider hai lần vì lần đầu đã tốn credit rồi mới lỗi lúc lưu. Đúng với rủi ro ghi trong task, không phải exactly-once.
+- Chưa kiểm: Lambda bị cắt thật giữa chừng (mới mô phỏng bằng lease hết hạn); hai event tranh nhau cùng lúc thật sự (mới kiểm ETag cũ bị từ chối); văn bản dài; job PROCESSING sau khi hết retry cần bước kiểm tra job kẹt của M5.
+- File đã đổi: `logs/log-m2.md`, `docs/tasks/task-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): `tts-synthesize` đổi `AUDIO_BUCKET` tạm thời rồi trả lại, us-east-1.
+- Việc tiếp theo: dọn stack thử, thu hồi key, chờ M1 và M4 cho SB-M2-04.
+- Cần báo module khác: M5 thêm bước kiểm tra job kẹt ở PROCESSING. M3 xem lại `db.py`, `storage.py`.
+
+### 2026-11-07: Lambda gọi ElevenLabs thật (T2-07)
+
+- Đã làm: Trung Khang nhập key vào SSM và chạy `thu-m2.sh do` trong CloudShell. Key không đi qua chat, repo hay log. Trạng thái: sandbox verified trên stack thử, chưa deployed & demoed.
+- Kết quả: vi-VN, en-US, ja-JP đều DONE, attempt 1, version 3, tốc độ 0.9, Matilda. MP3 hợp lệ, 61.065, 51.452, 72.350 byte, `audio/mpeg`, AES256. Tài khoản Free gọi được từ IP AWS.
+- Thời gian worker: 3.392 ms ở lần khởi động lạnh, 391 đến 442 ms khi đã khởi động, câu khoảng 50 ký tự. Số này chưa đủ để chốt timeout vì chưa thử văn bản dài.
+- Event trùng: 3 event cho một job, một DONE và hai SKIPPED `TERMINAL`. Provider chỉ được gọi một lần. Hai event sau đến khi job đã xong, nên lần này chưa kiểm được hai worker tranh nhau ở CAS.
+- Từ chối trước khi gọi provider: sai giọng FAILED `LANG_NOT_SUPPORTED`, sai tốc độ FAILED `UNSUPPORTED_SPEED`.
+- Tick: SB-M2-01 và SB-M2-02 vì đạt tiêu chí nghiệm thu. Phụ thuộc còn mở: nhóm chưa duyệt hợp đồng; trường chưa xác nhận cơ chế lưu key, dù thử kỹ thuật đã đạt. Nếu một trong hai bị bác thì bỏ tick.
+- Chưa đo: credit dùng từ Lambda, văn bản dài, nghe lại file tạo từ Lambda.
+- File đã đổi: `logs/log-m2.md`, `docs/tasks/task-m2.md`. Ngoài repo: `TRUNGKHANG/thu-m2.sh` thêm bước `loi`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): tham số `/tts/m2-test/elevenlabs` đổi sang key thật, us-east-1; xóa khi chạy `don-dep`.
+- Việc tiếp theo: thử lỗi Gate 3 cho SB-M2-03.
+- Cần báo module khác: M5 biết job có thể dừng ở PROCESSING nếu hết retry, cần bước kiểm tra job kẹt.
+
+### 2026-11-07: Deploy thử riêng M2 trên Sandbox, key giả
+
+- Đã làm: Trung Khang chạy `TRUNGKHANG/thu-m2.sh` trong CloudShell, mã nguồn commit `64d6d26`, stack riêng không qua root SAM. Trạng thái: sandbox verified cho các mục dưới, chưa deployed & demoed.
+- T2-06 phần tài khoản Lab: ghi, đọc giải mã và xóa SecureString bằng giá trị giả đều đạt, dù handout ghi KMS chỉ có quyền list.
+- `GET /voices` chạy trên Lambda: HTTP 200, 33 ngôn ngữ, Layer `tts_common` nạp được.
+- Worker qua Lambda Event, key giả: job chuyển FAILED với `PROVIDER_AUTH`, attempt 1, version 3, 3.253 ms. Kết quả này cho thấy `LabRole` đọc và giải mã được SecureString, Lambda ra được Internet tới ElevenLabs, ghi có điều kiện `IfMatch` chạy được trên boto3 của Lambda và S3 thật, `cloudformation deploy` và `EventInvokeConfig` tạo được với `LabRole`. Không tốn credit.
+- Chưa chứng minh: ElevenLabs có nhận tài khoản Free gọi từ IP AWS không; ghi MP3 thật vào S3; event đồng thời trên S3 thật; văn bản dài; timeout, memory, retry.
+- File đã đổi: `logs/log-m2.md`. Ngoài repo: `TRUNGKHANG/thu-m2.sh`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): như mục trạng thái nhanh, us-east-1.
+- Việc tiếp theo: nhập key riêng và đo thật từ Lambda.
+- Cần báo module khác: M1 có thể dùng kết quả này cho T2-06 và kiểm quyền `LabRole`, nhưng vẫn cần trường xác nhận cơ chế lưu key. M3 biết `IfMatch` chạy được trên Lambda.
 
 ### 2026-11-07: Chốt tốc độ mặc định và duyệt giọng
 

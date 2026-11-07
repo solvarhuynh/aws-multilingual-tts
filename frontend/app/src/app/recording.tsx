@@ -10,11 +10,11 @@ import Sheet from '../components/Sheet';
 import { useLayout } from '../hooks/useLayout';
 import { useStudio } from '../state/Studio';
 import { usePlayback } from '../state/Playback';
-import { date, languageNames, time } from '../lib/model';
+import { date, languageNames, time, voiceName } from '../lib/model';
 
 export default function Recording() { return <ScreenFrame><Player /></ScreenFrame>; }
 function Player() {
-  const { colors, isDark, setDraft, setNotice } = useStudio();
+  const { colors, isDark, languages, setDraft, setNotice } = useStudio();
   const { current, playing, toggle, position, total, canSeek, seek, skip, repeat, setRepeat, share, sharing, loading } = usePlayback();
   const { contentWidth, usableHeight, fontScale } = useLayout();
   const [textOpen, setTextOpen] = useState(false);
@@ -36,7 +36,7 @@ function Player() {
         </View>
         <View style={[styles.details, wide && { flex: 1 }]}>
           <View style={{ gap: 8 }}><Label size={24} weight="600" lines={3} style={{ lineHeight: 32 }}>{current.text}</Label>
-            <Label size={14} muted lines={2}>{current.voice} · {languageNames[current.lang] ?? current.lang}</Label>
+            <Label size={14} muted lines={2}>{voiceName(languages, current.voice)} · {languageNames[current.lang] ?? current.lang}</Label>
             <Label size={12} muted>{date(current.createdAt)}{current.local ? ' · Giọng trên thiết bị' : ' · Bản thu MP3'}</Label></View>
           <View>
             <Slider accessibilityLabel="Vị trí phát" disabled={!canSeek} value={Math.min(position, total || 1)} minimumValue={0} maximumValue={total || 1}

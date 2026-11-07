@@ -13,7 +13,7 @@ export default function VoiceList({ onSelect, selected, onlyLanguage }: { onSele
   const [filter, setFilter] = useState('all');
   const all = useMemo(() => languages.filter(l => !onlyLanguage || l.lang === onlyLanguage).flatMap(l => l.voices.map(v => ({ ...v, lang: l.lang }))), [languages, onlyLanguage]);
   const filtered = all.filter(v => (filter === 'all' || (filter === 'saved' ? preferences.favorites.includes(`${v.lang}/${v.id}`) : v.lang === filter)) &&
-    normalize(`${v.id} ${languageNames[v.lang] ?? v.lang} ${v.gender === 'F' ? 'Nữ' : 'Nam'}`).includes(normalize(query)));
+    normalize(`${v.name ?? v.id} ${languageNames[v.lang] ?? v.lang} ${v.gender === 'F' ? 'Nữ' : 'Nam'}`).includes(normalize(query)));
   return <>
     <SearchField label="Tìm giọng đọc" placeholder="Tìm tên giọng, ngôn ngữ…" value={query} onChange={setQuery} />
     <ScrollView horizontal style={{ flexGrow: 0, flexShrink: 0 }} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
@@ -32,10 +32,10 @@ export default function VoiceList({ onSelect, selected, onlyLanguage }: { onSele
       const isSelected = (selected?.lang ?? lang) === v.lang && (selected?.voice ?? voice) === v.id;
       const previewing = current?.jobId === `preview-${key}` && (playing || loading);
       return <View key={key} style={[styles.voice, { borderColor: isSelected ? colors.blue : colors.line, backgroundColor: isSelected ? colors.blueSoft : colors.surface }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Chọn giọng ${v.id}, ${languageNames[v.lang]}`} accessibilityState={{ selected: isSelected }}
+        <Pressable accessibilityRole="button" accessibilityLabel={`Chọn giọng ${v.name ?? v.id}, ${languageNames[v.lang]}`} accessibilityState={{ selected: isSelected }}
           onPress={() => { if (!selected) selectVoice(v.lang, v.id); haptic(); onSelect?.(v.lang, v.id); }} style={styles.voiceSelect}>
-          <View style={[styles.avatar, { backgroundColor: avatarColors[index % avatarColors.length] }]}><Label size={24} weight="500" style={{ color: '#FFFFFF' }}>{v.id.charAt(0)}</Label></View>
-          <View style={{ flex: 1, minWidth: 0, gap: 6 }}><Label size={18} weight="600" lines={1}>{v.id}</Label><Label size={13} muted>{languageNames[v.lang] ?? v.lang} · {v.gender === 'F' ? 'Nữ' : 'Nam'}</Label></View>
+          <View style={[styles.avatar, { backgroundColor: avatarColors[index % avatarColors.length] }]}><Label size={24} weight="500" style={{ color: '#FFFFFF' }}>{(v.name ?? v.id).charAt(0)}</Label></View>
+          <View style={{ flex: 1, minWidth: 0, gap: 6 }}><Label size={18} weight="600" lines={1}>{v.name ?? v.id}</Label><Label size={13} muted>{languageNames[v.lang] ?? v.lang} · {v.gender === 'F' ? 'Nữ' : 'Nam'}</Label></View>
           {isSelected && <Icon name="check" color={colors.blue} size={19} />}
         </Pressable>
         <View style={[styles.voiceFooter, { borderColor: colors.line }]}>
@@ -46,7 +46,7 @@ export default function VoiceList({ onSelect, selected, onlyLanguage }: { onSele
             void play({ jobId: `preview-${key}`, text, lang: v.lang, voice: v.id, speed: 1, status: 'DONE', audioUrl: null,
               charCount: text.length, createdAt: new Date().toISOString(), local: true });
           }} style={styles.preview}><Icon name={previewing ? 'stop' : 'play'} size={14} color={colors.blue} /><Label size={13} weight="500" style={{ color: colors.blue }}>{previewing ? 'Dừng nghe' : 'Nghe thử'}</Label></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={saved ? `Bỏ lưu giọng ${v.id}` : `Lưu giọng ${v.id}`} style={styles.favorite}
+          <Pressable accessibilityRole="button" accessibilityLabel={saved ? `Bỏ lưu giọng ${v.name ?? v.id}` : `Lưu giọng ${v.name ?? v.id}`} style={styles.favorite}
             onPress={() => updatePreferences({ favorites: saved ? preferences.favorites.filter(id => id !== key) : [...preferences.favorites, key] })}>
             <Icon name={saved ? 'heartFill' : 'heart'} size={20} color={saved ? colors.blue : colors.secondary} /></Pressable>
         </View>

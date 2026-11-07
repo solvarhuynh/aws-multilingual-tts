@@ -1,16 +1,16 @@
 {
   "_status": "PROPOSED / PENDING SANDBOX VALIDATION / NOT DEPLOYED",
-  "_note": "Backend environment variables remain on the legacy contract until a separate implementation task.",
+  "_note": "Speed range and maxChars measured by M2; pending group sign-off.",
   "region": "us-east-1",
   "stackName": "tts-dev",
   "jobStorage": "s3-json",
   "dispatchMode": "lambda-async-event",
-  "ttsProvider": "external-pending-verification",
-  "maxChars": null,
+  "ttsProvider": "elevenlabs",
+  "maxChars": 2000,
   "presignTtlSeconds": null,
   "jobTtlDays": null,
   "audioLifecycleDays": null,
-  "defaultSpeed": null,
-  "minSpeed": null,
-  "maxSpeed": null
+  "defaultSpeed": 0.9,
+  "minSpeed": 0.7,
+  "maxSpeed": 1.2
 }

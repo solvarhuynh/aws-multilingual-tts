@@ -18,5 +18,5 @@ test('Từ chối tài liệu hỏng, trống, sai loại và vượt giới h�
   assert.throws(() => extractDocument(strToU8('abc'), 'old.doc'), /PDF, DOCX/);
   assert.throws(() => extractDocument(new Uint8Array(MAX_FILE_BYTES + 1), 'large.txt'), /10 MB/);
   assert.throws(() => checkedText('  '), /không có văn bản/);
-  assert.throws(() => checkedText('x'.repeat(20001)), /20.000/);
+  assert.throws(() => checkedText('x'.repeat(2001)), /2\.000/);
 });

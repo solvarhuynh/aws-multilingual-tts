@@ -9,8 +9,8 @@ export default function Help() {
   return <Page title="Hướng dẫn">
     <Section title="Từ văn bản đến giọng đọc" />
     {[
-      ['Nhập nội dung', 'Chạm nút +, nhập văn bản hoặc chọn PDF, Word, TXT. Nội dung tối đa 20.000 ký tự; tệp tối đa 10 MB. PDF bản scan cần có lớp chữ.'],
-      ['Chọn giọng', 'Chạm tên giọng để nghe thử và chọn. Trong cài đặt giọng, kéo thanh tốc độ từ 0,5× đến 2×.'],
+      ['Nhập nội dung', 'Chạm nút +, nhập văn bản hoặc chọn PDF, Word, TXT. Nội dung tối đa 2.000 ký tự; tệp tối đa 10 MB. PDF bản scan cần có lớp chữ.'],
+      ['Chọn giọng', 'Chạm tên giọng để nghe thử và chọn. Trong cài đặt giọng, kéo thanh tốc độ từ 0,7× đến 1,2×.'],
       ['Tạo và nghe', 'Chạm Tạo giọng đọc. Khi máy chủ có đề xuất sửa lỗi đánh máy, bạn chọn giữ nguyên hoặc dùng bản đề xuất.'],
       ['Lưu và chia sẻ', 'Mở Bản thu để tìm, nghe lại hoặc xóa. Bản thu MP3 có thể lưu vào Tệp hoặc gửi qua bảng chia sẻ của iPhone.'],
     ].map(([title, text], index) => <View key={title} style={{ flexDirection: 'row', gap: 16 }}><View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.blueSoft, alignItems: 'center', justifyContent: 'center' }}>

@@ -1,12 +1,8 @@
-"""Lambda tts-stats cung cấp số liệu tổng hợp về các job chuyển giọng.
-
-Được API Gateway gọi qua GET /stats; khi hoàn thiện sẽ đọc dữ liệu qua
-tts_common do M3 cung cấp. Module sở hữu: M5.
-"""
+"""Lambda tts-stats cho GET /stats. Thống kê là MR sau MVP nên chưa bật. Module sở hữu: M5."""
 
 from tts_common.errors import error_response
 
 
 def handler(event, context):
-    """Trả lỗi tạm thời cho đến khi M5 hiện thực thống kê."""
-    return error_response(501, "NOT_IMPLEMENTED", "TODO")
+    """Trả 501 theo hợp đồng; không trả số liệu giả."""
+    return error_response(501, "FEATURE_NOT_ENABLED", "Thống kê chưa được bật.")

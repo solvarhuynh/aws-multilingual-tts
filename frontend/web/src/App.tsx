@@ -25,6 +25,9 @@ import {
   historyCsv,
   languageNames,
   MAX_CHARS,
+  MAX_SPEED,
+  MIN_SPEED,
+  voiceLabel,
   navigation,
   readStored,
   shortDate,
@@ -146,14 +149,14 @@ export default function App() {
     .filter(
       (v) =>
         (languageFilter === "all" || v.lang === languageFilter) &&
-        `${v.id} ${languageNames[v.lang] || v.lang}`
+        `${v.name ?? v.id} ${languageNames[v.lang] || v.lang}`
           .toLocaleLowerCase("vi")
           .includes(query.toLocaleLowerCase("vi")),
     );
   const visibleHistory = studio.history.filter(
     (item) =>
       (languageFilter === "all" || item.lang === languageFilter) &&
-      `${item.text} ${item.voice}`.toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi")),
+      `${item.text} ${voiceLabel(studio.languages, item.voice)}`.toLocaleLowerCase("vi").includes(query.toLocaleLowerCase("vi")),
   );
   const selectedVoice = studio.language?.voices.find((v) => v.id === studio.voice);
   const progress =
@@ -260,7 +263,7 @@ export default function App() {
             Nhấn <strong>Tạo giọng đọc</strong>, sau đó phát để nghe.
           </li>
         </ol>
-        <p>Tối đa 20.000 ký tự; tệp tối đa 10 MB.</p>
+        <p>Tối đa {formatNumber(MAX_CHARS)} ký tự; tệp tối đa 10 MB.</p>
         <div className="help-note">
           {DEMO
             ? "Bản nghe thử dùng giọng có trên máy. Lịch sử được lưu trong trình duyệt; chưa có tệp MP3."
@@ -307,7 +310,7 @@ export default function App() {
                 key={`${v.lang}-${v.id}`}
               >
                 <div className="voice-card-top">
-                  <VoiceAvatar id={v.id} large />
+                  <VoiceAvatar id={v.name ?? v.id} large />
                   {studio.lang === v.lang && studio.voice === v.id && (
                     <span className="selected-label">
                       <Icon name="check" size={12} />
@@ -315,7 +318,7 @@ export default function App() {
                     </span>
                   )}
                 </div>
-                <h2>{v.id.replace(" (demo)", "")}</h2>
+                <h2>{voiceLabel(studio.languages, v.id)}</h2>
                 <p>
                   {languageNames[v.lang] || v.lang}
                   <span>·</span>
@@ -368,7 +371,7 @@ export default function App() {
           onNavigate={navigate} />
         <div className="workspace">
           <PageHeader onMenu={() => openDialog("menu")} onExport={exportReport}>
-            <HeaderSearch pages={pages} history={studio.history} onNavigate={navigate}
+            <HeaderSearch pages={pages} history={studio.history} languages={studio.languages} onNavigate={navigate}
               onRecording={(item) => { navigate("library"); void playRecording(item); }} />
           </PageHeader>
           <h1 className="page-title">{title}</h1>
@@ -421,7 +424,7 @@ export default function App() {
                   {[
                     {
                       q: "Có thể đọc những loại tài liệu nào?",
-                      a: "PDF có văn bản, Word DOCX, TXT và Markdown. Tối đa 10 MB và 20.000 ký tự. PDF scan cần nhận dạng chữ trước.",
+                      a: `PDF có văn bản, Word DOCX, TXT và Markdown. Tối đa 10 MB và ${formatNumber(MAX_CHARS)} ký tự. PDF scan cần nhận dạng chữ trước.`,
                     },
                     {
                       q: "Làm sao để dịch và đọc?",
@@ -490,8 +493,8 @@ export default function App() {
                         disabled={studio.busy || studio.loadingVoices || !!studio.voiceError}
                         onClick={() => openDialog("voices")}
                       >
-                        <VoiceAvatar id={studio.voice} />
-                        <strong>{selectedVoice?.id.replace(" (demo)", "") || "Chọn giọng đọc"}</strong>
+                        <VoiceAvatar id={voiceLabel(studio.languages, studio.voice)} />
+                        <strong>{selectedVoice ? voiceLabel(studio.languages, selectedVoice.id) : "Chọn giọng đọc"}</strong>
                         <Icon name="chevron" size={13} />
                       </Button>
                       <Button
@@ -659,12 +662,12 @@ export default function App() {
                       disabled={studio.busy || studio.loadingVoices || !!studio.voiceError}
                       onClick={() => openDialog("voices")}
                     >
-                      <VoiceAvatar id={studio.voice} />
+                      <VoiceAvatar id={voiceLabel(studio.languages, studio.voice)} />
                       <span id="selected-voice-value">
                         <strong>
                           {studio.loadingVoices
                             ? "Đang tải…"
-                            : selectedVoice?.id.replace(" (demo)", "") || "Chưa có giọng"}
+                            : selectedVoice ? voiceLabel(studio.languages, selectedVoice.id) : "Chưa có giọng"}
                         </strong>
                         <small>
                           {selectedVoice?.gender === "F" ? "Nữ" : selectedVoice?.gender === "M" ? "Nam" : ""}
@@ -704,16 +707,16 @@ export default function App() {
                     </div>
                     <Slider
                       id="speed"
-                      min={0.5}
-                      max={2}
+                      min={MIN_SPEED}
+                      max={MAX_SPEED}
                       step={0.1}
                       disabled={studio.busy}
                       value={studio.speed}
                       onValueChange={studio.setSpeed}
                     />
                     <div className="range-labels">
-                      <span>0.5×</span>
-                      <span>2.0×</span>
+                      <span>{MIN_SPEED.toFixed(1)}×</span>
+                      <span>{MAX_SPEED.toFixed(1)}×</span>
                     </div>
                   </div>
                   <Button
@@ -793,7 +796,7 @@ export default function App() {
                             {item.text.length > 85 ? "…" : ""}
                           </h2>
                           <p>
-                            {item.voice.replace(" (demo)", "")}
+                            {voiceLabel(studio.languages, item.voice)}
                             <span>·</span>
                             {languageNames[item.lang] || item.lang}
                             <span>·</span>
@@ -867,6 +870,7 @@ export default function App() {
               <AudioPlayer
                 item={studio.currentAudio}
                 queue={studio.history}
+                languages={studio.languages}
                 onSelect={studio.openRecording}
                 onLibrary={() => navigate("library")}
                 volume={preferences.volume}

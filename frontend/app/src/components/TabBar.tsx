@@ -9,6 +9,7 @@ import { Glass, Icon, Label, type IconName } from './ui';
 import { useStudio } from '../state/Studio';
 import { usePlayback } from '../state/Playback';
 import { scrubIndex } from '../lib/geometry';
+import { voiceName } from '../lib/model';
 import { useLayout } from '../hooks/useLayout';
 import { useKeyboardState } from '../hooks/useKeyboard';
 
@@ -35,7 +36,7 @@ function TabItem({ index, position, selected, onPress, onPressIn, onPressOut, he
 }
 
 export default function TabBar({ state, emitter, navigateToTab }: TabBarProps) {
-  const { colors, isDark, haptic, reducedMotion } = useStudio();
+  const { colors, isDark, haptic, languages, reducedMotion } = useStudio();
   const { current, playing, toggle } = usePlayback();
   const { insets, dockSide, dockBottom, dockHeight, showTabLabels } = useLayout();
   const keyboard = useKeyboardState();
@@ -90,7 +91,7 @@ export default function TabBar({ state, emitter, navigateToTab }: TabBarProps) {
     {current && <Glass style={styles.mini}>
       <Pressable accessibilityRole="button" accessibilityLabel="Mở trình phát bản thu" onPress={() => router.push('/recording')} style={styles.miniTitle}>
         <View style={[styles.miniCover, { backgroundColor: colors.blueSoft }]}><Icon name="wave" color={colors.blue} size={20} /></View>
-        <View style={{ flex: 1, minWidth: 0, gap: 3 }}><Label weight="600" size={14} lines={1} maxScale={1.3}>{current.text}</Label><Label size={12} muted lines={1} maxScale={1.3}>{current.voice}{current.local ? ' · Giọng trên máy' : ''}</Label></View>
+        <View style={{ flex: 1, minWidth: 0, gap: 3 }}><Label weight="600" size={14} lines={1} maxScale={1.3}>{current.text}</Label><Label size={12} muted lines={1} maxScale={1.3}>{voiceName(languages, current.voice)}{current.local ? ' · Giọng trên máy' : ''}</Label></View>
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={playing ? 'Dừng nghe' : 'Phát bản thu'} onPress={() => void toggle()} hitSlop={10} style={{ padding: 10 }}>
         <Icon name={playing ? 'pause' : 'play'} size={22} /></Pressable>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, DEMO } from "../lib/api";
 import { extractDocument } from "../lib/document";
-import { MAX_CHARS, readStored, samples, storeValue, validateInput } from "../lib/data";
+import { DEFAULT_SPEED, MAX_CHARS, readStored, samples, storeValue, validateInput } from "../lib/data";
 import type { HistoryItem, Job, Language, SynthesizeInput, TextCorrection } from "../lib/types";
 
 type Review = { input: SynthesizeInput; correction: TextCorrection };
@@ -17,7 +17,7 @@ export function useStudio(
   const [languages, setLanguages] = useState<Language[]>([]);
   const [lang, setLang] = useState("vi-VN");
   const [voice, setVoice] = useState("");
-  const [speed, setSpeed] = useState(1);
+  const [speed, setSpeed] = useState(DEFAULT_SPEED);
   const [loadingVoices, setLoadingVoices] = useState(true);
   const [voiceError, setVoiceError] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);

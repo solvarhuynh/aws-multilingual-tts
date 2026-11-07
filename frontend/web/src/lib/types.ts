@@ -4,6 +4,7 @@ export type JobStatus = "PENDING" | "PROCESSING" | "DONE" | "FAILED";
 export interface Voice {
   id: string;
   gender: string;
+  name?: string;
 }
 export interface Language {
   lang: string;

@@ -162,7 +162,8 @@ export const api = {
           typeof l.lang === "string" &&
           typeof l.provider === "string" &&
           Array.isArray(l.voices) &&
-          l.voices.every((v) => !!v && typeof v.id === "string" && typeof v.gender === "string"),
+          l.voices.every((v) => !!v && typeof v.id === "string" && typeof v.gender === "string" &&
+            (v.name === undefined || typeof v.name === "string")),
       )
     )
       throw new ApiError("Danh sách giọng đọc chưa đúng định dạng.", "INVALID_RESPONSE");

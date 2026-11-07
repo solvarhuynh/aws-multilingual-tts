@@ -1,4 +1,4 @@
-import { MAX_CHARS } from "./data";
+import { formatNumber, MAX_CHARS } from "./data";
 
 export async function extractDocument(file: File): Promise<string> {
   const extension = file.name.split(".").pop()?.toLowerCase();
@@ -25,7 +25,7 @@ export async function extractDocument(file: File): Promise<string> {
         text +=
           content.items.map((item) => ("str" in item ? item.str + (item.hasEOL ? "\n" : " ") : "")).join("") +
           "\n\n";
-        if (text.trim().length > MAX_CHARS) throw new Error("Nội dung tệp vượt giới hạn 20.000 ký tự.");
+        if (text.trim().length > MAX_CHARS) throw new Error(`Nội dung tệp vượt giới hạn ${formatNumber(MAX_CHARS)} ký tự.`);
       }
     } catch (error) {
       if ((error as Error).name === "PasswordException")
@@ -46,6 +46,6 @@ export async function extractDocument(file: File): Promise<string> {
         : "Tệp chưa có nội dung.",
     );
   if (text.includes("\u0000")) throw new Error("Tệp không phải văn bản hợp lệ.");
-  if (text.length > MAX_CHARS) throw new Error("Nội dung tệp vượt giới hạn 20.000 ký tự.");
+  if (text.length > MAX_CHARS) throw new Error(`Nội dung tệp vượt giới hạn ${formatNumber(MAX_CHARS)} ký tự.`);
   return text;
 }

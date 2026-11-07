@@ -1,35 +1,77 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: aws-multilingual-tts SAM skeleton for proposed AWS Academy Sandbox architecture
+Description: aws-multilingual-tts root stack for AWS Academy Sandbox
 
-Metadata:
-  ConfigurationStatus:
-    Plan: PROPOSED
-    SandboxValidation: PENDING SANDBOX VALIDATION
-    Deployment: NOT DEPLOYED
-    TargetRegion: us-east-1
-    TargetFlow: CloudFront and S3 web to Lambda HTTP entry, async worker, external TTS and private S3
+# PROPOSED / PENDING SANDBOX VALIDATION / NOT DEPLOYED.
+# Mỗi module giữ template riêng trong infra/; EventInvokeConfig duy nhất nằm ở M2.
+# Giá trị key không nằm ở đây; TtsApiParameterName chỉ là tên tham số SSM SecureString.
+# Hosting web của M4 (S3, CloudFront/OAC) chưa nằm trong stack này.
 
 Parameters:
   Env:
     Type: String
     Default: dev
-
-Globals:
-  Function:
-    Runtime: python3.12
-    # Runtime settings and LabRole ARN are added only after contract and Sandbox checks.
-    # Proposed env names: JOBS_BUCKET, JOBS_PREFIX, AUDIO_BUCKET, SYNTH_FUNCTION_NAME.
-    # TTS_API_PARAMETER_NAME and other secret references depend on an approved mechanism.
+  AllowedOrigin:
+    Type: String
+    Default: '*'
+    Description: Frontend origin allowed by CORS
+  DemoToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Demo access token; pass at deploy time, never commit the value
+  TtsApiParameterName:
+    Type: String
+    Default: /tts/dev/elevenlabs
+    Description: SSM SecureString name that holds the provider key
 
 Resources:
-  # Existing non-secret marker keeps this SAM skeleton structurally valid.
-  # It is not the planned secret store or a deployed TTS resource. Do not deploy this skeleton.
-  # M1 will replace the marker only after Gate 0 verifies permissions and resources.
-  ProjectMarker:
-    Type: AWS::SSM::Parameter
+  Storage:
+    Type: AWS::Serverless::Application
     Properties:
-      Name:
-        Fn::Sub: /tts/${Env}/project
-      Type: String
-      Value: aws-multilingual-tts
+      Location: infra/m3-storage-data.yaml
+      Parameters:
+        Env: !Ref Env
+        LabRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+
+  TtsCore:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: infra/m2-tts-core.yaml
+      Parameters:
+        Env: !Ref Env
+        LabRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        CommonLayerArn: !GetAtt Storage.Outputs.CommonLayerArn
+        JobsBucket: !GetAtt Storage.Outputs.JobsBucketName
+        JobsPrefix: jobs/
+        AudioBucket: !GetAtt Storage.Outputs.AudioBucketName
+        TtsApiParameterName: !Ref TtsApiParameterName
+
+  Submit:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: infra/m5-language-async-monitor.yaml
+      Parameters:
+        Env: !Ref Env
+        LabRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        CommonLayerArn: !GetAtt Storage.Outputs.CommonLayerArn
+        JobsBucket: !GetAtt Storage.Outputs.JobsBucketName
+        AudioBucket: !GetAtt Storage.Outputs.AudioBucketName
+        SynthFunctionName: !GetAtt TtsCore.Outputs.SynthesizeFunctionName
+
+  Api:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: infra/m1-api-security.yaml
+      Parameters:
+        Env: !Ref Env
+        AllowedOrigin: !Ref AllowedOrigin
+        DemoToken: !Ref DemoToken
+
+Outputs:
+  HttpRouterFunctionUrl:
+    Value: !GetAtt Api.Outputs.HttpRouterFunctionUrl
+  JobsBucketName:
+    Value: !GetAtt Storage.Outputs.JobsBucketName
+  AudioBucketName:
+    Value: !GetAtt Storage.Outputs.AudioBucketName

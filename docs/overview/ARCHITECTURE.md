@@ -82,6 +82,6 @@ Kiến trúc cũ có API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Cognito/Comp
 
 ## Hiện trạng
 
-Code backend vẫn stub như [audit file:line](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md#1-executive-summary-và-audit-thực-tế). **CURRENT RUNTIME CONFIG STILL OLD:** samconfig.toml:11/config/settings.json:2 còn ap-southeast-1, migration Gate 1. Frontend tồn tại, chưa build/test lại lượt này. Không deploy AWS; kế hoạch không đảm bảo data còn sau lab reset.
+Backend đã có code cho submit, worker, voices, history và router; stats và sửa lỗi đánh máy là MR chưa bật. samconfig.toml và config/settings.json đã dùng us-east-1. Toàn hệ thống chưa deploy; chỉ M2 đã thử riêng trên Sandbox. Frontend tồn tại, chưa build/test lại lượt này. Không deploy AWS; kế hoạch không đảm bảo data còn sau lab reset.
 
 Nguồn chuẩn: [API/data proposed](QUY-UOC-CHUNG.md), [service matrix](../plans/SANDBOX-SERVICE-MATRIX.md), [backlog](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md), [validation](../plans/SANDBOX-VALIDATION-RUNBOOK.md).
