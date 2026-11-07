@@ -6,13 +6,24 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: chờ nhóm duyệt hợp đồng; PR #4 đang chờ Trung Nghĩa kiểm tra
+- Đang làm: chờ nhóm duyệt hợp đồng; code M2 đã vào `main` qua PR #4, Trung Nghĩa merge
 - Đã xong: SB-M2-01, SB-M2-02, SB-M2-03 (đã tick); Lambda tạo được MP3 vi/en/ja bằng ElevenLabs thật và qua thử lỗi Gate 3 trên stack thử. SB-M2-04 chờ M1 và M4 nối frontend
-- Việc tiếp theo: gửi nhóm kết quả và tốc độ mặc định 0.9; deploy lại để đo văn bản dài 2.000 ký tự; dọn stack và thu hồi key
+- Việc tiếp theo: dọn stack thử, thu hồi key, End Lab; gửi nhóm kết quả và tốc độ mặc định 0.9; chờ M1 và M4 cho SB-M2-04
 - Đang bị chặn bởi: hợp đồng nhóm chưa duyệt; cơ chế SSM SecureString chạy được về kỹ thuật nhưng chưa có xác nhận của trường; ghép root SAM chờ M1
-- Tài nguyên AWS tôi đã tạo: Trung Khang báo đã dọn stack thử `tts-m2-test` bằng `don-dep`; có thể deploy lại để đo văn bản dài
+- Tài nguyên AWS tôi đã tạo: stack thử `tts-m2-test` đã deploy lại để đo văn bản dài, us-east-1; cần chạy `don-dep` để xóa kèm key trong SSM
 
 ## NHẬT KÝ
+
+### 2026-11-07: Đo văn bản dài từ Lambda
+
+- Đã làm: deploy lại stack thử từ commit `a35df10`, chạy `thu-m2.sh dai` với 2.000 ký tự tiếng Việt, Matilda, tốc độ 0.9. Trạng thái: sandbox verified trên stack thử.
+- Kết quả: DONE, attempt 1, 6.802 ms ở lần đầu sau deploy. MP3 hợp lệ 3.488.748 byte, ước tính khoảng 3 phút 38 giây theo 128 kbps.
+- Quyết định và lý do: giữ timeout 120 giây và memory 256 MB vì lần chạy này chỉ dùng gần 6% timeout. Đề xuất nhóm chốt `MAX_CHARS` 2.000. Giới hạn chính là credit, không phải thời gian: theo mức Flash, một job 2.000 ký tự tốn khoảng 1.000 credit, bằng 10% hạn mức Free.
+- Chưa đo: bộ nhớ thực dùng, văn bản trên 2.000 ký tự, credit thực dùng từ Lambda.
+- File đã đổi: `logs/log-m2.md`. Ngoài repo: `TRUNGKHANG/thu-m2.sh` thêm bước `dai`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): stack `tts-m2-test`, 3 bucket `tts-m2-test-*`, Layer, tham số key, us-east-1.
+- Việc tiếp theo: chạy `don-dep`, thu hồi key, End Lab.
+- Cần báo module khác: M4, M5 dùng `MAX_CHARS` 2.000 sau khi nhóm duyệt. Demo nên dùng câu ngắn để giữ credit.
 
 ### 2026-11-07: Thử lỗi Gate 3 trên Sandbox
 
