@@ -60,8 +60,26 @@ class VoicesTest(unittest.TestCase):
         with mock.patch.object(app, "load_registry", side_effect=FileNotFoundError):
             self.assertEqual(app.handler({}, None)["statusCode"], 503)
 
-    def test_current_repo_placeholder_returns_503(self):
-        self.assertEqual(app.handler({}, None)["statusCode"], 503)
+    def test_real_registry_matches_frontend_contract(self):
+        response = app.handler({}, None)
+        self.assertEqual(response["statusCode"], 200)
+        languages = json.loads(response["body"])["languages"]
+        self.assertTrue({"vi-VN", "en-US", "ja-JP"} <= {item["lang"] for item in languages})
+        for item in languages:
+            self.assertEqual(set(item), {"lang", "provider", "engine", "voices"})
+            self.assertEqual(item["provider"], "elevenlabs")
+            self.assertIsNone(item["engine"])
+            for voice in item["voices"]:
+                self.assertEqual(set(voice), {"id", "gender", "name"})
+                self.assertIn(voice["gender"], {"F", "M"})
+
+    def test_real_registry_is_complete_for_worker(self):
+        registry = voices.load_registry()
+        for lang, entry in registry.items():
+            if not lang.startswith("_"):
+                self.assertEqual(entry["model"], "eleven_flash_v2_5")
+                self.assertTrue(entry["languageCode"])
+                self.assertEqual(entry["speedRange"], [0.7, 1.2])
 
 
 if __name__ == "__main__":

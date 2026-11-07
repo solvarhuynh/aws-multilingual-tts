@@ -6,13 +6,57 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: chờ điều kiện chạy thật; code M2 đã commit trên nhánh `m2-trungkhang`, chưa push
-- Đã xong: khảo sát ElevenLabs trên tài liệu; `tts-voices`, adapter, worker, lưu job/audio S3, `infra/m2-tts-core.yaml` ở mức locally tested. Chưa task nào được tick vì chưa có bằng chứng chạy thật
-- Việc tiếp theo: khi có tài khoản và key thì chạy T2-07, điền `config/voices.json` và chép sang `tts_common/voices.json`; sau đó thử trên Sandbox và thử lỗi Gate 3
-- Đang bị chặn bởi: gọi provider thật chờ giảng viên duyệt provider ngoài, tài khoản provider và cách giữ key an toàn; chạy trên AWS chờ bucket, Layer và root SAM; hợp đồng nhóm chưa duyệt
+- Đang làm: chờ điều kiện chạy thật; code và registry M2 đã commit trên nhánh `m2-trungkhang`, chưa push
+- Đã xong: khảo sát ElevenLabs trên tài liệu; registry 33 ngôn ngữ đã nghe duyệt; `tts-voices`, adapter, worker, lưu job/audio S3, `infra/m2-tts-core.yaml` ở mức locally tested. Chưa task nào được tick vì chưa có bằng chứng chạy trên AWS
+- Việc tiếp theo: báo M4, M5 tốc độ mặc định 0.9; sau đó thử trên Sandbox và thử lỗi Gate 3
+- Đang bị chặn bởi: lưu key cho Lambda chờ kết quả T2-06; chạy trên AWS chờ bucket, Layer và root SAM; hợp đồng nhóm chưa duyệt
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-07: Chốt tốc độ mặc định và duyệt giọng
+
+- Đã làm: Trung Khang nghe mẫu, chọn tốc độ mặc định 0.9 và xác nhận giọng đạt cho cả 33 mã ngôn ngữ, nên giả định ở mục dưới đã được xác nhận. Registry đã commit.
+- Quyết định và lý do: 0.9 là đề xuất của M2, chưa phải quyết định của nhóm. `QUY-UOC-CHUNG.md` đang ghi mặc định 1.0, nên cần nhóm duyệt rồi mới đổi tài liệu và `config/settings.json`.
+- Giới hạn: mẫu so tốc độ chỉ có tiếng Việt. 0.9 nằm trong dải 0.7 đến 1.2 đã đo, nhưng chưa đo riêng ở 32 mã còn lại.
+- Chưa đổi: `backend/synthesize/app.py` vẫn dùng 1.0 khi job không có `speed`, vì M5 sẽ ghi `speed` vào job từ trước.
+- File đã đổi: `logs/log-m2.md`. Ngoài repo: `TRUNGKHANG/tin-nhan-nhom.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Việc tiếp theo: gửi nhóm; thử trên Sandbox khi có điều kiện.
+- Cần báo module khác: M4 đặt mặc định thanh tốc độ 0.9, dải 0.7 đến 1.2. M5 dùng 0.9 khi request thiếu `speed`. M1 điền `defaultSpeed` 0.9, `minSpeed` 0.7, `maxSpeed` 1.2 trong `config/settings.json` sau khi nhóm duyệt.
+
+### 2026-11-07: Điền registry giọng thật
+
+- Đã làm: Trung Khang nghe mẫu và báo đạt nhưng hơi nhanh. Điền `config/voices.json` và `tts_common/voices.json`: 33 mã ngôn ngữ dùng Matilda, thêm Brian cho vi/en/ja, model `eleven_flash_v2_5`, `speedRange` 0.7 đến 1.2. Trạng thái: locally tested.
+- Giả định cần xác nhận: "đạt" áp dụng cho toàn bộ 33 mã. Brian chỉ thêm cho ngôn ngữ đã đo bằng giọng này.
+- Tốc độ: tạo mẫu tiếng Việt ở 0.8, 0.85, 0.9, 1.0 cho cả hai giọng, câu khoảng 80 ký tự, thời gian gọi 0,37 đến 0,67 giây. Dung lượng file không giảm đều theo tốc độ (Brian 0.85 lớn hơn 0.8), nên phải chọn bằng tai, không chọn theo số.
+- Đã chạy: `python3.12 -m unittest discover -s tests/unit/m2` đạt 59 test, gồm kiểm tra registry thật khớp định dạng `/voices`.
+- File đã đổi: `config/voices.json`, `backend/common/python/tts_common/voices.json`, `tests/unit/m2/test_voices.py`, `logs/log-m2.md`. Chưa commit.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Việc tiếp theo: chốt tốc độ mặc định với M4, M5.
+- Cần báo module khác: M4 đặt tốc độ mặc định theo giá trị được chọn, thêm tên hiển thị cho mã ngôn ngữ mới. M5 kiểm tra đầu vào theo registry mới.
+
+### 2026-11-07: Đo ElevenLabs thật từ máy cá nhân (T2-07 phần local)
+
+- Đã làm: gọi ElevenLabs thật lần đầu bằng adapter trong repo, tài khoản Free, model `eleven_flash_v2_5`, gửi `language_code`. Chạy từ máy cá nhân, chưa chạy từ Lambda nên chưa phải sandbox verified.
+- Giọng dùng: Matilda `XrExE9yKIg1WjnnlVkGX` cho 33 mã ngôn ngữ, Brian `nPczCjzI2devNBz1zQrb` thêm cho vi/en/ja. Tài khoản Free có 21 giọng, đều là premade, không có giọng vùng tiếng Việt.
+- Kết quả: 38/40 phép đo thành công, 38/38 file đúng định dạng MP3. Thời gian trung vị 0,34 giây, chậm nhất 1,87 giây ở lần gọi đầu, với câu khoảng 40 ký tự. Đã dùng 605/10.000 credit; số liệu này cập nhật chậm vài chục giây sau khi gọi.
+- Tốc độ: 0.7 và 1.2 được nhận; 0.5 và 2.0 bị từ chối, adapter trả `PROVIDER_REJECTED`. Chưa đo các mức giữa hai đầu, nên dải chắc chắn hiện là 0.7 đến 1.2.
+- Chưa kiểm: chất lượng nghe, văn bản dài, gọi từ IP AWS. Thời gian đo là câu ngắn, chưa dùng để chốt timeout.
+- File đã đổi: `logs/log-m2.md`. Ngoài repo: `TRUNGKHANG/do_giong.py`, `ket-qua-do.md`, `giong-tai-khoan.md`, `mau-giong/`.
+- Bảo mật: key nằm trong `TRUNGKHANG/Elevenlabs_apikey.md`, không commit, script đọc trực tiếp và không in ra.
+- Việc tiếp theo: nghe mẫu, chọn ngôn ngữ đạt, điền registry.
+- Cần báo module khác: M4 đổi thanh tốc độ thành 0.7 đến 1.2 và giới hạn theo dải này. M5 dùng `UNSUPPORTED_SPEED` cho giá trị ngoài dải.
+
+### 2026-11-07: Giảng viên đồng ý, chuẩn bị đo giọng
+
+- Đã làm: Trung Khang báo giảng viên cho phép dùng provider ngoài thay Polly và đã tạo tài khoản ElevenLabs gói Free, mức trần $0. Chưa có bằng chứng văn bản từ giảng viên; nên lưu lại cho báo cáo.
+- Phạm vi: Trung Khang yêu cầu mở rộng thêm ngôn ngữ châu Âu và châu Á. Lần đo gồm 33 mã ngôn ngữ; chỉ giọng đạt khi nghe thử mới vào registry. `vi-VN`, `en-US`, `ja-JP` vẫn là tiêu chí nghiệm thu chính.
+- Công cụ: `TRUNGKHANG/do_giong.py` (không commit) dùng adapter thật trong repo, nhập key qua ô ẩn, có trần ký tự, không retry, dừng khi sai key hoặc hết hạn mức. Đã thử bằng opener giả, chưa gọi ElevenLabs thật.
+- File đã đổi: `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Việc tiếp theo: chạy `voices`, chọn giọng, chạy `measure`, ghi số đo vào log.
+- Cần báo module khác: M4 thêm tên hiển thị cho các mã ngôn ngữ mới. Cả nhóm biết phạm vi ngôn ngữ mở rộng so với `QUY-UOC-CHUNG.md`.
 
 ### 2026-11-07: Làm phần lưu trữ worker cần và kiểm tra bằng boto3 thật
 
