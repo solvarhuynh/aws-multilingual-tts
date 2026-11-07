@@ -14,6 +14,25 @@
 
 ## NHẬT KÝ
 
+### 2026-11-07: Hướng dẫn nhóm tự dựng trên Sandbox
+
+- Đã làm: Trung Khang yêu cầu ghi hướng dẫn để thành viên khác tự thử. Chuyển script thử vào `scripts/sandbox.sh`, chạy trực tiếp từ repo đã clone. Hướng dẫn gửi nhóm qua tin nhắn, không thêm file tài liệu; cập nhật `DEPLOY.md`.
+- Kiểm tra: `bash -n` đạt. Bản trong repo chưa chạy trên AWS; khác bản đã chạy thật ở chỗ lấy code từ repo đã clone, đường dẫn đổi theo.
+- Lưu ý: cần merge PR #7 trước, vì hướng dẫn clone nhánh `main`.
+- File đã đổi: `scripts/sandbox.sh`, `docs/guides/DEPLOY.md`, `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Việc tiếp theo: Trung Khang commit, push; nhóm tự thử theo hướng dẫn.
+- Cần báo module khác: cả nhóm tạo tài khoản ElevenLabs riêng, không dùng chung key.
+
+### 2026-11-07: Kiểm tra truy cập trực tiếp trên Sandbox
+
+- Đã làm: Trung Khang gọi thẳng từ CloudShell, không qua CloudFront và không ký: Function URL `/voices`, `index.html` của bucket web, liệt kê bucket audio, liệt kê bucket jobs. Cả bốn trả 403. Trạng thái: sandbox verified trên stack `tts-dev`.
+- Ý nghĩa: router chỉ nhận request đi qua CloudFront OAC; ba bucket không đọc công khai được. Chưa thử đọc đúng một file audio hay job có thật bằng URL không ký.
+- File đã đổi: `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Việc tiếp theo: thử trần 429, tải và xóa bản thu trên giao diện, rồi dọn stack.
+- Cần báo module khác: M1, M3, M4 dùng kết quả này khi kiểm bảo mật.
+
 ### 2026-11-07: Việc sau: luồng dịch
 
 - Hiện trạng: chưa có bước dịch. ElevenLabs chỉ đọc đúng chữ nhận được. Trung Khang thử gõ tiếng Việt, chọn giọng Tây Ban Nha: vẫn tạo được MP3 nhưng nghe lạ, đúng như dự kiến. Trang Dịch và đọc gửi `translateTo` nên bị từ chối `FEATURE_NOT_ENABLED`.
