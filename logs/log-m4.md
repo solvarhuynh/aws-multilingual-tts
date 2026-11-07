@@ -6,13 +6,17 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-08
-- Đang làm: dọn code Azure/hướng dẫn và kiểm thử trước khi đồng bộ main cùng năm nhánh thành viên theo yêu cầu người dùng.
-- Đã xong: kiểm kê frontend/compatibility; template M4 static S3 private + CloudFront/OAC, lệnh build:hosting và ZIP/manifest. cfn-lint 1.46.0 và kiểm tra policy/cache local đạt; 63 kiểm thử web đạt. ZIP demo 14 file chạy qua HTTP local trên desktop/mobile, không gọi API bên ngoài. Các thay đổi app/UI và bằng chứng kiểm tra trước đó giữ ở entry lịch sử.
-- Việc tiếp theo: hoàn tất kiểm tra CREATE/UPDATE local và push Git; thành viên làm theo AZURE-SPEECH.md, tự kiểm chứng tài khoản/phiên mới và app native.
+- Đang làm: đã hoàn tất tích hợp Azure mặc định, cleanup, kiểm thử và đồng bộ main cùng năm nhánh thành viên; bàn giao thực hành phiên mới.
+- Đã xong: Azure adapter/SSM/registry, CREATE/UPDATE changeset chung, hosting theo Outputs, hướng dẫn cả nhóm. 143 backend + 61 web + 22 app tests đạt; web build/cài sạch, app TypeScript/lint Node 22 và cfn-lint root/năm stack con đạt. Giữ nguyên bằng chứng UI/hosting cũ ở entry lịch sử.
+- Việc tiếp theo: thành viên pull nhánh đã đồng bộ, đọc AZURE-SPEECH.md rồi configure/plan/review/apply trên Sandbox được giao; xác nhận CREATE mới và app native trên thiết bị.
 - Đang bị chặn bởi: chưa kiểm Sandbox cho luồng CREATE mới; người dùng đã xác nhận cập nhật Azure/web dùng được, chưa đủ bằng chứng mọi giọng/native/recovery. Bản static/skeleton trong entry cũ là lịch sử.
-- Tài nguyên AWS tôi đã tạo: (chưa có)
+- Tài nguyên AWS: người dùng M4 tự deploy/cập nhật tts-dev trong CloudShell; agent không tạo/sửa AWS resource trong lượt code/Git này.
 
 ## NHẬT KÝ
+
+### 2026-11-08: Đồng bộ Azure lên Git thành công
+- Đã push atomic commit tích hợp a76cf97 và merge b07bc3e lên main, m1-minhly, m2-trungkhang, m3-trungduc, m4-nguyenkhang, m5-trungnghia. ls-remote xác nhận cả sáu cùng b07bc3e; không force-push, các commit riêng M1 được giữ trong lịch sử.
+- Các thay đổi sau phép kiểm trên chỉ cập nhật log bàn giao này; không đổi runtime, không chạy lại/deploy AWS. Source/artifact cũ có bản sao ngoài repo, không đẩy release, node_modules, env, key hoặc token.
 
 ### 2026-11-08: Chuẩn hóa Azure mặc định và chuẩn bị đồng bộ nhóm
 - Ủy quyền: người dùng yêu cầu hướng dẫn chi tiết cho cả nhóm, sau đó giao dọn code và push lên main cùng các nhánh thành viên. Giữ thay đổi trước đó và sao lưu source diff/untracked ngoài repo trước cleanup.
