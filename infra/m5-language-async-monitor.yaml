@@ -35,6 +35,14 @@ Parameters:
     Type: Number
     Default: 6000
     MinValue: 1
+  TtsProvider:
+    Type: String
+    Default: azure
+    AllowedValues: [elevenlabs, azure]
+  AzureSpeechRegion:
+    Type: String
+    Default: eastasia
+    AllowedPattern: '[a-z][a-z0-9]{1,39}'
 
 Resources:
   SubmitFunction:
@@ -58,6 +66,8 @@ Resources:
           MAX_CHARS: !Ref MaxChars
           DEFAULT_SPEED: !Ref DefaultSpeed
           DAILY_CHAR_LIMIT: !Ref DailyCharLimit
+          TTS_PROVIDER: !Ref TtsProvider
+          AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
 
   StatsFunction:
     Type: AWS::Serverless::Function

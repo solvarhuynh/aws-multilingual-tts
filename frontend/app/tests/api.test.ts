@@ -36,6 +36,12 @@ test('Không dùng kết quả kiểm tra nhầm nội dung', async () => {
   globalThis.fetch = async () => new Response(JSON.stringify({ originalText: 'Văn bản khác', correctedText: 'Sai', hasTypos: true }));
   assert.equal(await api.correct('Xin chào.', 'vi-VN'), null);
 });
+test('Nhận giọng Azure có tên từ API', async () => {
+  const language = { lang: 'vi-VN', provider: 'azure', engine: null,
+    voices: [{ id: 'vi-VN-HoaiMyNeural', name: 'Hoài My', gender: 'F' }] };
+  globalThis.fetch = async () => new Response(JSON.stringify({ languages: [language] }));
+  assert.deepEqual(await api.voices(), [language]);
+});
 test('Lỗi máy chủ và dữ liệu sai không trở thành thành công', async () => {
   globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 'PROVIDER_ERROR', message: 'Giọng đọc tạm bận.' } }), { status: 502 });
   await assert.rejects(request('/voices'), /Giọng đọc tạm bận/);

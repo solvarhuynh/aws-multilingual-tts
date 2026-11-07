@@ -32,6 +32,7 @@ Không cần đọc ngay năm tài liệu trong `plans/`. Chỉ mở chúng khi 
 | [QUY-UOC-CHUNG](overview/QUY-UOC-CHUNG.md) | Cả nhóm trước khi code | Chuẩn API/data; đây là contract đề xuất cần duyệt |
 | [KHUNG-BAO-CAO](guides/KHUNG-BAO-CAO.md) | Cả nhóm trước báo cáo | Biết mỗi người phải trình bày gì và cần bằng chứng nào |
 | [DEPLOY](guides/DEPLOY.md) | M1, M4; người deploy | Runbook một phiên lab và reset/redeploy |
+| [AZURE-SPEECH](guides/AZURE-SPEECH.md) | Cả năm thành viên | Từ Azure Students/F0 đến tạo/cập nhật AWS Sandbox, web/app, lỗi thường gặp và reset |
 | [GIT-VA-LOGS](guides/GIT-VA-LOGS.md) | Cả nhóm khi commit/log | Quy tắc nhánh, secret và nhật ký |
 
 ## Kế hoạch chi tiết
@@ -46,4 +47,4 @@ Không cần mở toàn bộ `plans/`. [Bản đồ kế hoạch](plans/README.m
 - Chuẩn bị AWS Sandbox: đọc `DEPLOY.md` và [bản đồ kế hoạch](plans/README.md); chỉ dùng `SANDBOX-VALIDATION-RUNBOOK.md` khi có yêu cầu kiểm tra cụ thể. Không tự chạy Level 2.
 - Agent bắt đầu công việc: đọc `AGENTS.md` trước, sau đó dùng đúng nhóm file ở trên.
 
-Tất cả tài liệu Sandbox hiện là **PROPOSED / PENDING GROUP SIGN-OFF**. Chúng chưa chứng minh code đã chạy hoặc AWS đã deploy.
+Các tài liệu plans giữ lịch sử đề xuất và giới hạn cần review. Quy trình Azure hiện tại và bằng chứng từng phiên được ghi trong hướng dẫn Azure cùng log của người thực hiện; không lấy sơ đồ kế hoạch làm bằng chứng deploy.

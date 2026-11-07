@@ -10,6 +10,14 @@ test("API frontend: nội dung sửa và phản hồi không hợp lệ", async 
   const valid = { status: "checked", language: "vi-VN", hasTypos: true, originalText: original,
     correctedText: "tôi muốn nghe", changes: [{ from: "toi", to: "tôi", start: 0, end: 3 }] };
   try {
+    await suite.test("nhận giọng Azure và hiển thị tên dịch vụ", async () => {
+      const { providerLabel } = await env.load("lib/data.ts");
+      response({ languages: [{ lang: "vi-VN", provider: "azure", engine: null,
+        voices: [{ id: "vi-VN-HoaiMyNeural", name: "Hoài My", gender: "F" }] }] });
+      const languages = await api.voices();
+      assert.equal(languages[0].voices[0].name, "Hoài My");
+      assert.equal(providerLabel(languages[0].provider), "Azure Speech");
+    });
     await suite.test("gửi token người dùng nhập và hash đúng của body", async () => {
       let headers;
       globalThis.fetch = async (_, init) => { headers = init.headers; return { ok: true, json: async () => valid }; };

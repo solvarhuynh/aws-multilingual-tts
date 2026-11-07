@@ -1,57 +1,57 @@
-# Giao diện
+# Web và ứng dụng Expo
 
-App iOS/Android nằm trong `app/`, web nằm trong `web/`. App dùng Node.js 22 LTS (22.13 trở lên) hoặc 24 LTS (24.3 trở lên).
+Cả hai giao diện dùng API/giọng Azure của cùng stack AWS. Cấu hình dịch vụ và CloudFront: [hướng dẫn cả nhóm](../docs/guides/AZURE-SPEECH.md). Key Azure chỉ nằm ở AWS SSM; mã demo nhập trong Cài đặt khi chạy.
 
-```sh
-cd frontend/app
-npm ci
-npm start
+## Web
+
+Trong frontend/web tạo .env.local chỉ chứa domain CloudFront hiện tại:
+
+```dotenv
+VITE_API_BASE_URL=https://TEN-MIEN-CUA-NHOM.cloudfront.net
 ```
 
-Quét QR bằng Camera iPhone để mở bằng Expo Go (SDK 58). Điện thoại và máy tính dùng cùng Wi-Fi. `npm run ios` chỉ dùng khi đã cài iOS Simulator.
-
-Nếu dùng nvm, chạy `nvm use` trong `app/`. Trên Mac này, nếu `node -v` vẫn là 20, dùng Node 22 đã cài bằng `export PATH="/opt/homebrew/opt/node@22/bin:$PATH"` trước khi chạy lệnh.
-
-Nếu Expo Go yêu cầu đăng nhập, chạy `npx expo login` và đăng nhập cùng tài khoản trong Expo Go.
-
-App có giao diện sáng/tối/hệ thống, thanh kính nổi hỗ trợ kéo chọn tab, tạo giọng, đọc PDF/DOCX/TXT, chọn/lưu giọng và quản lý bản thu. Khi chưa đặt `EXPO_PUBLIC_API_BASE_URL`, app nghe bằng giọng thiết bị và lưu bản thu dạng văn bản trên máy; dịch và xuất MP3 cần API của nhóm. Không đặt khóa bí mật trong biến `EXPO_PUBLIC_*`.
-
-Kính gốc dùng `expo-glass-effect` trên iOS hỗ trợ; thiết bị khác dùng kính mờ. Cử chỉ thanh tab tham khảo [expo-glass-tabs](https://github.com/davidmokos/expo-glass-tabs), có chỉnh hình học cho nút + riêng. Đây là thanh tùy biến dùng kính native, không phải toàn bộ `UITabBar` của Apple. Giấy phép đặt trong `app/licenses/`.
-
-Khung màn hình, tiêu đề, vùng cuộn và xử lý bàn phím dùng chung trong `app/src/components/layout.tsx`. Vùng an toàn được đo riêng cho từng trang/cửa sổ; lưới, thanh dưới và trình phát tự đổi theo kích thước và cỡ chữ. App hỗ trợ xoay màn hình.
-
-`npm ci` tự dựng bộ đọc PDF cục bộ qua `prepare`; không tải tài liệu lên dịch vụ khác. Trong `app/`, chạy `npm run typecheck`, `npm run lint`, `npm test`; `npx expo export --platform ios --platform android` kiểm tra đóng gói hai nền tảng. Kiểm tra bố cục bằng bản web không thay thế thử bàn phím, âm thanh và kính native trên thiết bị thật.
-
-Yêu cầu Node.js 20.19 trở lên.
-
-```sh
+```bash
 cd frontend/web
-npm install
+npm ci
 npm run dev
 ```
 
-`npm run build` tạo bản chạy trong `web/dist`.
+Web cần Node ≥20.19. `npm run build` tạo dist; `npm run test:ui` chạy kiểm thử local. Upload từ CloudShell bằng `bash scripts/sandbox.sh web` ở gốc repo, script tự lấy domain/bucket từ Outputs; không cần quy trình ZIP hosting riêng.
 
-Trong Cài đặt → Giao diện, chọn Hệ thống, Sáng hoặc Tối. Lựa chọn được lưu trên thiết bị; Hệ thống tự đổi theo máy. Chế độ tối dùng nền đen có ánh xanh nhẹ phía sau lớp kính trong; tùy chọn tăng tương phản chuyển các ô kính về nền đặc để dễ đọc.
+## App iOS/Android
 
-`npm run test:ui` kiểm tra nút gạt, menu, trình phát, điều hướng, tìm kiếm gợi ý, lời chào theo buổi, chuyển động sidebar, xuất CSV và luồng tạo giọng bằng DOM/API mô phỏng; không gọi AWS. `happy-dom` chỉ phục vụ kiểm thử, không đưa vào bản chạy.
+Node 22.13+ hoặc 24.3+; .nvmrc trong app chọn Node 22. Tạo frontend/app/.env.local:
 
-Trong `web/src`: `App.tsx` nối các màn hình, `components/` chứa sidebar/trình phát/điều khiển dùng chung, `views/` chứa Tổng quan, `hooks/useStudio.ts` quản lý luồng tạo giọng, `lib/` chứa API/dữ liệu/đọc tài liệu. Các kiểm thử dùng chung thiết lập trong `web/tests/environment.mjs`.
+```dotenv
+EXPO_PUBLIC_API_BASE_URL=https://TEN-MIEN-CUA-NHOM.cloudfront.net
+```
 
-Icon dùng thống nhất [Framework7 Icons](https://github.com/framework7io/framework7-icons) 5.0.5 (MIT), phong cách iOS, không phải SF Symbols chính thức của Apple. Chỉ các SVG cần dùng được import qua component `Icon` trong `web/src/components/ui.tsx`; không tải font hoặc icon từ CDN. Giấy phép được giữ tại `web/public/licenses/framework7-icons.txt`.
+```bash
+cd frontend/app
+npm ci
+npm start -- --clear
+```
 
-Liquid Glass dùng [Glisse](https://github.com/0kzh/glisse) (MIT) cho thanh trượt. Sidebar, nút bấm và các ô kính dùng HTML/CSS. Thanh trên, ô soạn thảo, cài đặt giọng và trình phát là các ô riêng; khung `workspace` chỉ giữ bố cục. Màu, độ trong (`--surface`) và độ mờ kính (`--glass-filter`) nằm ở đầu `web/src/styles.css`.
+Dùng Expo Go tương thích SDK 58 của package.json. iPhone quét QR bằng Camera, Android dùng Expo Go; điện thoại kết nối được Metro trên máy cá nhân. Đổi env cần khởi động lại dev server.
 
-Sidebar thu thành thanh icon 72px. `hooks/useSidebarMotion.ts` đổi bố cục một lần rồi nối vị trí bằng Web Animations API; nền kính co giãn, nhóm icon giữ tỉ lệ. Có hủy chuyển động cũ khi bấm đảo chiều, resize hoặc bật giảm chuyển động. Thời gian chỉnh bằng `--sidebar-duration` và `--sidebar-ease`; không thêm thư viện chuyển động.
+Trong app Cài đặt → Kết nối → Mã truy cập; nhập mã do chủ lab cấp. Không đặt mã/key vào EXPO_PUBLIC_* hoặc VITE_*. Không có API base thì nghe giọng thiết bị và lưu dữ liệu mẫu cục bộ, chưa có MP3 từ AWS.
 
-`components/PageHeader.tsx` chào Nhóm 5 bằng tiếng Việt theo buổi, tự cập nhật theo giờ của thiết bị và không hiện đồng hồ. HCMUTE ở header, AWS ở sidebar; avatar dùng hình đám mây cùng bộ SVG. Header không có khung/nền kính bao ngoài. Tên trang là H1 riêng bên dưới (28px desktop, 24px mobile).
+Kiểm tra trong thư mục app:
 
-`components/HeaderSearch.tsx` là ô gõ trực tiếp: gợi ý tối đa sáu công cụ/bản thu theo ký tự, nhận tiếng Việt không dấu; hỗ trợ chọn bằng chuột/phím mũi tên, Enter và đóng bằng Escape hoặc bấm ngoài. Tìm kiếm header dùng trạng thái riêng, không thay bộ lọc trong thư viện/chọn giọng. Đã bỏ cửa sổ tìm kiếm lớn và nhãn phím tắt.
+```bash
+npm run typecheck
+npm run lint
+npm test
+npx expo export --platform ios --platform android
+```
 
-Palette lấy từ hai file logo: xanh HCMUTE `#0072BC`, navy AWS `#252F3E`, cam AWS `#FF9900`. Cam dùng làm điểm nhấn, không dùng chữ trắng trên nền cam; màu ngữ nghĩa lỗi/cảnh báo vẫn riêng biệt.
+Build/bản web mô phỏng không thay kiểm bàn phím, safe area, âm thanh và kính native trên thiết bị thật.
 
-Nút Xuất báo cáo tải các bản thu đã tải trong lịch sử ra CSV UTF-8, không chứa link nghe tạm thời; tải thêm lịch sử trước khi xuất nếu cần đủ các bản thu. Tổng quan dùng chung lưới ba cột, chuyển sang hai/một cột trên màn hình nhỏ.
+## Tổ chức giao diện
 
-Menu chọn dùng [Radix Select](https://www.radix-ui.com/primitives/docs/components/select), cùng một component cho bốn ô ngôn ngữ/bộ lọc. Nút gạt cài đặt dùng một núm CSS giới hạn trong track, không dùng lớp phóng đại SVG. Sóng 3D nhún và co giãn lệch nhịp; bật “Giảm chuyển động” sẽ dừng chuyển động của nền và sóng.
+- Web: components dùng chung, views cho trang, hooks cho trạng thái/chuyển động, lib cho API/dữ liệu/đọc tài liệu; tests dùng environment.mjs.
+- App: src/app cho màn hình, components/layout.tsx cho vùng an toàn/khung/bàn phím, state/Studio.tsx cho dữ liệu và preferences, lib cho API/model.
+- PDF/DOCX/TXT đọc cục bộ; npm ci dựng tài nguyên PDF của app qua prepare. Build/cache/node_modules được ignore.
+- Sáng/tối/hệ thống, giảm chuyển động và tăng tương phản nằm trong Cài đặt. Lựa chọn và mã demo được lưu trên trình duyệt/thiết bị; xóa mã trên máy mượn sau demo.
 
-Chưa cấu hình máy chủ: nghe thử bằng giọng của thiết bị. Đặt `VITE_API_BASE_URL` lúc build để dùng API của nhóm; không đặt khóa bí mật trong frontend. Khi tạo giọng, web kiểm tra lỗi đánh máy một lần, cho chọn bản gốc/bản sửa nếu có đề xuất rồi mới gửi tạo âm thanh. Nếu API kiểm tra chưa sẵn sàng, web dùng bản gốc.
+Icon Framework7 Icons và Glisse trên web dùng MIT; thông báo trong web/public/licenses. Kính app dùng expo-glass-effect khi iOS hỗ trợ, BlurView dự phòng; phần tab tham khảo expo-glass-tabs có giấy phép ở app/licenses. Đây là giao diện tùy biến, không phải UITabBar gốc.

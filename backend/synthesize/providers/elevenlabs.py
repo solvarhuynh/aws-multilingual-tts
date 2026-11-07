@@ -1,61 +1,17 @@
 """Bộ chuyển đổi ElevenLabs, nhà cung cấp TTS ngoài AWS cho vi, en, ja."""
 
 import json
-import os
 import urllib.error
 import urllib.parse
 import urllib.request
 
 from .base import PermanentProviderError, TransientProviderError, TTSProvider
+from .common import MAX_AUDIO_BYTES, OPENER as _OPENER, is_mp3, read_api_key
 
 
 API_BASE = "https://api.elevenlabs.io/v1/text-to-speech/"
 OUTPUT_FORMAT = "mp3_44100_128"
-MAX_AUDIO_BYTES = 50 * 1024 * 1024
 TRANSIENT_STATUSES = {429, 500, 502, 503, 504}
-
-_cached_key = None
-
-
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    """Không đi theo redirect, tránh gửi API key sang host khác."""
-
-    def redirect_request(self, *args, **kwargs):
-        return None
-
-
-_OPENER = urllib.request.build_opener(_NoRedirect)
-
-
-def read_api_key() -> str:
-    """Đọc key từ SSM theo tên trong biến môi trường, giữ lại cho các lần chạy sau."""
-    global _cached_key
-    if _cached_key:
-        return _cached_key
-    name = os.environ.get("TTS_API_PARAMETER_NAME")
-    if not name:
-        raise PermanentProviderError("TTS_NOT_CONFIGURED", "Dịch vụ giọng đọc chưa được cấu hình.")
-
-    import boto3
-    from botocore.exceptions import BotoCoreError, ClientError
-
-    try:
-        response = boto3.client("ssm").get_parameter(Name=name, WithDecryption=True)
-    except ClientError as error:
-        if error.response["Error"]["Code"] in {"ThrottlingException", "InternalServerError"}:
-            raise TransientProviderError("TTS_KEY_UNAVAILABLE", "Tạm thời chưa đọc được cấu hình giọng đọc.") from None
-        raise PermanentProviderError("TTS_NOT_CONFIGURED", "Dịch vụ giọng đọc chưa được cấu hình.") from None
-    except BotoCoreError:
-        raise TransientProviderError("TTS_KEY_UNAVAILABLE", "Tạm thời chưa đọc được cấu hình giọng đọc.") from None
-    _cached_key = response["Parameter"]["Value"]
-    return _cached_key
-
-
-def is_mp3(data: bytes) -> bool:
-    """Kiểm tra dữ liệu bắt đầu bằng thẻ ID3 hoặc khung MP3."""
-    if data.startswith(b"ID3"):
-        return True
-    return len(data) >= 2 and data[0] == 0xFF and data[1] & 0xE0 == 0xE0
 
 
 def error_for_status(status: int):

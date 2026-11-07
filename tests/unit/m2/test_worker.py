@@ -85,6 +85,31 @@ class WorkerTest(unittest.TestCase):
         self.assertEqual(self.s3.objects["audio", AUDIO_KEY][0], b"mp3")
         self.provider.synthesize.assert_called_once_with("BI MAT", "v1", 1.0)
 
+    def test_azure_mp3_goes_through_real_factory_and_is_stored_once(self):
+        import os
+        from providers import common
+        from providers.azure import OPENER
+
+        self.seed()
+        registry = {"vi-VN": {"provider": "azure", "languageCode": "vi-VN", "speedRange": [0.7, 1.2],
+                               "voices": [{"id": "v1", "gender": "F"}]}}
+        audio = b"ID3\x04azure-mp3"
+        response = io.BytesIO(audio)
+        response.headers = {"Content-Type": "audio/mpeg"}
+        ssm = mock.Mock(**{"get_parameter.return_value": {"Parameter": {"Value": "fake-azure-key"}}})
+        modules = {"boto3": mock.Mock(**{"client.return_value": ssm}),
+                   "botocore.exceptions": mock.Mock(ClientError=type("ClientError", (Exception,), {}), BotoCoreError=OSError)}
+        with mock.patch.dict(sys.modules, modules), mock.patch.dict(os.environ, {
+            "TTS_API_PARAMETER_NAME": "/tts/dev/azure-speech", "AZURE_SPEECH_REGION": "eastasia",
+        }), mock.patch("registry.load_registry", return_value=registry), mock.patch.object(common, "_cached_key", None), \
+                mock.patch.object(OPENER, "open", return_value=response) as request:
+            self.assertEqual(app.handler(EVENT, Context())["status"], "DONE")
+            self.assertEqual(app.handler(EVENT, Context())["status"], "SKIPPED")
+        self.assertEqual(self.s3.objects["audio", AUDIO_KEY][0], audio)
+        self.assertEqual(self.saved()["status"], "DONE")
+        request.assert_called_once()
+        self.assertEqual(request.call_args.args[0].get_header("Ocp-apim-subscription-key"), "fake-azure-key")
+
     def test_lease_outlives_lambda_but_ends_before_first_retry(self):
         self.seed()
         with mock.patch.object(db, "claim_job", return_value=db.ClaimResult(reason="MISSING")) as claim:

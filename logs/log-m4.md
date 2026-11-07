@@ -5,14 +5,48 @@
 
 ## TRẠNG THÁI NHANH
 
-- Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: xác nhận bố cục app trên thiết bị native thật và nối máy chủ của nhóm.
-- Đã xong: hạ dock iOS, giữ khoảng chừa riêng cho Android; sửa thao tác tab, tải giọng, xóa/chia sẻ bản thu. Web có Sáng/Tối/Hệ thống; chế độ tối web/app nền đen, kính trong. TypeScript/lint, 16 kiểm thử app, 59 kiểm thử web, build web và bundle iOS/Android đạt; 145 kiểm tra bố cục app và 40 kiểm tra trang/kích thước web tối đạt trên trình duyệt. Chưa xác nhận native trên máy thật.
-- Việc tiếp theo: mở lại Expo Go SDK 58 trên iPhone/Android, thử bàn phím/xoay màn hình/chữ lớn/kính/âm thanh thật; đặt EXPO_PUBLIC_API_BASE_URL khi M1/M5 cung cấp API.
-- Đang bị chặn bởi: không có Xcode/iOS Simulator hoặc thiết bị kết nối; AVD Android không khởi động vì thiếu dung lượng. Kiểm tra trình duyệt và bundle không thay thế kiểm tra native. Luồng AWS thật vẫn chờ backend.
+- Ngày cập nhật lần cuối: 2026-11-08
+- Đang làm: dọn code Azure/hướng dẫn và kiểm thử trước khi đồng bộ main cùng năm nhánh thành viên theo yêu cầu người dùng.
+- Đã xong: kiểm kê frontend/compatibility; template M4 static S3 private + CloudFront/OAC, lệnh build:hosting và ZIP/manifest. cfn-lint 1.46.0 và kiểm tra policy/cache local đạt; 63 kiểm thử web đạt. ZIP demo 14 file chạy qua HTTP local trên desktop/mobile, không gọi API bên ngoài. Các thay đổi app/UI và bằng chứng kiểm tra trước đó giữ ở entry lịch sử.
+- Việc tiếp theo: hoàn tất kiểm tra CREATE/UPDATE local và push Git; thành viên làm theo AZURE-SPEECH.md, tự kiểm chứng tài khoản/phiên mới và app native.
+- Đang bị chặn bởi: chưa kiểm Sandbox cho luồng CREATE mới; người dùng đã xác nhận cập nhật Azure/web dùng được, chưa đủ bằng chứng mọi giọng/native/recovery. Bản static/skeleton trong entry cũ là lịch sử.
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-08: Chuẩn hóa Azure mặc định và chuẩn bị đồng bộ nhóm
+- Ủy quyền: người dùng yêu cầu hướng dẫn chi tiết cho cả nhóm, sau đó giao dọn code và push lên main cùng các nhánh thành viên. Giữ thay đổi trước đó và sao lưu source diff/untracked ngoài repo trước cleanup.
+- Bằng chứng mới từ người dùng: configure PASS sau sửa SDK, plan tạo changeset, apply/status ba Lambda cùng Azure/vùng, upload web PASS và người dùng báo dùng được. Không suy ra mọi ngôn ngữ/native đã kiểm; agent không thao tác AWS.
+- Dọn code: gom tạo mới/cập nhật vào azure.py theo configure → plan → review → apply; CREATE token file 0600/SDK, UPDATE giữ token/CORS. Bỏ bootstrap ElevenLabs, tự xóa rollback stack, smoke script ghi request/response ra file và cleanup hàng loạt; HTTP smoke trả exit code đúng. Template/settings mặc định Azure, giữ adapter ElevenLabs cho dữ liệu/test cũ.
+- Bỏ hai provider stub Polly/external_vi không được import, pipeline ZIP hosting riêng cùng dev dependency/test mới dư; bản sao ngoài repo giữ lịch sử local. Không xóa tài liệu plans/logs hay chỉnh task/log người khác. Giữ hai registry theo yêu cầu Lambda Layer.
+- Tài liệu: một guide AZURE-SPEECH.md cho Azure Students/F0/vùng, CloudShell, Git, CREATE/UPDATE, web/app, mã, lỗi/reset; README/DEPLOY/frontend README trỏ cùng quy trình. Guide phân biệt bằng chứng phiên cũ với luồng CREATE mới chỉ kiểm local.
+- Kiểm tra local: 143 backend tests đạt (M2 81, M3 26, M5 21, router 15), web 61/61 và production build đạt, app 22/22 cùng TypeScript/lint đạt (lint dùng Node 22.22.2). cfn-lint root + năm stack con, bash syntax, link/mục lục và 18 block Bash trong guide đạt; probe Python hợp lệ. SDK thật với Stubber xác minh SSM, S3 artifact và CREATE changeset, không gọi mạng. Smoke HTTP được mô phỏng cả PASS/FAIL và không in token.
+- Git: phát hiện nhánh M1 có bốn commit riêng chưa vào main, chuẩn bị merge giữ lịch sử và root tích hợp Azure hiện tại; chưa force-push. Không chạy AWS/provider trong lượt cleanup này.
+
+### 2026-11-08: Sửa script cấu hình Azure sau lỗi AWS ParamValidation
+- Bằng chứng người dùng: configure vượt qua bước lấy/kiểm catalog Azure rồi báo AWS ParamValidation khi lưu SSM; bản đầu ẩn chi tiết nên chưa kết luận được nguyên nhân hoặc field AWS từ chối.
+- Đã sửa local: payload put_parameter/create_change_set gửi bằng Boto3 trong memory thay AWS CLI đọc /dev/stdin; giữ quyền/phiên lab và region AWS us-east-1. Lỗi service hiển thị code/message đã che Value; lỗi validation SDK chỉ hiện tên field, không in request/traceback/key.
+- Kiểm tra: M2 76/76 đạt; kiểm tra offline với Boto3/Botocore 1.42.97 và Stubber đạt cho SSM, CloudFormation, che secret và thiếu Name. Client dùng credential giả, không gọi mạng/AWS/provider. Script --help chạy trên Python 3.9; chưa xác nhận bản sửa trong Sandbox.
+- Bàn giao: file release/azure.py để thay riêng scripts/azure.py trên CloudShell đã áp dụng patch cũ; cập nhật lại full patch/manifest cho checkout sạch. Không áp dụng lại full patch lên checkout đã sửa. Chưa deploy/commit/push.
+
+### 2026-11-08: Tích hợp Azure Speech theo yêu cầu chuyển provider
+- Ủy quyền: người dùng chọn Azure thay ElevenLabs, tự tạo Speech F0 ở eastasia và báo tải/nghe được MP3 sau phép thử CloudShell. Người dùng giao cấu hình để hệ thống dùng Azure; agent thực hiện code local, AWS/key vẫn do người dùng thao tác.
+- Bằng chứng người dùng: stack tts-dev và hosting CREATE_COMPLETE, script upload web PASS; ElevenLabs nhận HTTP 401 detected_unusual_activity trong CloudShell và website ElevenLabs cũng báo chặn Free theo IP. Azure trực tiếp Hoài My phát được; chưa khẳng định worker/app Azure chạy thật.
+- Đã viết: Azure REST adapter gửi SSML escape XML, tốc độ giữ 0,7–1,2, trả MP3; chung SSM key reader/MP3/no-redirect, cache key tối đa 60 giây. HTTP/network lỗi phân loại hữu hạn, không ghi key/text/provider body. ElevenLabs mặc định vẫn giữ để không tự đổi hệ thống của các thành viên khác.
+- Registry/config: configure lấy catalog thực từ Azure region, lọc GA Neural và chọn giọng theo giới tính; yêu cầu có vi/en/ja, không bịa voice ID hoặc tự fallback provider. Key lưu riêng /tts/dev/azure-speech, hai bản registry được sinh cùng nhau. Root/M2/M5 nối TtsProvider/AzureSpeechRegion; worker, voices và submit dùng cùng registry. Web hiển thị Azure Speech; app dùng tên từ API hiện có.
+- Triển khai: scripts/azure.py tạo changeset trước, giữ DemoToken/CORS/Env bằng UsePreviousValue, không tự xóa stack; apply riêng sau khi người dùng xem. Agent không gọi AWS/provider, không commit/push. Bộ patch chỉ chứa phần chuyển Azure, không lẫn bản hosting local cũ.
+- Kiểm thử local: M2 74/74, M3 26/26, M5 21/21 và router 15/15 đạt; có luồng Azure mock thật qua factory → S3, event trùng không gọi lại, registry chung voices/submit/worker, SSML escape, không rò secret, giữ token/CORS và plan chưa execute. Web workspace 65/65 cùng build đạt; app 22/22 và TypeScript đạt. cfn-lint cho root và năm stack con không báo lỗi. Không gọi AWS/provider.
+- Bàn giao: release/azure-update.patch khoảng 58 KB, 20 file, base 8b6a63c; apply --check/apply trên git archive sạch đạt, từng file khớp workspace. Bản sạch chạy lại 136 backend tests, 61 web tests và build đạt (không kèm bốn test hosting local cũ). Patch/manifest được ignore trong release, không có key; không commit/push. Hướng dẫn ở docs/guides/AZURE-SPEECH.md; tài liệu hosting static cũ đánh dấu lịch sử. Không sửa log/tick task M1/M2/M3/M5.
+
+### 2026-11-07: Chuẩn bị hosting M4 local và hướng dẫn AWS thủ công
+- Ủy quyền: người dùng giao thực hiện local, đến phần AWS thì hướng dẫn để người dùng tự làm; không chạy AWS CLI/API, tạo resource hoặc upload từ máy agent.
+- Kiểm kê: thêm compatibility mapping trong task M4 mục 19; giữ bảy paths/field. Đã xác định các phần còn chờ M1–M5: HTTP origin, auth/token/hash được nhóm duyệt, registry giọng thật, speed/char cap, history text/cursor, async và MR typo/stats. SB-M4-01 hoàn tất audit local; ba task còn lại chưa tick vì chưa đạt acceptance AWS/API.
+- Hạ tầng: thay file comment bằng template CloudFormation M4 độc lập, bốn resource WebBucket/WebOriginAccessControl/WebDistribution/WebBucketPolicy. Bucket private, ownership enforced, SSE-S3, chỉ cấp CloudFront distribution này GetObject; HTTPS, cache disabled cho trang gốc, cache optimized cho assets/fonts/brand, security headers. Không rewrite lỗi thành HTML, không HTTP/API origin, không IAM hay root SAM của M1. Retain chỉ bảo vệ khỏi xóa/thay stack, không chống reset Academy.
+- Đóng gói: npm run build:hosting build lại rồi sinh release/web.zip và manifest.json chứa SHA-256/MIME/cache/sourceCommit/sourceDirty. Demo mặc định buộc API base trống kể cả env cũ. URL API chỉ cấu hình bằng cờ HTTPS công khai sau bàn giao, manifest ghi api-configured-unverified. Không thêm auth/header/scope hoặc key vào bundle. ZIP đúng gốc, từ chối dotfile/symlink, không ghi đè release khi build thiếu index; thêm fflate làm dev dependency, không thêm vào UI bundle.
+- Kiểm tra: cfn-lint 1.46.0 (us-east-1) không báo lỗi; kiểm tra invariants resource types, private S3, OAC SourceArn, HTTP deny, cache và không fallback đạt. 63/63 kiểm thử web đạt, gồm bốn test đóng gói. Đã build thử URL API giả, rồi build demo với env URL cũ giả: ZIP cuối không chứa hai URL thử, mode demo/API base null.
+- Bản bàn giao: ZIP demo khoảng 1,1 MB, 14 file; xác minh hash tất cả file và chạy trực tiếp nội dung ZIP qua HTTP với MIME và nosniff. Desktop 1440 và mobile 390 mở các trang/hash routes, tải CSS/fonts/logo và lưu chế độ tối qua reload; không lỗi JS/HTTP và không request ngoài origin local. Script/ảnh QA ở /tmp, không thêm e2e hoặc ảnh vào repo.
+- Hướng dẫn: docs/guides/M4-HOSTING.md có mở lab/region, review bốn resource, tạo stack tách biệt, Outputs, upload asset trước/index sau, MIME/cache (đặc biệt PDF worker .mjs), invalidation, kiểm S3 direct deny, cập nhật và reset. Đã liên kết từ frontend/README.md.
+- Trạng thái: CODED / LOCALLY TESTED cho static hosting preparation; AWS capability UNVERIFIED, NOT DEPLOYED. Backend/app nguồn và shared API contract không đổi; chưa commit/push lượt này.
 
 ### 2026-11-07: Bàn giao thay đổi frontend qua Git
 - Người dùng yêu cầu commit `thêm chế độ tối trong web, sửa chiều cao và bug xóa ko hết trong app` và đồng bộ các nhánh. Phạm vi commit gồm frontend cùng nhật ký M4; không có thay đổi backend/hạ tầng.

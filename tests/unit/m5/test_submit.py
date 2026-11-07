@@ -2,7 +2,9 @@
 
 import importlib.util
 import json
+import os
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -74,6 +76,30 @@ class FlowTestCase(unittest.TestCase):
 
 
 class SubmitTest(FlowTestCase):
+    def test_azure_registry_is_shared_by_voices_submit_and_worker(self):
+        from tts_common import voices as voice_registry
+
+        voice = "vi-VN-HoaiMyNeural"
+        registry = {"_region": "eastasia", "vi-VN": {"provider": "azure", "engine": None,
+            "languageCode": "vi-VN", "speedRange": [0.7, 1.2],
+            "voices": [{"id": voice, "name": "Hoài My", "gender": "F"}]}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "voices.json"
+            path.with_name("voices.azure.json").write_text(json.dumps(registry), encoding="utf-8")
+            with mock.patch.object(voice_registry, "REGISTRY_PATH", path), mock.patch.dict(os.environ, {
+                "TTS_PROVIDER": "azure", "AZURE_SPEECH_REGION": "eastasia",
+            }):
+                catalog = json.loads(voices.handler({}, None)["body"])["languages"]
+                self.assertEqual(catalog[0]["provider"], "azure")
+                self.assertEqual(catalog[0]["voices"][0]["id"], voice)
+                status, body = self.post(**self.good(voice=voice))
+                self.assertEqual(status, 202)
+                job = json.loads(self.s3.objects["jobs", f"jobs/demo/{body['jobId']}.json"][0])
+                self.assertEqual(job["provider"], "azure")
+                self.assertEqual(worker.handler(self.events[0][2], Context())["status"], "DONE")
+                self.assertEqual(self.post(**self.good())[0], 400)
+        self.synthesize.assert_called_once_with("Xin chào", voice, 0.9)
+
     def test_accepts_job_and_sends_ids_only(self):
         status, body = self.post(**self.good())
         self.assertEqual(status, 202)

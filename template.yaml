@@ -2,7 +2,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: aws-multilingual-tts root stack for AWS Academy Sandbox
 
-# PROPOSED / PENDING SANDBOX VALIDATION / NOT DEPLOYED.
+# Azure được người dùng M4 triển khai/thử web trong phiên 2026-11-08; phiên mới cần kiểm lại.
 # Mỗi module giữ template riêng trong infra/; EventInvokeConfig duy nhất nằm ở M2.
 # Giá trị key không nằm ở đây; TtsApiParameterName chỉ là tên tham số SSM SecureString.
 
@@ -21,8 +21,16 @@ Parameters:
     Description: Demo access token; pass at deploy time, never commit the value
   TtsApiParameterName:
     Type: String
-    Default: /tts/dev/elevenlabs
+    Default: /tts/dev/azure-speech
     Description: SSM SecureString name that holds the provider key
+  TtsProvider:
+    Type: String
+    Default: azure
+    AllowedValues: [elevenlabs, azure]
+  AzureSpeechRegion:
+    Type: String
+    Default: eastasia
+    AllowedPattern: '[a-z][a-z0-9]{1,39}'
 
 Resources:
   Storage:
@@ -45,6 +53,8 @@ Resources:
         JobsPrefix: jobs/
         AudioBucket: !GetAtt Storage.Outputs.AudioBucketName
         TtsApiParameterName: !Ref TtsApiParameterName
+        TtsProvider: !Ref TtsProvider
+        AzureSpeechRegion: !Ref AzureSpeechRegion
 
   Submit:
     Type: AWS::Serverless::Application
@@ -57,6 +67,8 @@ Resources:
         JobsBucket: !GetAtt Storage.Outputs.JobsBucketName
         AudioBucket: !GetAtt Storage.Outputs.AudioBucketName
         SynthFunctionName: !GetAtt TtsCore.Outputs.SynthesizeFunctionName
+        TtsProvider: !Ref TtsProvider
+        AzureSpeechRegion: !Ref AzureSpeechRegion
 
   Api:
     Type: AWS::Serverless::Application

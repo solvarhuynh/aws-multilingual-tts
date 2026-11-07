@@ -26,6 +26,14 @@ Parameters:
   TtsApiParameterName:
     Type: String
     Description: Name of the approved key reference, never the key value
+  TtsProvider:
+    Type: String
+    Default: azure
+    AllowedValues: [elevenlabs, azure]
+  AzureSpeechRegion:
+    Type: String
+    Default: eastasia
+    AllowedPattern: '[a-z][a-z0-9]{1,39}'
   WorkerTimeoutSeconds:
     Type: Number
     Default: 120
@@ -67,6 +75,8 @@ Resources:
           JOBS_PREFIX: !Ref JobsPrefix
           AUDIO_BUCKET: !Ref AudioBucket
           TTS_API_PARAMETER_NAME: !Ref TtsApiParameterName
+          TTS_PROVIDER: !Ref TtsProvider
+          AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
 
   # EventInvokeConfig duy nhất của worker; không tạo cái thứ hai cho cùng function.
   SynthesizeEventInvokeConfig:
@@ -89,6 +99,10 @@ Resources:
       MemorySize: 128
       Layers:
         - !Ref CommonLayerArn
+      Environment:
+        Variables:
+          TTS_PROVIDER: !Ref TtsProvider
+          AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
 
 Outputs:
   SynthesizeFunctionName:

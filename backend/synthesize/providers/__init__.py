@@ -1,11 +1,20 @@
 """Các bộ chuyển đổi nhà cung cấp giọng đọc của M2."""
 
+import os
+
+from .azure import AzureSpeechProvider
 from .base import PermanentProviderError
 from .elevenlabs import ElevenLabsProvider
 
 
 def get_provider(entry: dict, timeout: float):
     """Tạo provider theo mục ngôn ngữ trong registry."""
+    if entry.get("provider") == "azure":
+        return AzureSpeechProvider(
+            region=os.environ.get("AZURE_SPEECH_REGION", ""),
+            language=entry.get("languageCode"),
+            timeout=timeout,
+        )
     if entry.get("provider") == "elevenlabs":
         return ElevenLabsProvider(
             model_id=entry.get("model"),

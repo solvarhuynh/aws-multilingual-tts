@@ -19,6 +19,8 @@ build/
 *.key
 .aws/
 credentials
+.tts-demo-token
+.tts-azure.json
 
 # Kết quả test
 *.mp3

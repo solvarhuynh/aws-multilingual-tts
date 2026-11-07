@@ -16,7 +16,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "backend/synthesize"))
 
-from providers import elevenlabs, get_provider  # noqa: E402
+from providers import common, elevenlabs, get_provider  # noqa: E402
 from providers.base import PermanentProviderError, TransientProviderError  # noqa: E402
 from providers.elevenlabs import ElevenLabsProvider, is_mp3  # noqa: E402
 
@@ -169,9 +169,9 @@ class ApiKeyTest(unittest.TestCase):
         }
         environment = {"TTS_API_PARAMETER_NAME": name} if name else {}
         with mock.patch.dict(sys.modules, modules), mock.patch.dict(os.environ, environment, clear=True), \
-                mock.patch.object(elevenlabs, "_cached_key", None):
-            first = elevenlabs.read_api_key()
-            self.assertEqual(elevenlabs.read_api_key(), first)
+                mock.patch.object(common, "_cached_key", None):
+            first = common.read_api_key()
+            self.assertEqual(common.read_api_key(), first)
         ssm.get_parameter.assert_called_once_with(Name=name, WithDecryption=True)
         return first
 

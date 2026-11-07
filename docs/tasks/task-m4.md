@@ -1,6 +1,6 @@
 # M4 — Nguyên Khang: Frontend hiện có, CloudFront hosting và tái triển khai
 
-**2026-11-06 — PLANNED / PROPOSED / PENDING GROUP SIGN-OFF.** Phân công cho implementation sau; chưa code/deploy trong lượt re-plan. Task chỉ tick khi có output và kiểm chứng phù hợp, không chấm mức độ module.
+**Phân công 2026-11-06 — PROPOSED / PENDING GROUP SIGN-OFF.** Lượt re-plan ban đầu không code/deploy. Ngày 2026-11-07 người dùng giao chuẩn bị M4 local; xem mục 19. API contract chung và quyền Sandbox vẫn cần xác nhận, chưa deploy AWS. Task chỉ tick khi có output và kiểm chứng phù hợp.
 
 ## 1. Vai trò trong luồng TTS
 
@@ -10,21 +10,19 @@ Nhận: M1 HTTP URL/path/auth/OAC policy; M2 verified voices; M3 history/presign
 
 Giao: Existing UI dùng API thật, CloudFront HTTPS/private S3, no-cache API behaviors, manual deploy/reset checklist, evidence không secret.
 
-
-
 ## 2. Hiện trạng có bằng chứng
 
-frontend/web/package.json:8 và frontend/app/package.json:50 có scripts; web/app API adapters và tests tồn tại, chưa chạy lại. Xem [audit file:line](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md#1-executive-summary-và-audit-thực-tế). Log cũ là lịch sử, không phải test mới.
+Web/app có API adapters, luồng polling và kiểm thử local; xem bằng chứng ngày 2026-11-07 trong logs/log-m4.md. Giai đoạn chuẩn bị hosting tĩnh và các khoảng trống API được ghi ở mục 19. Audit trong [migration plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md#1-executive-summary-và-audit-thực-tế) là mốc re-plan cũ.
 
 ## 3. Phạm vi files
 
 frontend/, infra/m4-frontend-hosting.yaml; .github/workflows/ chỉ bảo trì, không OIDC deploy baseline.
 
-Chỉ sửa runtime khi được giao implementation. M1 tích hợp root IaC, không nhận logic Lambda mọi module. Lượt này chỉ cập nhật tài liệu/comment infra.
+Chỉ sửa runtime khi được giao implementation. M1 tích hợp root IaC, không nhận logic Lambda mọi module. Lượt re-plan chỉ cập nhật tài liệu/comment; yêu cầu riêng ngày 2026-11-07 cho phép chuẩn bị local của M4, không giao agent thao tác AWS.
 
 ## 4. Constraints Sandbox
 
-Regional us-east-1; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. Allowlist không chứng minh quyền từng action. Function URL/OAC/Invoke/SSM SecureString còn UNVERIFIED / NEEDS SANDBOX TEST. Runtime/config vẫn cũ, chỉ đổi ở Gate 1.
+Regional us-east-1; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. Allowlist không chứng minh quyền từng action. Function URL/OAC/Invoke/SSM SecureString còn UNVERIFIED / NEEDS SANDBOX TEST. samconfig.toml/config/settings.json đã đặt us-east-1; backend/common/root SAM vẫn chưa sẵn sàng deploy như AGENTS.md hiện hành.
 
 ## 5. IAM và secret cần kiểm
 
@@ -40,9 +38,9 @@ Lambda dùng existing LabRole, không tạo/sửa policy/role/OIDC. LabRole khô
 
 API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Comprehend/Translate/Cognito/X-Ray/RUM/EventBridge/Budgets ngoài allowlist. Gemini chỉ MR sau MP3 thật: typo-only, skipped bản gốc khi lỗi, user review, UTF-16 offsets, không tạo job ở correct. Không tự dịch/đoán lang cho synthesize; provider voice/speed phải kiểm chứng.
 
-## 8. Checklist chưa thực hiện
+## 8. Checklist
 
-- [ ] SB-M4-01 — Kiểm kê frontend hiện có và migration surface.
+- [X] SB-M4-01 — Kiểm kê frontend hiện có và migration surface (local, mục 19; không chứng minh Sandbox).
 - [ ] SB-M4-02 — Hosting private và CloudFront/OAC.
 - [ ] SB-M4-03 — Tích hợp API/token/voices/async vào UI sẵn có.
 - [ ] SB-M4-04 — Manual web deploy và reset/rebind.
@@ -58,7 +56,7 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** Giữ web/app, ghi build scripts/Node và API wrappers; xác định token runtime input/headers/API base/voice demo cần sửa tối thiểu; không dựng lại màn hình. **CLI/test khi được duyệt:** Đọc source; build/test có sẵn ở implementation, không chạy trong re-plan. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Checklist integrations từ source hiện có, không UI tasks trùng. **Evidence AWS/local:** File:line adapters + local build report khi thực chạy. Tách local mock với sandbox verified.
 - **Risk / rollback:** Mock/device speech dễ bị hiểu MP3 AWS→nhãn đúng, không claim cloud demo. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** UI giữ, adapter routes giữ, planned diff chỉ integration cần thiết. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Có. **Blocking status:** PLANNED; không gọi frontend missing.
+- **Acceptance:** UI giữ, adapter routes giữ, planned diff chỉ integration cần thiết. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Có. **Trạng thái:** LOCALLY AUDITED ngày 2026-11-07, mục 19; auth/contract sign-off và kiểm chứng Sandbox vẫn chờ.
 
 ### SB-M4-02 — Hosting private và CloudFront/OAC
 
@@ -121,4 +119,41 @@ Thành viên chỉ cập nhật logs/log-m4.md của mình sau thực hiện, gi
 
 ## 18. Bước tiếp theo
 
-SB-M4-01 theo dependency/approval trong task. **CURRENT RUNTIME CONFIG STILL OLD — Gate 1**; chưa sửa code/config/deployable templates. [Backlog đầy đủ](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md) và [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md) là tài liệu bàn giao chung.
+Thực hiện hướng dẫn hosting thủ công ở mục 19 khi lab/owner đã sẵn sàng; phối hợp M1 trước phần API origin. Root SAM/backend vẫn chưa sẵn sàng deploy. [Backlog](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md) và [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md) tiếp tục là tài liệu bàn giao chung.
+
+## 19. Bàn giao local ngày 2026-11-07
+
+Người dùng giao triển khai phần chuẩn bị local và hướng dẫn để tự thao tác AWS. Mục này giữ lịch sử chuẩn bị hosting tĩnh; quy trình hiện hành ở [AZURE-SPEECH](../guides/AZURE-SPEECH.md). Chưa ghi SANDBOX VERIFIED/DEPLOYED tại mốc này.
+
+### Kiểm kê frontend và compatibility mapping
+
+| Phần                                      | Hiện có, nguồn code                                                                                       | Cần nhận hoặc chốt trước tích hợp thật                                                                                                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Build/chế độ demo                       | web/package.json; app/package.json; web/src/lib/api.ts và app/src/lib/api.ts dùng DEMO khi API base trống | URL HTTPS công khai từ M1; gói hosting mặc định buộc demo                                                                                       |
+| `GET /voices`                            | Cả hai adapters giữ envelope languages/lang/provider/engine/voices; app có loading/lỗi/thử lại         | Registry vi/en/ja đã xác minh từ M2; giọng demo không phải voice ID thật                                                                       |
+| `POST /synthesize`                       | Có text/lang/voice/speed/translateTo; khóa bấm trùng                                                     | M5 bàn giao 202, validation và error codes; M2 chốt speed và char cap; Idempotency-Key client chưa implement                                      |
+| `GET /jobs/{id}`                         | web/src/hooks/useStudio.ts và app/src/app/compose.tsx polling PENDING/PROCESSING đến DONE/FAILED          | M3 bàn giao status/progress, URL MP3 có hạn và lỗi hết hạn; chưa test AWS thật                                                                |
+| `GET /history`, `DELETE /history/{id}` | Có limit/cursor, tải/xóa; xóa bản đang mở dọn trình phát nhỏ                                      | M3 chốt ordering, cursor, 409 JOB_BUSY; text 120 ký tự trong history không được coi là toàn bộ nội dung để sửa/đọc lại                |
+| `POST /text/correct`                     | Gọi một lần trước synthesize, duyệt đề xuất, dùng bản gốc khi bước kiểm tra lỗi              | MR sau MP3 MVP; hiện backend 501, chưa Gemini/provider live                                                                                          |
+| `GET /stats`                             | Web có adapter/trạng thái lỗi; app không có trang thống kê riêng                                    | MR của M5; chưa kiểm scan giới hạn hay dữ liệu thật                                                                                            |
+| Auth/body hash                             | Request hiện có Content-Type, chưa X-Demo-Token hoặc x-amz-content-sha256                                | Nhóm/M1 duyệt token trong memory và CORS; M1/M4 kiểm signing bytes trước implementation; không thêm key vào env/public bundle                 |
+| Dịch và giới hạn                       | UI hiện có dịch, speed 0,5–2 và 20.000 ký tự                                                          | Baseline dự kiến reject translateTo, chỉ dùng giới hạn provider đã chốt; không mặc định mọi tính năng UI đã được backend hỗ trợ |
+| App/hosting                                | App Expo Go riêng, web dùng hash routes và assets ở gốc domain                                          | Thử native trên máy thật; S3 chỉ chứa build web, không chứa source/app/MP3                                                                     |
+
+Bảy paths/field hiện hữu được giữ. Không sửa header/auth/scope/API contract trong lượt này. Mock và speech trên máy chỉ chứng minh frontend local.
+
+### Phần hosting đã viết để kiểm tra local
+
+- `infra/m4-frontend-hosting.yaml`: stack M4 độc lập, bốn resource S3/CloudFront/OAC/bucket policy; không tạo IAM, không sửa root SAM M1. Default không cache trang gốc, chỉ cache assets/fonts/brand; không rewrite lỗi thành HTML. Không có HTTP origin/API behaviors ở giai đoạn này.
+- `frontend/web/scripts/prepare-hosting.mjs`: build ZIP đúng gốc và manifest hashes/MIME/cache; API base mặc định trống để tránh URL lab cũ, có tùy chọn địa chỉ công khai sau bàn giao. Release sinh tự động được ignore.
+- SB-M4-02 chỉ mới có phần static được code/test local; Lambda OAC/API behaviors và kiểm private origin thực tế còn chờ M1/lab.
+- SB-M4-03 chưa hoàn tất: chờ HTTP capability, contract sign-off, verified voices và MP3 thật từ các owner.
+- SB-M4-04 mới có bộ đóng gói và hướng dẫn upload/invalidation/reset; chưa upload, chưa kiểm reset phiên lab.
+
+## 20. Chuyển provider Azure ngày 2026-11-08
+
+Người dùng đã pull `main` tới `8b6a63c`, tự dựng stack `tts-dev`, upload web và nhập key ElevenLabs. Ảnh Console xác nhận stack/hosting CREATE_COMPLETE; thử TTS bị ElevenLabs chặn `detected_unusual_activity`, nên chưa nghiệm thu MP3 qua web. Bản static ở mục 19 là lịch sử, không dùng để triển khai template M4 hiện tại.
+
+Người dùng chọn Azure Speech F0, tạo resource `hcmute-tts-demo` ở `eastasia` và xác nhận tự gọi từ CloudShell, tải/nghe được MP3 Hoài My. Đã giao nối Azure vào hệ thống. Thay đổi local gồm adapter Azure, chọn provider/registry đồng bộ cho worker/voices/submit, key SSM riêng, script configure/plan/apply và nhãn Azure Speech. Không sửa bảy paths, async hoặc scope. Chưa deploy adapter từ máy agent; chưa tick SB-M4-02/03/04 trước khi đủ kiểm chứng thực tế, bảo mật và reset.
+
+Các bước người dùng thực hiện tiếp nằm ở [AZURE-SPEECH](../guides/AZURE-SPEECH.md). M1/M2/M3/M5 cần review phần thuộc module mình; agent chỉ ghi log M4. Việc người dùng thử provider trực tiếp không thay cho kiểm thử Lambda/web/app xuyên suốt.

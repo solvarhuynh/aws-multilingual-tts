@@ -129,7 +129,7 @@ export const starterPresets = [
 ];
 export const formatNumber = (n: number) => new Intl.NumberFormat("vi-VN").format(n);
 export const providerLabel = (provider?: string) =>
-  provider === "elevenlabs" ? "ElevenLabs" : provider === "polly" ? "Amazon Polly" : provider || "";
+  provider === "azure" ? "Azure Speech" : provider === "elevenlabs" ? "ElevenLabs" : provider === "polly" ? "Amazon Polly" : provider || "";
 // ID giọng thật là chuỗi ngẫu nhiên nên luôn hiển thị theo tên trong registry.
 export const voiceLabel = (languages: Language[], id: string) =>
   languages.flatMap((l) => l.voices).find((v) => v.id === id)?.name ?? id.replace(" (demo)", "");
