@@ -4,25 +4,8 @@ Router M1 gọi handler này cho GET /voices. Chỉ công bố giọng đã ki�
 registry; chưa có giọng nào thì trả 503 thay vì danh sách bịa. Module sở hữu: M2.
 """
 
-import json
-from pathlib import Path
-
 from tts_common.errors import error_response, json_response, log_json
-
-
-# Cách đóng gói registry vào Lambda chưa chốt; thử Layer trước, rồi tới file trong repo.
-REGISTRY_PATHS = (
-    Path("/opt/voices.json"),
-    Path(__file__).resolve().parents[2] / "config" / "voices.json",
-)
-
-
-def load_registry(paths=REGISTRY_PATHS):
-    """Đọc registry từ đường dẫn đầu tiên tồn tại; không có file thì trả None."""
-    for path in paths:
-        if path.is_file():
-            return json.loads(path.read_text(encoding="utf-8"))
-    return None
+from tts_common.voices import load_registry
 
 
 def public_voice(voice):
@@ -51,8 +34,7 @@ def build_languages(registry):
 def handler(event, context):
     """Trả danh sách giọng, hoặc 503 khi registry chưa sẵn sàng."""
     try:
-        registry = load_registry()
-        languages = build_languages(registry) if registry else []
+        languages = build_languages(load_registry())
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         log_json(module="M2", operation="voices", status="ERROR", errorCode=type(error).__name__)
         languages = []

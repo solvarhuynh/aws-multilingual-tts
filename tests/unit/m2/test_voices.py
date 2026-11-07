@@ -1,5 +1,6 @@
 """Test tts-voices, chạy không cần AWS."""
 
+import importlib.util
 import json
 import sys
 import tempfile
@@ -8,14 +9,19 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path[:0] = [str(ROOT / "backend/voices"), str(ROOT / "backend/common/python")]
+sys.path.insert(0, str(ROOT / "backend/common/python"))
 
-import app  # noqa: E402
+spec = importlib.util.spec_from_file_location("voices_app", ROOT / "backend/voices/app.py")
+app = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(app)
+
+from tts_common import voices  # noqa: E402
 
 VALID = {
     "_status": "ghi chú",
     "vi-VN": {
         "provider": "elevenlabs", "engine": None, "model": "model-noi-bo", "languageCode": "vi",
+        "speedRange": [0.7, 1.2],
         "voices": [{"id": "abc", "name": "Linh", "gender": "F", "note": "noi bo"}],
     },
     "ja-JP": {"provider": "pending", "engine": None, "voices": []},
@@ -27,7 +33,7 @@ class VoicesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "voices.json"
             path.write_text(registry, encoding="utf-8")
-            with mock.patch.object(app.load_registry, "__defaults__", ((path,),)):
+            with mock.patch.object(app, "load_registry", lambda: voices.load_registry(path)):
                 return app.handler({}, None)
 
     def test_valid_registry_hides_internal_fields(self):
@@ -51,7 +57,7 @@ class VoicesTest(unittest.TestCase):
         self.assertEqual(self.call(json.dumps(registry))["statusCode"], 503)
 
     def test_missing_file_returns_503(self):
-        with mock.patch.object(app.load_registry, "__defaults__", ((Path("/khong/co.json"),),)):
+        with mock.patch.object(app, "load_registry", side_effect=FileNotFoundError):
             self.assertEqual(app.handler({}, None)["statusCode"], 503)
 
     def test_current_repo_placeholder_returns_503(self):

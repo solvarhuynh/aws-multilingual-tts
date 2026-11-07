@@ -6,13 +6,26 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: chờ các điều kiện để chạy thật; code M2 đang ở nhánh `m2-trungkhang`, chưa commit
-- Đã xong: khảo sát ElevenLabs trên tài liệu; `tts-voices`, adapter ElevenLabs, worker, `infra/m2-tts-core.yaml` ở mức locally tested. Chưa task nào được tick vì chưa có bằng chứng chạy thật
-- Việc tiếp theo: khi M3 có hàm claim/lease thì nối vào `job_store.py`; khi có tài khoản và key thì chạy T2-07, điền `config/voices.json`
-- Đang bị chặn bởi: worker chạy thật chờ M3; gọi provider thật chờ giảng viên duyệt provider ngoài, tài khoản provider và cách giữ key an toàn; hợp đồng nhóm chưa duyệt
+- Đang làm: chờ điều kiện chạy thật; code M2 đã commit trên nhánh `m2-trungkhang`, chưa push
+- Đã xong: khảo sát ElevenLabs trên tài liệu; `tts-voices`, adapter, worker, lưu job/audio S3, `infra/m2-tts-core.yaml` ở mức locally tested. Chưa task nào được tick vì chưa có bằng chứng chạy thật
+- Việc tiếp theo: khi có tài khoản và key thì chạy T2-07, điền `config/voices.json` và chép sang `tts_common/voices.json`; sau đó thử trên Sandbox và thử lỗi Gate 3
+- Đang bị chặn bởi: gọi provider thật chờ giảng viên duyệt provider ngoài, tài khoản provider và cách giữ key an toàn; chạy trên AWS chờ bucket, Layer và root SAM; hợp đồng nhóm chưa duyệt
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
 ## NHẬT KÝ
+
+### 2026-11-07: Làm phần lưu trữ worker cần và kiểm tra bằng boto3 thật
+
+- Đã làm: Trung Khang giao làm luôn các phần M2 đang chờ module khác, vì vậy đã sửa thêm `backend/common` (M3) và tạo `tests/unit/m2/` (M5). Phần này cần M3, M5 review. Trạng thái: locally tested, chưa sandbox verified.
+- `tts_common` phần thêm mới cho worker: lưu job JSON trên S3 với CAS theo ETag (`claim_job`, `release_job`, `complete_job`, `fail_job`), `put_audio`, `find_audio`, kiểm tra mã job chống đường dẫn giả mạo, biến `JOBS_BUCKET`, `JOBS_PREFIX`. Không làm `create_job`, `get_job`, `update_job`, history, presign, xóa job: vẫn là việc của M3.
+- Worker gọi thẳng `tts_common`, đã bỏ `job_store.py` và lớp giả tạm. Bước claim kiểm tra luôn job thiếu, đã xong, đang xóa, hết hạn, lease còn hạn.
+- Registry: `load_registry` gộp vào `tts_common/voices.py`, dùng bản sao `tts_common/voices.json` trong Layer để cả `tts-voices`, worker và `tts-submit` đọc được. Có test đảm bảo bản sao giống `config/voices.json`.
+- Hạ tầng: thêm giá trị đề xuất chưa đo cho worker: timeout 120 giây, bộ nhớ 256 MB, retry 1 lần, event age 600 giây. M5 có thể đổi.
+- Đã chạy: `python3.12 -m unittest discover -s tests/unit/m2` đạt 58 test. Chạy worker với boto3 1.43 thật trên S3 giả lập của moto: claim, lease còn hạn, ETag cũ bị từ chối, DONE, event trùng chỉ gọi provider một lần, audio có `audio/mpeg` và AES256. `sam validate --lint` đạt; `sam build` đạt với SAM CLI 1.171 và gói build không còn file test.
+- Chưa chạy: AWS thật, ElevenLabs thật, SSM thật. Moto không chứng minh quyền LabRole hay hành vi S3 thật. Tài nguyên AWS đã tạo/sửa (tên, region): không. Không tốn credit.
+- Lỗi gặp / đang dở: trên Windows, `sam build` cần `PYTHONUTF8=1` vì `requirements.txt` có chú thích tiếng Việt. Cần kiểm tra boto3 sẵn có trong Lambda Python 3.12 hỗ trợ `IfMatch` khi `put_object`; nếu không thì phải đóng gói boto3 mới hơn.
+- Việc tiếp theo: chạy T2-07 khi có đủ điều kiện, điền registry thật, thử trên Sandbox, thử lỗi Gate 3.
+- Cần báo module khác: M3 review `backend/common`, tiếp tục các hàm còn lại và tạo Layer. M5 xem `tests/unit/m2/`, giá trị retry; `tts-submit` tạo job phải có `userId`, `jobId`, `status`, `text`, `lang`, `voice`, `speed`. M1 ghép template. M4 xử lý trường `name`, dải tốc độ, giới hạn ký tự.
 
 ### 2026-11-07: Code tts-voices, adapter, worker và hạ tầng bằng mock
 

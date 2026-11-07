@@ -1,7 +1,7 @@
 # M2 - Trung Khang: worker tts-synthesize và API tts-voices.
 # PROPOSED / PENDING SANDBOX VALIDATION / NOT DEPLOYED. M1 ghép vào root SAM.
 # Dùng LabRole có sẵn: phải truyền ARN để SAM không tự tạo IAM role.
-# Không có giá trị mặc định cho thời gian và retry: chờ số đo T2-07 và đề xuất của M5.
+# Timeout, bộ nhớ và retry là giá trị đề xuất chưa đo; chỉnh theo T2-07 và chính sách của M5.
 # Giá trị API key không nằm trong file này; chỉ truyền tên tham chiếu khi đã có cơ chế được duyệt.
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
@@ -25,21 +25,25 @@ Parameters:
     Description: Name of the approved key reference, never the key value
   WorkerTimeoutSeconds:
     Type: Number
+    Default: 120
     MinValue: 30
     MaxValue: 900
   WorkerMemoryMb:
     Type: Number
+    Default: 256
     MinValue: 128
   MaximumRetryAttempts:
     Type: Number
+    Default: 1
     MinValue: 0
     MaxValue: 2
-    Description: Provided by the M5 retry policy
+    Description: Keeps provider credit retries bounded
   MaximumEventAgeInSeconds:
     Type: Number
+    Default: 600
     MinValue: 60
     MaxValue: 21600
-    Description: Provided by the M5 retry policy
+    Description: Drops stale events before they spend credit
 
 Resources:
   SynthesizeFunction:
@@ -61,7 +65,7 @@ Resources:
           AUDIO_BUCKET: !Ref AudioBucket
           TTS_API_PARAMETER_NAME: !Ref TtsApiParameterName
 
-  # EventInvokeConfig duy nhất của worker; M5 chỉ cung cấp số liệu, không tạo cái thứ hai.
+  # EventInvokeConfig duy nhất của worker; không tạo cái thứ hai cho cùng function.
   SynthesizeEventInvokeConfig:
     Type: AWS::Lambda::EventInvokeConfig
     Properties:

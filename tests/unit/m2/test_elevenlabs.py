@@ -4,12 +4,14 @@ import email.message
 import http.server
 import io
 import json
+import os
 import sys
 import threading
 import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "backend/synthesize"))
@@ -138,6 +140,7 @@ class ElevenLabsTest(unittest.TestCase):
 
         server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
         self.addCleanup(server.shutdown)
         request = urllib.request.Request(f"http://127.0.0.1:{server.server_port}/goc", data=b"{}", method="POST")
         with self.assertRaises(urllib.error.HTTPError) as caught:
@@ -149,6 +152,43 @@ class ElevenLabsTest(unittest.TestCase):
         self.assertTrue(is_mp3(b"ID3\x04"))
         self.assertTrue(is_mp3(MP3))
         self.assertFalse(is_mp3(b"\x00\x00"))
+
+
+class ClientError(Exception):
+    def __init__(self, code):
+        super().__init__(code)
+        self.response = {"Error": {"Code": code}}
+
+
+class ApiKeyTest(unittest.TestCase):
+    def read_key(self, ssm_result, name="/tts/dev/key"):
+        ssm = mock.Mock(**{"get_parameter.side_effect": [ssm_result]})
+        modules = {
+            "boto3": mock.Mock(**{"client.return_value": ssm}),
+            "botocore.exceptions": mock.Mock(ClientError=ClientError, BotoCoreError=OSError),
+        }
+        environment = {"TTS_API_PARAMETER_NAME": name} if name else {}
+        with mock.patch.dict(sys.modules, modules), mock.patch.dict(os.environ, environment, clear=True), \
+                mock.patch.object(elevenlabs, "_cached_key", None):
+            first = elevenlabs.read_api_key()
+            self.assertEqual(elevenlabs.read_api_key(), first)
+        ssm.get_parameter.assert_called_once_with(Name=name, WithDecryption=True)
+        return first
+
+    def test_key_is_decrypted_once_and_cached(self):
+        self.assertEqual(self.read_key({"Parameter": {"Value": KEY}}), KEY)
+
+    def test_missing_parameter_name(self):
+        with self.assertRaises(PermanentProviderError):
+            self.read_key({}, name=None)
+
+    def test_access_denied_is_permanent(self):
+        with self.assertRaises(PermanentProviderError):
+            self.read_key(ClientError("AccessDeniedException"))
+
+    def test_throttling_is_transient(self):
+        with self.assertRaises(TransientProviderError):
+            self.read_key(ClientError("ThrottlingException"))
 
 
 if __name__ == "__main__":
