@@ -4,6 +4,21 @@ import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, Stat
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
 export const DEMO = !API_BASE;
 const HISTORY_KEY = "voxa.demo.history.v1";
+const TOKEN_KEY = "voxa.demoToken.v1";
+
+// Token do người dùng nhập lúc chạy, không nằm trong bundle.
+export function getDemoToken(): string {
+  const token = readStored<unknown>(TOKEN_KEY, "");
+  return typeof token === "string" ? token : "";
+}
+export const saveDemoToken = (token: string) => storeValue(TOKEN_KEY, token.trim());
+
+// CloudFront OAC yêu cầu hash của đúng body với POST; crypto.subtle chỉ có trên HTTPS.
+async function bodyHash(body: string): Promise<string | null> {
+  if (!globalThis.crypto?.subtle) return null;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 const pending = new Map<string, { input: SynthesizeInput; started: number }>();
 
 export class ApiError extends Error {
@@ -74,11 +89,15 @@ async function request<T>(path: string, init?: RequestInit, timeout = 30000): Pr
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeout);
   try {
+    const token = getDemoToken();
+    const hash = typeof init?.body === "string" ? await bodyHash(init.body) : null;
     const response = await fetch(`${API_BASE}${path}`, {
       ...init,
       signal: controller.signal,
       headers: {
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { "X-Demo-Token": token } : {}),
+        ...(hash ? { "x-amz-content-sha256": hash } : {}),
         ...init?.headers,
       },
     });

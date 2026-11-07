@@ -2,11 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { AccessibilityInfo, Appearance, AppState, useColorScheme } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { api, DEMO } from '../lib/api';
+import { api, DEMO, setDemoToken } from '../lib/api';
 import { DEFAULT_SPEED, demoLanguages, isRecording, type Language, type Preferences, type Recording } from '../lib/model';
 
 const KEYS = { preferences: 'tts.app.preferences.v1', recordings: 'tts.app.recordings.v1', draft: 'tts.app.draft.v1' };
-const defaults: Preferences = { theme: 'system', reducedMotion: false, haptics: true, favorites: [] };
+const defaults: Preferences = { theme: 'system', reducedMotion: false, haptics: true, favorites: [], demoToken: '' };
 const light = {
   bg: '#F7F8FA', surface: '#FFFFFF', raised: '#EFF2F6', text: '#19232D', secondary: '#66717D',
   faint: '#909BA8', line: '#E1E6EC', blue: '#0072BC', blueSoft: '#E4F2FC', glass: 'rgba(255,255,255,0.66)',
@@ -64,7 +64,9 @@ function useStudioState() {
           theme: ['system', 'light', 'dark'].includes(value.theme ?? '') ? value.theme! : 'system',
           reducedMotion: value.reducedMotion === true, haptics: value.haptics !== false,
           favorites: Array.isArray(value.favorites) ? value.favorites.filter(v => typeof v === 'string') : [],
+          demoToken: typeof value.demoToken === 'string' ? value.demoToken : '',
         });
+        setDemoToken(typeof value.demoToken === 'string' ? value.demoToken : '');
       }
       if (DEMO && Array.isArray(items)) { const valid = items.filter(isRecording); historyRef.current = valid; setHistory(valid); }
       if (typeof text === 'string') setDraft(text);
@@ -117,15 +119,19 @@ function useStudioState() {
     } finally { if (mounted.current && request === voiceRequest.current) setLoadingVoices(false); }
   }, []);
   useEffect(() => {
-    if (DEMO) return;
+    // Chờ đọc xong token đã lưu, nếu không request đầu sẽ bị từ chối.
+    if (DEMO || !ready) return;
     // Tải dữ liệu ban đầu và phản ánh trạng thái đang tải.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void reloadVoices();
     void refresh();
     // Chỉ tải danh sách đầu tiên khi mở ứng dụng.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const updatePreferences = (patch: Partial<Preferences>) => setPreferences(p => ({ ...p, ...patch }));
+  }, [ready]);
+  const updatePreferences = (patch: Partial<Preferences>) => {
+    if (patch.demoToken !== undefined) setDemoToken(patch.demoToken);
+    setPreferences(p => ({ ...p, ...patch }));
+  };
   const selectVoice = (lang: string, voice: string) => setSelection({ lang, voice });
   const saveRecording = async (recording: Recording) => {
     const next = [recording, ...historyRef.current.filter(r => r.jobId !== recording.jobId)].slice(0, 200);

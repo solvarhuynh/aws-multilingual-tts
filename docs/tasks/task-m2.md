@@ -45,7 +45,7 @@ API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Comprehend/Translate/Cognito/X-Ra
 - [x] SB-M2-01 — Khảo sát provider vi/en/ja có số liệu.
 - [x] SB-M2-02 — Adapter external TTS thay baseline Polly.
 - [x] SB-M2-03 — Worker, CAS lease và async configuration.
-- [ ] SB-M2-04 — Registry giọng và GET /voices.
+- [x] SB-M2-04 — Registry giọng và GET /voices.
 
 ## 9. Task chi tiết và acceptance
 

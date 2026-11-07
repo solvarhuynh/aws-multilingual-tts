@@ -126,7 +126,7 @@ class SubmitTest(FlowTestCase):
         self.lambda_client.invoke = mock.Mock(side_effect=RuntimeError("bi mat"))
         status, body = self.post(**self.good())
         self.assertEqual((status, body["error"]["code"]), (503, "DISPATCH_FAILED"))
-        job = json.loads(next(data for (bucket, _), (data, _) in self.s3.objects.items() if bucket == "jobs"))
+        job = json.loads(next(data for (_, key), (data, _) in self.s3.objects.items() if key.startswith("jobs/")))
         self.assertEqual(job["status"], "FAILED")
         self.assertNotIn("bi mat", json.dumps(body))
 
@@ -144,6 +144,34 @@ class SubmitTest(FlowTestCase):
         with mock.patch("builtins.print") as printed:
             self.post(**self.good(text="NOI DUNG RIENG"))
         self.assertNotIn("NOI DUNG RIENG", str(printed.call_args_list))
+
+    def test_daily_limit_blocks_before_job(self):
+        with mock.patch.object(config, "DAILY_CHAR_LIMIT", 10):
+            self.assertEqual(self.post(**self.good(text="a" * 8))[0], 202)
+            status, body = self.post(**self.good(text="a" * 3))
+        self.assertEqual((status, body["error"]["code"]), (429, "TOO_MANY_REQUESTS"))
+        self.assertEqual(len(self.events), 1)
+
+    def test_refund_when_dispatch_fails(self):
+        with mock.patch.object(config, "DAILY_CHAR_LIMIT", 10):
+            self.lambda_client.invoke = mock.Mock(side_effect=RuntimeError)
+            self.assertEqual(self.post(**self.good(text="a" * 8))[0], 503)
+            self.lambda_client.invoke = self.invoke
+            self.assertEqual(self.post(**self.good(text="a" * 8))[0], 202)
+
+    def test_refund_when_create_fails(self):
+        with mock.patch.object(config, "DAILY_CHAR_LIMIT", 10):
+            with mock.patch.object(submit.db, "create_job", side_effect=RuntimeError):
+                self.assertEqual(self.post(**self.good(text="a" * 8))[0], 500)
+            self.assertEqual(self.post(**self.good(text="a" * 8))[0], 202)
+
+    def test_concurrent_reservation_is_not_lost(self):
+        first = submit.db.reserve_chars
+        self.assertTrue(first(1))
+        self.s3.before_put = lambda: first(2)
+        self.assertTrue(first(3))
+        usage = next(data for (_, key), (data, _) in self.s3.objects.items() if key.startswith("usage/"))
+        self.assertEqual(json.loads(usage)["chars"], 6)
 
     def test_correct_is_skipped_without_job(self):
         status, body = self.post("/text/correct", text="Xin chàoo", lang="vi-VN")
@@ -216,7 +244,7 @@ class FullFlowTest(FlowTestCase):
 
         self.assertEqual(self.request("DELETE", f"/history/{job_id}"), (200, {"deleted": True}))
         self.assertEqual(self.request("GET", f"/jobs/{job_id}")[0], 404)
-        self.assertEqual(self.s3.objects, {})
+        self.assertEqual([key for _, key in self.s3.objects if not key.startswith("usage/")], [])
 
     def test_wrong_token_never_reaches_handlers(self):
         status, body = self.request("POST", "/synthesize", {"text": "x", "lang": "vi-VN"}, token="sai")

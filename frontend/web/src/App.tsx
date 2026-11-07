@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DEMO } from "./lib/api";
+import { DEMO, getDemoToken, saveDemoToken } from "./lib/api";
 import AudioPlayer from "./components/AudioPlayer";
 import Sidebar from "./components/Sidebar";
 import PageHeader from "./components/PageHeader";
@@ -69,6 +69,7 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [preferences, setPreferences] = useState(getPreferences);
+  const [demoToken, setDemoToken] = useState(getDemoToken);
   useTheme(preferences.theme);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStored<boolean>("tts.sidebar.collapsed", false) === true);
   const sidebarMotion = useSidebarMotion(() => setSidebarCollapsed((value) => !value), preferences.reducedMotion);
@@ -326,7 +327,7 @@ export default function App() {
                 </p>
                 <div className="voice-card-bottom">
                   <small>
-                    {DEMO ? "Giọng minh họa" : v.provider === "polly" ? "Amazon Polly" : "Tiếng Việt"}
+                    {DEMO ? "Giọng minh họa" : v.provider === "elevenlabs" ? "ElevenLabs" : v.provider}
                   </small>
                   <Button
                     className="secondary-button"
@@ -410,6 +411,26 @@ export default function App() {
                     <span>Âm thanh</span>
                     <strong>{DEMO ? "Giọng thiết bị" : "File MP3"}</strong>
                   </div>
+                  {!DEMO && (
+                    <form
+                      className="token-form"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        saveDemoToken(demoToken);
+                        window.location.reload();
+                      }}
+                    >
+                      <label htmlFor="demo-token">Mã truy cập</label>
+                      <input
+                        id="demo-token"
+                        type="password"
+                        autoComplete="off"
+                        value={demoToken}
+                        onChange={(event) => setDemoToken(event.target.value)}
+                      />
+                      <button type="submit">Lưu mã</button>
+                    </form>
+                  )}
                 </section>
               </div>
             )}

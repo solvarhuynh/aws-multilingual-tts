@@ -10,6 +10,18 @@ test("API frontend: nội dung sửa và phản hồi không hợp lệ", async 
   const valid = { status: "checked", language: "vi-VN", hasTypos: true, originalText: original,
     correctedText: "tôi muốn nghe", changes: [{ from: "toi", to: "tôi", start: 0, end: 3 }] };
   try {
+    await suite.test("gửi token người dùng nhập và hash đúng của body", async () => {
+      let headers;
+      globalThis.fetch = async (_, init) => { headers = init.headers; return { ok: true, json: async () => valid }; };
+      const { saveDemoToken } = await env.load("lib/api.ts");
+      saveDemoToken(" ma-demo ");
+      await api.correct(original, "vi-VN");
+      saveDemoToken("");
+      const { createHash } = await import("node:crypto");
+      const body = JSON.stringify({ text: original, lang: "vi-VN" });
+      assert.equal(headers["X-Demo-Token"], "ma-demo");
+      assert.equal(headers["x-amz-content-sha256"], createHash("sha256").update(body).digest("hex"));
+    });
     await suite.test("gửi đúng route và giữ nguyên văn bản cần kiểm tra", async () => {
       let sent;
       globalThis.fetch = async (url, init) => { sent = { url, body: JSON.parse(init.body) }; return { ok: true, json: async () => valid }; };

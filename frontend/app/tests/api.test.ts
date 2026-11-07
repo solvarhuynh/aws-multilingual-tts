@@ -1,8 +1,25 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { api, checkedJob, request } from '../src/lib/api';
+import { createHash } from 'node:crypto';
+import { api, checkedJob, request, setDemoToken } from '../src/lib/api';
 const original = globalThis.fetch;
 after(() => { globalThis.fetch = original; });
+test('Gửi token và hash đúng của body', async () => {
+  let headers: Record<string, string> = {};
+  globalThis.fetch = async (_, init) => {
+    headers = init?.headers as Record<string, string>;
+    return new Response('{}');
+  };
+  setDemoToken(' ma-demo ');
+  const body = JSON.stringify({ text: 'Xin chào 🎙️' });
+  await request('/synthesize', { method: 'POST', body });
+  setDemoToken('');
+  assert.equal(headers['X-Demo-Token'], 'ma-demo');
+  assert.equal(headers['x-amz-content-sha256'], createHash('sha256').update(body, 'utf8').digest('hex'));
+  await request('/voices');
+  assert.equal(headers['X-Demo-Token'], undefined);
+  assert.equal(headers['x-amz-content-sha256'], undefined);
+});
 test('Giữ định dạng API và gửi nội dung đúng một lần', async () => {
   const calls: { url: string; body: string | undefined }[] = [];
   globalThis.fetch = async (url, init) => {

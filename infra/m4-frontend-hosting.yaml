@@ -1,9 +1,172 @@
-# M4 - Nguyên Khang: existing frontend, private S3 web và CloudFront.
-# PLANNING ONLY / NOT DEPLOYABLE - 2026-11-06, proposed pending group sign-off.
-# S3 web in us-east-1; CloudFront global; web bucket separate from M3 jobs/audio.
-# Own distribution, S3 REST origin, OAC associations and API no-cache behaviors.
-# M1 owns Lambda Function URL/resource policy; coordinate SourceArn and POST hash.
-# OAC/permissions/signing remain UNVERIFIED; no public-data-bucket workaround.
-# Preserve existing web/app UI; integrate URL/token runtime/202 polling/voices/history.
-# Manual Lab IDE/CloudShell upload/invalidation/redeploy; no new IAM/OIDC deploy role.
-# Cognito/RUM outside baseline. No deployment workflow implemented in this task.
+# M4 - Nguyên Khang: S3 web private và CloudFront/OAC cho web và API.
+# PROPOSED / PENDING SANDBOX VALIDATION / NOT DEPLOYED. Root template.yaml gọi file này.
+# S3 web tách khỏi bucket jobs/audio của M3. Không mở public bucket.
+# Quyền gọi router chỉ cấp cho đúng distribution này qua SourceArn.
+# OAC không phải xác thực người dùng; X-Demo-Token vẫn do router kiểm tra.
+AWSTemplateFormatVersion: '2010-09-09'
+Description: M4 private web bucket and CloudFront distribution with OAC
+
+Parameters:
+  Env:
+    Type: String
+    Default: dev
+  RouterFunctionName:
+    Type: String
+  RouterFunctionUrl:
+    Type: String
+    Description: Function URL of the HTTP router
+
+Mappings:
+  # ID của managed policy do AWS cung cấp.
+  CloudFrontPolicy:
+    Ids:
+      CachingDisabled: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+      CachingOptimized: 658327ea-f89d-4fab-a63d-7e88639e58f6
+      AllViewerExceptHostHeader: b689b0a8-53d0-40ab-baf2-68738e2966ac
+
+Resources:
+  WebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "tts-web-${Env}-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  WebOac:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "tts-web-${Env}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  ApiOac:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "tts-api-${Env}"
+        OriginAccessControlOriginType: lambda
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "tts ${Env}"
+        DefaultRootObject: index.html
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: web
+            DomainName: !GetAtt WebBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt WebOac.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          - Id: api
+            DomainName: !Select [2, !Split ['/', !Ref RouterFunctionUrl]]
+            OriginAccessControlId: !GetAtt ApiOac.Id
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: web
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: !FindInMap [CloudFrontPolicy, Ids, CachingOptimized]
+        CacheBehaviors:
+          - PathPattern: /synthesize
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: !FindInMap [CloudFrontPolicy, Ids, CachingDisabled]
+            OriginRequestPolicyId: !FindInMap [CloudFrontPolicy, Ids, AllViewerExceptHostHeader]
+          - PathPattern: /text/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: !FindInMap [CloudFrontPolicy, Ids, CachingDisabled]
+            OriginRequestPolicyId: !FindInMap [CloudFrontPolicy, Ids, AllViewerExceptHostHeader]
+          - PathPattern: /voices
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: !FindInMap [CloudFrontPolicy, Ids, CachingDisabled]
+            OriginRequestPolicyId: !FindInMap [CloudFrontPolicy, Ids, AllViewerExceptHostHeader]
+          - PathPattern: /jobs/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: !FindInMap [CloudFrontPolicy, Ids, CachingDisabled]
+            OriginRequestPolicyId: !FindInMap [CloudFrontPolicy, Ids, AllViewerExceptHostHeader]
+          - PathPattern: /history
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: !FindInMap [CloudFrontPolicy, Ids, CachingDisabled]
+            OriginRequestPolicyId: !FindInMap [CloudFrontPolicy, Ids, AllViewerExceptHostHeader]
+          - PathPattern: /history/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: !FindInMap [CloudFrontPolicy, Ids, CachingDisabled]
+            OriginRequestPolicyId: !FindInMap [CloudFrontPolicy, Ids, AllViewerExceptHostHeader]
+          - PathPattern: /stats
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: !FindInMap [CloudFrontPolicy, Ids, CachingDisabled]
+            OriginRequestPolicyId: !FindInMap [CloudFrontPolicy, Ids, AllViewerExceptHostHeader]
+
+  WebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${WebBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+
+  RouterUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RouterFunctionName
+      Action: lambda:InvokeFunctionUrl
+      Principal: cloudfront.amazonaws.com
+      FunctionUrlAuthType: AWS_IAM
+      SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+
+  RouterInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref RouterFunctionName
+      Action: lambda:InvokeFunction
+      Principal: cloudfront.amazonaws.com
+      SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+
+Outputs:
+  WebBucketName:
+    Value: !Ref WebBucket
+  DistributionId:
+    Value: !Ref Distribution
+  WebDomain:
+    Value: !GetAtt Distribution.DomainName

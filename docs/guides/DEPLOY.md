@@ -4,7 +4,7 @@ Chỉ dùng hướng dẫn này khi M1/M4 được giao kiểm tra hoặc triể
 
 ## Trạng thái repo
 
-SAM template còn ProjectMarker skeleton; backend/common/provider chưa hoàn thiện. `samconfig.toml` đặt `us-east-1`, nhưng runtime code vẫn dùng env cũ. **Chưa deploy repo hiện tại.** Trước khi triển khai thật, hoàn tất các task Gate 0 và implementation, rồi kiểm tra resource list/changeset.
+`template.yaml` ghép các stack trong `infra/`. Toàn hệ thống đã chạy thử trên Sandbox của M2 qua CloudFront. Muốn tự dựng trên Lab của mình, chạy `scripts/sandbox.sh` trong CloudShell. Trước khi triển khai thật, hoàn tất các task Gate 0 và implementation, rồi kiểm tra resource list/changeset.
 
 ## Bắt đầu phiên — chỉ đọc metadata
 
@@ -26,8 +26,8 @@ Không chạy lệnh in credential hay giá trị parameter. Quyền người de
 
 1. Xác nhận region `us-east-1`, stack `tts-dev`, `LabRole` ARN do trường cấp và capability cho từng tài nguyên.
 2. Kiểm template không tạo IAM role mới hoặc service ngoài baseline. `CAPABILITY_IAM` không cấp thêm quyền.
-3. Xác nhận cách lưu provider key/token được trường chấp thuận. SSM SecureString/KMS chưa được xác minh; nếu thiếu giải pháp an toàn thì chỉ chạy mocks.
-4. Xem changeset với M1 và owner tài nguyên. Không dùng template skeleton hiện tại để deploy.
+3. API key provider lưu ở SSM SecureString, cách này đã thử đạt và giảng viên đồng ý.
+4. Xem changeset với M1 và owner tài nguyên.
 5. Chốt bucket suffix, giới hạn job/ký tự/chi phí và kế hoạch cleanup; lab reset tài nguyên cuối phiên.
 
 Sau khi code/template được giao và công cụ có sẵn, local review có thể dùng:

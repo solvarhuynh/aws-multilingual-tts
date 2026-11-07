@@ -98,16 +98,23 @@ def _synthesize(event):
     voice = _pick_voice(entry, body.get("voice"))
     speed = _pick_speed(entry, body.get("speed"))
 
+    if not db.reserve_chars(len(text)):
+        return error_response(429, "TOO_MANY_REQUESTS", "Hôm nay đã dùng hết hạn mức, vui lòng thử lại vào ngày mai.")
     user_id = get_user_id(event)
-    job = db.create_job(
-        user_id, text, body["lang"], voice, speed, provider=entry.get("provider"), engine=entry.get("engine")
-    )
+    try:
+        job = db.create_job(
+            user_id, text, body["lang"], voice, speed, provider=entry.get("provider"), engine=entry.get("engine")
+        )
+    except Exception:
+        db.refund_chars(len(text))
+        raise
     job_id = job["jobId"]
     try:
         _dispatch(user_id, job_id)
     except Exception as error:
         log_json(module="M5", operation="dispatch", status="FAILED", jobId=job_id, errorCode=type(error).__name__)
         db.update_job(user_id, job_id, status="FAILED", errorMessage="Chưa gửi được yêu cầu, vui lòng thử lại.")
+        db.refund_chars(len(text))
         return error_response(503, "DISPATCH_FAILED", "Chưa gửi được yêu cầu, vui lòng thử lại.")
     log_json(module="M5", operation="submit", status="ACCEPTED", jobId=job_id, charCount=len(text))
     return json_response(202, {"jobId": job_id, "status": "PENDING", "audioUrl": None, "cached": False})

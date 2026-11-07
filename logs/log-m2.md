@@ -6,13 +6,77 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: code nối toàn hệ thống trên nhánh `m2-tich-hop-nhom`, chưa commit, chưa chạy trên AWS. Giảng viên đã đồng ý SSM SecureString
+- Đang làm: bốn task M2 đã tick; chờ nhóm xem lại và duyệt hợp đồng. Dịch để sau MVP
 - Đã xong: SB-M2-01, SB-M2-02, SB-M2-03 (đã tick); Lambda tạo được MP3 vi/en/ja bằng ElevenLabs thật và qua thử lỗi Gate 3 trên stack thử. SB-M2-04 chờ M1 và M4 nối frontend
-- Việc tiếp theo: Trung Khang commit và push nhánh, deploy thử toàn hệ thống bằng `TRUNGKHANG/thu-he-thong.sh`; gửi nhóm kết quả
-- Đang bị chặn bởi: hợp đồng nhóm chưa duyệt; SB-M2-04 cần chạy thử trên AWS qua router và frontend
-- Tài nguyên AWS tôi đã tạo: không còn; Trung Khang đã bấm End Lab, stack thử `tts-m2-test` đã kết thúc
+- Việc tiếp theo: dọn stack, End Lab, gửi nhóm kết quả; luồng dịch làm sau khi có key Gemini và nhóm đồng ý
+- Đang bị chặn bởi: hợp đồng nhóm chưa duyệt
+- Tài nguyên AWS tôi đã tạo: stack `tts-dev` và các stack con, bucket `tts-*-dev-*`, tham số `/tts/dev/elevenlabs`, CloudFront, us-east-1; cần chạy `don-dep`
 
 ## NHẬT KÝ
+
+### 2026-11-07: Hướng dẫn nhóm tự dựng trên Sandbox
+
+- Đã làm: Trung Khang yêu cầu ghi hướng dẫn để thành viên khác tự thử. Chuyển script thử vào `scripts/sandbox.sh`, chạy trực tiếp từ repo đã clone. Hướng dẫn gửi nhóm qua tin nhắn, không thêm file tài liệu; cập nhật `DEPLOY.md`.
+- Kiểm tra: `bash -n` đạt. Bản trong repo chưa chạy trên AWS; khác bản đã chạy thật ở chỗ lấy code từ repo đã clone, đường dẫn đổi theo.
+- Lưu ý: cần merge PR #7 trước, vì hướng dẫn clone nhánh `main`.
+- File đã đổi: `scripts/sandbox.sh`, `docs/guides/DEPLOY.md`, `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Việc tiếp theo: Trung Khang commit, push; nhóm tự thử theo hướng dẫn.
+- Cần báo module khác: cả nhóm tạo tài khoản ElevenLabs riêng, không dùng chung key.
+
+### 2026-11-07: Kiểm tra truy cập trực tiếp trên Sandbox
+
+- Đã làm: Trung Khang gọi thẳng từ CloudShell, không qua CloudFront và không ký: Function URL `/voices`, `index.html` của bucket web, liệt kê bucket audio, liệt kê bucket jobs. Cả bốn trả 403. Trạng thái: sandbox verified trên stack `tts-dev`.
+- Ý nghĩa: router chỉ nhận request đi qua CloudFront OAC; ba bucket không đọc công khai được. Chưa thử đọc đúng một file audio hay job có thật bằng URL không ký.
+- File đã đổi: `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Việc tiếp theo: thử trần 429, tải và xóa bản thu trên giao diện, rồi dọn stack.
+- Cần báo module khác: M1, M3, M4 dùng kết quả này khi kiểm bảo mật.
+
+### 2026-11-07: Việc sau: luồng dịch
+
+- Hiện trạng: chưa có bước dịch. ElevenLabs chỉ đọc đúng chữ nhận được. Trung Khang thử gõ tiếng Việt, chọn giọng Tây Ban Nha: vẫn tạo được MP3 nhưng nghe lạ, đúng như dự kiến. Trang Dịch và đọc gửi `translateTo` nên bị từ chối `FEATURE_NOT_ENABLED`.
+- Luồng dự kiến: gõ văn bản, chọn ngôn ngữ đích, Gemini dịch, người dùng xem lại bản dịch, rồi `POST /synthesize` với văn bản đã dịch và giọng của ngôn ngữ đích.
+- Cần có: key Gemini lưu ở SSM SecureString, xử lý lỗi khi Gemini hỏng, giới hạn chi phí, và nhóm đồng ý đổi quy tắc không dịch ngầm trong `QUY-UOC-CHUNG.md`. Không dùng Amazon Translate vì nằm ngoài baseline.
+- Thứ tự: làm sau MP3 MVP, cùng đợt MR Gemini sửa lỗi đánh máy vì dùng chung key.
+- Trạng thái: planned. Chưa làm code.
+
+### 2026-11-07: Thử trên trình duyệt và tick SB-M2-04
+
+- Đã làm: Trung Khang mở web qua CloudFront, nhập mã truy cập, thấy danh sách giọng thật với tên Matilda, chọn giọng và tạo được MP3, gồm cả giọng Tây Ban Nha. Trạng thái: deployed & demoed trên stack thử.
+- Tick: SB-M2-04. Giọng không hỗ trợ trả lỗi rõ đã kiểm ở worker trên Sandbox và ở `tts-submit` bằng unit test.
+- Lỗi đã sửa: thẻ giọng ghi cứng "Tiếng Việt" với provider ngoài, đổi thành tên provider. Web test 60/60.
+- Chưa kiểm: app di động; trần 429 trên AWS. Trung Khang chưa báo riêng phần tải và xóa bản thu trên giao diện; API tương ứng đã đạt qua router.
+- File đã đổi: `frontend/web/src/App.tsx`, `docs/tasks/task-m2.md`, `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): như mục trạng thái nhanh.
+- Việc tiếp theo: deploy lại web để nhận nhãn mới, rồi dọn stack.
+- Cần báo module khác: M4 biết trang Dịch và đọc đang báo lỗi cho đến khi có luồng dịch.
+
+### 2026-11-07: Chạy toàn hệ thống trên Sandbox
+
+- Đã làm: Trung Khang chạy `TRUNGKHANG/thu-he-thong.sh` trong CloudShell, commit `e075220`, stack `tts-dev` gồm 5 stack con. Trạng thái: sandbox verified cho phần dưới; chưa thử trên trình duyệt.
+- Deploy: CloudFormation tạo được toàn bộ stack lồng nhau, gồm CloudFront, OAC cho S3 và Lambda, Function URL với `LabRole`.
+- Qua router, 12/12: sai token trả 401; `GET /voices` 200, 33 ngôn ngữ, có tên giọng; `/text/correct` skipped; `/stats` 501; sai tốc độ 400; `POST /synthesize` 202; job DONE sau 8,4 giây tính cả polling; presigned URL tải được MP3 41.838 byte; `GET /history` có job; `DELETE` 200; job đã xóa trả 404.
+- Qua CloudFront, 4/4: trang web 200; sai token 401; `GET /voices` 200; POST có hash qua OAC 200. Bucket web và Function URL không cần mở công khai.
+- Chưa kiểm: bấm thử trên trình duyệt, ô nhập mã, phát MP3 trên giao diện; `POST /synthesize` qua CloudFront mới kiểm gián tiếp bằng `/text/correct`; app di động; trần 429 trên AWS.
+- Tick: chưa tick SB-M2-04 vì tiêu chí yêu cầu frontend chọn được giọng thật.
+- File đã đổi: `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): như mục trạng thái nhanh.
+- Việc tiếp theo: thử trên trình duyệt, tick SB-M2-04, dọn stack.
+- Cần báo module khác: M1 và M4 có thể dùng kết quả Function URL, OAC. Chủ module vẫn tự xác minh và tick task của mình.
+
+### 2026-11-07: Token client, trần credit và hosting
+
+- Đã làm: Trung Khang giao làm nốt phần còn lại. Trạng thái: locally tested, chưa chạy trên AWS. Phần lớn thuộc M1, M4, M5; làm vì frontend thật chưa dùng được hệ thống nếu thiếu, chủ module cần xem lại.
+- M4: web và app gửi `X-Demo-Token` do người dùng nhập ở Cài đặt, không nằm trong bundle; POST gửi `x-amz-content-sha256` cho CloudFront OAC, app dùng `sha256.ts` vì React Native không có `crypto.subtle`. `infra/m4-frontend-hosting.yaml`: S3 web private, CloudFront, OAC cho S3 và Lambda.
+- M1: bỏ quyền CloudFront không có `SourceArn`; quyền mới nằm trong stack hosting, chỉ cho đúng distribution.
+- M5: trần `DAILY_CHAR_LIMIT` 6.000 ký tự mỗi ngày, đếm bằng CAS trong `usage/<ngày>.json`, vượt trần trả 429, gửi lỗi thì hoàn lại.
+- Chưa làm: `Idempotency-Key`; Gemini và stats là MR sau MVP.
+- Rủi ro: Lambda OAC chưa từng thử trên Sandbox. Token lưu ở localStorage và AsyncStorage, chỉ đủ cho demo, không phải xác thực người dùng.
+- File đã đổi: `frontend/`, `backend/submit/app.py`, `backend/common/`, `infra/`, `template.yaml`, `tests/`, `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Việc tiếp theo: commit, push, deploy và chạy `e2e`, `web`, `e2e-cf`.
+- Cần báo module khác: như mục dưới, thêm phần hosting cho M4 và trần credit cho M5.
 
 ### 2026-11-07: Nối phần M2 cần từ các module khác
 
