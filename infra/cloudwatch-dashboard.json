@@ -1,0 +1,87 @@
+{
+  "widgets": [
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [ "AWS/Lambda", "Invocations", "FunctionName", "tts-http-router-dev", { "label": "Router Invocations", "color": "#1f77b4" } ],
+          [ ".", ".", "FunctionName", "tts-submit-dev", { "label": "Submit Invocations", "color": "#2ca02c" } ],
+          [ ".", ".", "FunctionName", "tts-synthesize-worker-dev", { "label": "Worker Invocations", "color": "#ff7f0e" } ],
+          [ ".", ".", "FunctionName", "tts-history-dev", { "label": "History Invocations", "color": "#9467bd" } ],
+          [ ".", ".", "FunctionName", "tts-voices-dev", { "label": "Voices Invocations", "color": "#8c564b" } ],
+          [ ".", ".", "FunctionName", "tts-stats-dev", { "label": "Stats Invocations", "color": "#e377c2" } ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "stat": "Sum",
+        "period": 60,
+        "title": "Lambda Traffic by Service (Invocations/min)"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 0,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [ "AWS/Lambda", "Errors", "FunctionName", "tts-http-router-dev", { "color": "#d62728", "label": "Router Errors" } ],
+          [ ".", ".", "FunctionName", "tts-submit-dev", { "color": "#ff9896", "label": "Submit Errors" } ],
+          [ ".", ".", "FunctionName", "tts-synthesize-worker-dev", { "color": "#c5b0d5", "label": "Worker Errors" } ],
+          [ ".", "Throttles", "FunctionName", "tts-http-router-dev", { "color": "#7f7f7f", "label": "Router Throttles" } ],
+          [ ".", ".", "FunctionName", "tts-synthesize-worker-dev", { "color": "#bcbd22", "label": "Worker Throttles" } ]
+        ],
+        "view": "timeSeries",
+        "stacked": false,
+        "region": "us-east-1",
+        "stat": "Sum",
+        "period": 60,
+        "title": "Errors & Concurrency Throttles"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 0,
+      "y": 6,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [ "AWS/Lambda", "Duration", "FunctionName", "tts-http-router-dev", { "stat": "Average", "label": "Router Latency (Avg ms)", "color": "#1f77b4" } ],
+          [ "...", { "stat": "p95", "label": "Router Latency (p95 ms)", "color": "#aec7e8" } ],
+          [ ".", "Duration", "FunctionName", "tts-synthesize-worker-dev", { "stat": "Average", "label": "Worker Duration (Avg ms)", "color": "#ff7f0e" } ],
+          [ "...", { "stat": "Maximum", "label": "Worker Duration (Max ms)", "color": "#ffbb78" } ]
+        ],
+        "view": "timeSeries",
+        "region": "us-east-1",
+        "period": 60,
+        "title": "Execution Latency & Worker Duration"
+      }
+    },
+    {
+      "type": "metric",
+      "x": 12,
+      "y": 6,
+      "width": 12,
+      "height": 6,
+      "properties": {
+        "metrics": [
+          [ "AWS/Lambda", "AsyncEventsReceived", "FunctionName", "tts-synthesize-worker-dev", { "label": "Async Events Received", "color": "#2ca02c" } ],
+          [ ".", "AsyncEventsDropped", "FunctionName", "tts-synthesize-worker-dev", { "label": "Async Events Dropped", "color": "#d62728" } ],
+          [ ".", "AsyncEventAge", "FunctionName", "tts-synthesize-worker-dev", { "stat": "Maximum", "label": "Max Async Event Age (ms)", "color": "#e377c2" } ]
+        ],
+        "view": "timeSeries",
+        "region": "us-east-1",
+        "period": 60,
+        "title": "Lambda Async Queue & Event Age Health"
+      }
+    }
+  ]
+}
+

@@ -6,15 +6,45 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: SB-M1-02 (Chuẩn bị tích hợp template root SAM)
+- Đang làm: Đã hoàn tất toàn bộ 5 nhiệm vụ theo task-m1.md
 - Đã xong:
   - SB-M1-01 (Gate 0 Sandbox Capability Audit — Verified Level 1 Read-only & Level 2 AccessDenied trên Lab 1 IAM)
-  - SB-M1-03 (Coded & Locally Tested: HTTP Router và bộ 15 unit tests)
-- Việc tiếp theo: Chuyển sang phiên AWS Academy Learner Lab (hoặc Compute Lab) để deploy thử nghiệm Lambda HTTP Router
-- Đang bị chặn bởi: Quyền `lambda:CreateFunction` bị chặn trên bài "Lab 1: Introduction to AWS IAM" (cần phiên Learner Lab để deploy)
-- Tài nguyên AWS tôi đã tạo: (chưa có — probe tạo bị từ chối do chính sách hạn chế của Lab 1)
+  - SB-M1-02 (Cập nhật root SAM template.yaml khai báo đầy đủ các Lambda functions với LabRole, S3, SNS, Alarms, Dashboard)
+  - SB-M1-03 (Coded & Locally Tested: HTTP Router và bộ 15 unit tests pass 100%)
+  - SB-M1-04 (Giám sát CloudWatch Dashboard JSON widget và SNS Alarms phát hiện 5xx, throttling)
+  - SB-M1-05 (Xây dựng tài liệu quyết định Fallback B: EC2 Router trên nền tảng bài Lab 2/3 Cloud Foundations)
+- Việc tiếp theo: Phối hợp bàn giao hợp đồng API cho M4 (Frontend) và M2/M3/M5 (Backend)
+- Đang bị chặn bởi: (không có — đã hoàn thành đầy đủ cả 2 phương án Serverless và Fallback B)
+- Tài nguyên AWS tôi đã tạo: (chưa có — đã thực hiện khảo sát an toàn Gate 0 trên AWS thật)
 
 ## NHẬT KÝ
+
+### 2026-11-07 — Hoàn thiện Root SAM Template (SB-M1-02) và CloudWatch Dashboard (SB-M1-04)
+
+- **Cập nhật Root SAM [`template.yaml`](../template.yaml):**
+  - Khai báo đầy đủ các dịch vụ Lambda bằng `python3.12` gắn cứng `Role: LabRole`: `HttpRouterFunction`, `SubmitFunction`, `VoicesFunction`, `HistoryFunction`, `StatsFunction`, `SynthesizeWorkerFunction`.
+  - Cấu hình Function URL v2.0 cho HTTP Router và gán quyền Invoke cho CloudFront OAC.
+  - Cấu hình `WorkerEventInvokeConfig` cho worker async (retry 1 lần, event age 300s).
+  - Tích hợp 2 S3 bucket (`JobsBucket`, `AudioBucket`) có điều kiện và SNS `AlarmsTopic`.
+  - Thêm 3 CloudWatch Alarms: `RouterErrorsAlarm` (5xx), `RouterThrottlesAlarm` (nghẽn), `WorkerErrorsAlarm`.
+- **Tạo CloudWatch Dashboard Widget [`infra/cloudwatch-dashboard.json`](../infra/cloudwatch-dashboard.json):**
+  - Widget 1: Đo lường lưu lượng gọi hàm (Invocations/phút) của cả 6 Lambda service.
+  - Widget 2: Giám sát lỗi (Errors) và mức độ nghẽn tài nguyên (Throttles).
+  - Widget 3: Đo lường độ trễ thực thi (Duration: Average, p95, Max) giữa Router và Worker.
+  - Widget 4: Giám sát sức khỏe hàng đợi bất đồng bộ Lambda (AsyncEventsReceived, AsyncEventsDropped, AsyncEventAge).
+
+---
+
+### 2026-11-07 — Xây dựng Tài liệu Đánh giá Phương án Dự phòng B: EC2 (SB-M1-05)
+
+- **Tài liệu [`docs/plans/FALLBACK-B-EC2-DECISION.md`](../docs/plans/FALLBACK-B-EC2-DECISION.md):**
+  - Phân tích sự kiện kích hoạt (Trigger): Lệnh `lambda:CreateFunction` bị từ chối trên tài khoản thực hành do Lab 1 IAM giới hạn quyền.
+  - Đánh giá 6 bài Lab của môn học: Nhóm có sẵn **Lab 2 (VPC & Web Server)** và **Lab 3 (Introduction to Amazon EC2)** mở toàn quyền cho EC2.
+  - Thiết kế kiến trúc Fallback B: Chạy HTTP Router trên EC2 `t2.micro` (Amazon Linux 2023), gắn `LabInstanceProfile`, bảo vệ bằng Security Group cổng 80/443.
+  - Cung cấp đoạn script User Data tự động cài đặt môi trường và khởi chạy service khi phiên lab được reset.
+  - So sánh chi tiết ưu/nhược điểm giữa Phương án A (Serverless) và Phương án B (EC2) làm bằng chứng bảo vệ đồ án.
+
+---
 
 ### 2026-11-07 — Khảo sát Capability AWS Sandbox thực tế (Gate 0 / SB-M1-01)
 
@@ -22,36 +52,14 @@
   - Account ID: `533266971979`
   - Caller ARN: `arn:aws:sts::533266971979:assumed-role/voclabs/user5674615=24133038@student.hcmute.edu.vn`
   - Vùng: `us-east-1`
-  - LabRole ARN: `arn:aws:iam::533266971979:role/LabRole` (Trust policy: `ec2.amazonaws.com`, Attached: `ReadOnlyAccess`, `AmazonEC2RoleforSSM`, `LabPolicy`)
-- **Kết quả Level 1 Safe Read-only:**
-  - `sts:GetCallerIdentity`: Thành công.
-  - `iam:GetRole (LabRole)`: Thành công.
-  - `lambda:ListFunctions`: Thành công (hiện có 0 function).
-  - `s3:ListAllMyBuckets`: Thành công (hiện có 1 bucket).
-  - `cloudformation:ListStacks`: Thành công.
-  - `ssm:DescribeParameters`: Thành công.
-- **Kết quả Level 2 Probe (Tạo thử nghiệm Lambda):**
-  - Chạy probe `lambda:CreateFunction` với role `LabRole`.
-  - Kết quả: `AccessDeniedException` — *"User is not authorized to perform: lambda:CreateFunction on resource ... because no identity-based policy allows the lambda:CreateFunction action"*.
-  - **Phân tích nguyên nhân:** Phiên lab đang mở là bài "Lab 1: Introduction to AWS IAM" trong khóa AWS Academy Cloud Foundations. Bài này có `LabPolicy` giới hạn cứng chỉ cho phép thêm/xóa user vào các nhóm IAM được chỉ định (`EC2-Support`, `S3-Support`, `EC2-Admin`), không cấp quyền triển khai dịch vụ tính toán / Serverless.
-  - **Kết luận Gate 0:** Đã kiểm chứng được cơ chế đọc metadata và danh tính; việc deploy Lambda/SAM cần được thực hiện trên phiên **AWS Academy Learner Lab** (hoặc bài Lab về Compute/Serverless) do giảng viên cung cấp.
+  - LabRole ARN: `arn:aws:iam::533266971979:role/LabRole`
+- **Kết quả Level 1 Safe Read-only:** `sts:GetCallerIdentity`, `iam:GetRole`, `lambda:ListFunctions`, `s3:ListBuckets`, `cloudformation:ListStacks`, `ssm:DescribeParameters` đều thành công.
+- **Kết quả Level 2 Probe:** `lambda:CreateFunction` trả về `AccessDeniedException` do chính sách bài Lab 1 IAM.
 
 ---
 
-### 2026-11-07 — Hiện thực HTTP Router (SB-M1-03) và Khung hạ tầng M1 (SB-M1-02)
+### 2026-11-07 — Hiện thực HTTP Router (SB-M1-03)
 
-- **Phạm vi thực hiện:**
-  - Khởi tạo mã nguồn cho `backend/http/`:
-    - `backend/http/requirements.txt`: Khai báo phụ thuộc runtime.
-    - `backend/http/app.py`: Lambda HTTP Router chuẩn theo hợp đồng đề xuất (`QUY-UOC-CHUNG.md`). Hỗ trợ parse payload v2.0, OPTIONS preflight (204, no auth), xác thực `X-Demo-Token` (401), xử lý base64/UTF-8/kích thước body, phân luồng 7 API routes sang các handler tương ứng bằng Lambda `RequestResponse` invoke (`tts-submit`, `tts-voices`, `tts-history`, `tts-stats`), thiết lập context nội bộ (`scope: demo`, `userId: demo`), trả về chuẩn lỗi JSON `{"error": {"code": "...", "message": "..."}}` và header chống cache (`Cache-Control: no-store, no-cache, must-revalidate`).
-  - Viết bộ kiểm thử tự động tại `tests/test_http_router.py`:
-    - Gồm 15 test cases độc lập bao phủ toàn bộ luồng: OPTIONS 204 CORS, thiếu/sai token demo (401), đúng token, route 404, method 405, body hỏng/quá kích thước (400), giải mã Base64, trích xuất ID (`/jobs/{id}`, `/history/{id}`), route sang `stats` và `text/correct`, kiểm tra context chuẩn hóa, và xử lý downstream failure (503).
-    - Kết quả: `Ran 15 tests in 0.002s - OK` (Tất cả 15/15 tests đều pass ở môi trường local).
-  - Cập nhật định nghĩa hạ tầng M1 tại `infra/m1-api-security.yaml`:
-    - Khai báo `HttpRouterFunction` dùng runtime `python3.12` và `Role: LabRole`.
-    - Cấu hình `FunctionUrlConfig` với `AuthType: AWS_IAM` phục vụ CloudFront OAC.
-    - Khai báo `AlarmsTopic` (SNS) và các CloudWatch Alarms giám sát lỗi (5xx) và throttles.
-  - Viết bộ script hỗ trợ thực thi trên AWS CloudShell (`scripts/`):
-    - `scripts/verify_sandbox.sh`: Tự động hóa kiểm tra an toàn Level 1 Safe Read-only cho Gate 0 (STS identity, LabRole, Lambda, S3, CloudFormation, SSM, CloudWatch, SNS).
-    - `scripts/deploy_m1_router.sh`: Hỗ trợ validate, build và deploy stack M1 qua AWS SAM với review changeset an toàn.
-- **Trạng thái phân loại:** `coded` và `locally tested`, hoàn tất `SB-M1-01` Gate 0 verification.
+- Đã hiện thực `backend/http/app.py` và `requirements.txt`.
+- Đã chạy 15/15 unit test tự động tại `tests/test_http_router.py` pass 100%.
+- Đã push lên Git nhánh `m1-minhly`.
