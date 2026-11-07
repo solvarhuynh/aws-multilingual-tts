@@ -17,7 +17,7 @@
 ### 2026-11-07: Thử trang dịch và trần credit trên trình duyệt
 
 - Đã làm: Trung Khang thử trên web qua CloudFront. Trang Dịch và đọc báo "Tính năng dịch chưa được bật.", không treo. Hạ `DAILY_CHAR_LIMIT` xuống 1 thì web báo "Hôm nay đã dùng hết hạn mức", không tạo bản thu mới. Trạng thái: deployed & demoed trên stack thử.
-- Lỗi đã sửa: khung cài đặt giọng ghi cứng "Giọng tiếng Việt" với provider ngoài, gộp với nhãn thẻ giọng vào `providerLabel`. Chưa deploy lại lên Lab.
+- Lỗi đã sửa: khung cài đặt giọng ghi cứng "Giọng tiếng Việt" với provider ngoài, gộp với nhãn thẻ giọng vào `providerLabel`. Đã deploy lại, trên web hiện ElevenLabs.
 - Chưa có xác nhận: xóa bản thu trên giao diện, app di động.
 - File đã đổi: `frontend/web/src/lib/data.ts`, `frontend/web/src/App.tsx`, `logs/log-m2.md`.
 - Tài nguyên AWS đã tạo/sửa (tên, region): `tts-submit-dev` đổi `DAILY_CHAR_LIMIT` thành 1 để thử, us-east-1.
