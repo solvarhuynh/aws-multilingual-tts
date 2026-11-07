@@ -6,13 +6,23 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: bốn task M2 đã tick; chờ nhóm xem lại và duyệt hợp đồng. Dịch để sau MVP
+- Đang làm: bốn task M2 đã tick, code đã vào `main` qua PR #6, #7 do Trung Khang tự merge; chờ nhóm xem lại và duyệt hợp đồng. Dịch để sau MVP
 - Đã xong: SB-M2-01, SB-M2-02, SB-M2-03 (đã tick); Lambda tạo được MP3 vi/en/ja bằng ElevenLabs thật và qua thử lỗi Gate 3 trên stack thử. SB-M2-04 chờ M1 và M4 nối frontend
-- Việc tiếp theo: dọn stack, End Lab, gửi nhóm kết quả; luồng dịch làm sau khi có key Gemini và nhóm đồng ý
+- Việc tiếp theo: dọn stack, End Lab, gửi nhóm kết quả; nhóm xem lại PR #6, #7; luồng dịch làm sau khi có key Gemini và nhóm đồng ý
 - Đang bị chặn bởi: hợp đồng nhóm chưa duyệt
 - Tài nguyên AWS tôi đã tạo: stack `tts-dev` và các stack con, bucket `tts-*-dev-*`, tham số `/tts/dev/elevenlabs`, CloudFront, us-east-1; cần chạy `don-dep`
 
 ## NHẬT KÝ
+
+### 2026-11-07: Thử trang dịch và trần credit trên trình duyệt
+
+- Đã làm: Trung Khang thử trên web qua CloudFront. Trang Dịch và đọc báo "Tính năng dịch chưa được bật.", không treo. Hạ `DAILY_CHAR_LIMIT` xuống 1 thì web báo "Hôm nay đã dùng hết hạn mức", không tạo bản thu mới. Trạng thái: deployed & demoed trên stack thử.
+- Lỗi đã sửa: khung cài đặt giọng ghi cứng "Giọng tiếng Việt" với provider ngoài, gộp với nhãn thẻ giọng vào `providerLabel`. Đã deploy lại, trên web hiện ElevenLabs.
+- Chưa có xác nhận: xóa bản thu trên giao diện, app di động.
+- File đã đổi: `frontend/web/src/lib/data.ts`, `frontend/web/src/App.tsx`, `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): `tts-submit-dev` đổi `DAILY_CHAR_LIMIT` thành 1 để thử, us-east-1.
+- Việc tiếp theo: dọn stack, End Lab.
+- Cần báo module khác: không có.
 
 ### 2026-11-07: Hướng dẫn nhóm tự dựng trên Sandbox
 
