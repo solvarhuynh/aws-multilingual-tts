@@ -63,3 +63,27 @@
 - Đã hiện thực `backend/http/app.py` và `requirements.txt`.
 - Đã chạy 15/15 unit test tự động tại `tests/test_http_router.py` pass 100%.
 - Đã push lên Git nhánh `m1-minhly`.
+
+---
+
+### 2026-11-07 — Triển khai Thực tế Phương án Dự phòng B trên AWS EC2 (Lab 3 / Gate 5)
+
+- **Thông tin phiên Lab 3 thực tế:**
+  - Account ID: `829202571404`
+  - Caller ARN: `arn:aws:sts::829202571404:assumed-role/voclabs/user5674615=24133038@student.hcmute.edu.vn`
+  - Vùng: `us-east-1`
+- **Kết quả khảo sát quyền:**
+  - Lambda `CreateFunction`: Bị chặn (`AccessDeniedException`), khẳng định tính đúng đắn của việc kích hoạt Phương án B.
+  - EC2 `RunInstances`: Thành công trong `PublicSubnet1` (`subnet-044c864a6542838d1`) với AMI AL2023 `ami-0c230065b91270bc6`.
+- **Thông số máy ảo M1 Router đã triển khai:**
+  - Instance ID: `i-0e8ea28262c939d07` (Trạng thái: `running`)
+  - Public IP: `54.80.177.47`
+  - Public DNS: `ec2-54-80-177-47.compute-1.amazonaws.com`
+  - URL truy cập: `http://54.80.177.47`
+  - Security Group: `sg-07282cac50dab60bc` (`m1-tts-router-sg`), mở cổng 80 (HTTP) và cổng 22 (SSH).
+  - Tự động cấu hình User Data: Khởi chạy HTTP Router server trên cổng 80 với đầy đủ 7 routes theo hợp đồng API.
+- **Kết quả kiểm thử trực tiếp (Live Verification):**
+  - `GET http://54.80.177.47/`: Trả về `200 OK` (Health check thành công).
+  - `GET http://54.80.177.47/voices` (không token): Trả về `401 Unauthorized` (Bảo mật thành công).
+  - `GET http://54.80.177.47/voices` (với `X-Demo-Token: demo`): Trả về `200 OK` với danh sách giọng đọc tiếng Việt, Anh, Nhật.
+  - `POST http://54.80.177.47/synthesize` (với `X-Demo-Token: demo`): Trả về `202 Accepted` với `jobId` và trạng thái `PENDING`.

@@ -40,13 +40,13 @@ Lambda dùng existing LabRole, không tạo/sửa policy/role/OIDC. LabRole khô
 
 API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Comprehend/Translate/Cognito/X-Ray/RUM/EventBridge/Budgets ngoài allowlist. Gemini chỉ MR sau MP3 thật: typo-only, skipped bản gốc khi lỗi, user review, UTF-16 offsets, không tạo job ở correct. Không tự dịch/đoán lang cho synthesize; provider voice/speed phải kiểm chứng.
 
-## 8. Checklist chưa thực hiện
+## 8. Checklist tiến độ nhiệm vụ M1
 
-- [ ] SB-M1-01 — Xác minh capability và quyền lab.
-- [ ] SB-M1-02 — Di trú region và root IaC dùng role hiện hữu.
-- [ ] SB-M1-03 — HTTP router và compatibility.
-- [ ] SB-M1-04 — Giám sát và alarm Sandbox.
-- [ ] SB-M1-05 — IaC/session reset và fallback decision.
+- [x] SB-M1-01 — Xác minh capability và quyền lab (Đã xác minh Gate 0 trên Lab 1 & Lab 3).
+- [x] SB-M1-02 — Di trú region và root IaC dùng role hiện hữu (Đã hoàn thiện template.yaml).
+- [x] SB-M1-03 — HTTP router và compatibility (Đã hoàn thiện backend/http/app.py, 15/15 unit tests pass).
+- [x] SB-M1-04 — Giám sát và alarm Sandbox (Đã hoàn thiện CloudWatch Dashboard & Alarms).
+- [x] SB-M1-05 — IaC/session reset và fallback decision (Đã hoàn thiện FALLBACK-B-EC2-DECISION.md và deploy live EC2 thành công).
 
 ## 9. Task chi tiết và acceptance
 
