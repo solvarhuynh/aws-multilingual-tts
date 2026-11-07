@@ -62,15 +62,6 @@ Resources:
             - x-amz-content-sha256
           MaxAge: 86400
 
-  # Permission cho CloudFront OAC gọi Function URL qua IAM
-  HttpRouterFunctionUrlOacPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref HttpRouterFunction
-      Action: lambda:InvokeFunctionUrl
-      Principal: cloudfront.amazonaws.com
-      FunctionUrlAuthType: AWS_IAM
-
   # ----------------------------------------------------------------------------
   # 2. SNS Topic nhận cảnh báo hệ thống
   # ----------------------------------------------------------------------------
@@ -125,6 +116,10 @@ Outputs:
     Value: !GetAtt HttpRouterFunction.Arn
     Export:
       Name: !Sub "${AWS::StackName}-HttpRouterArn"
+
+  HttpRouterFunctionName:
+    Description: Tên Lambda HTTP Router
+    Value: !Ref HttpRouterFunction
 
   HttpRouterFunctionUrl:
     Description: URL Endpoint của Lambda HTTP Router

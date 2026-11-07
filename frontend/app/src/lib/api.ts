@@ -1,13 +1,20 @@
 import { MAX_CHARS, type Correction, type Input, type Job, type Language, type Recording, isRecording } from './model';
+import { sha256Hex } from './sha256';
 
 export const API_BASE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
 export const DEMO = !API_BASE;
+// Token do người dùng nhập lúc chạy, không nằm trong bundle.
+let demoToken = '';
+export const setDemoToken = (token: string) => { demoToken = token.trim(); };
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
     const response = await fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal,
-      headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers } });
+      headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(demoToken ? { 'X-Demo-Token': demoToken } : {}),
+        ...(typeof init?.body === 'string' ? { 'x-amz-content-sha256': sha256Hex(init.body) } : {}),
+        ...init?.headers } });
     let body;
     try { body = await response.json(); }
     catch { throw new Error('Máy chủ trả về dữ liệu không hợp lệ.'); }

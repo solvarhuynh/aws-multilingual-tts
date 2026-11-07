@@ -15,7 +15,7 @@ export interface Recording extends Job {
   local?: boolean;
 }
 export interface Correction { originalText: string; correctedText: string; hasTypos: boolean }
-export interface Preferences { theme: ThemeMode; reducedMotion: boolean; haptics: boolean; favorites: string[] }
+export interface Preferences { theme: ThemeMode; reducedMotion: boolean; haptics: boolean; favorites: string[]; demoToken: string }
 export const MAX_CHARS = 2000;
 // Dải ElevenLabs đã đo; 0.5 và 2.0 bị từ chối.
 export const MIN_SPEED = 0.7;

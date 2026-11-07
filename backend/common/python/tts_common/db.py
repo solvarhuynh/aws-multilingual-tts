@@ -16,6 +16,7 @@ MAX_CLAIM_ATTEMPTS = 3
 CONFLICT_CODES = {"PreconditionFailed", "ConditionalRequestConflict"}
 TERMINAL_STATUSES = {"DONE", "FAILED"}
 MAX_LIST_PAGES = 5
+MAX_USAGE_ATTEMPTS = 5
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 
@@ -278,6 +279,50 @@ def delete_job(user_id, job_id):
         job = _write(job, deleting=True)
     storage.delete_audio(storage.audio_key(user_id, job_id))
     aws.s3().delete_object(Bucket=config.JOBS_BUCKET, Key=_key(user_id, job_id))
+
+
+def _usage_key():
+    """Mỗi ngày UTC một file đếm, nằm ngoài prefix job."""
+    return f"usage/{time.strftime('%Y-%m-%d', time.gmtime())}.json"
+
+
+def _change_usage(delta, limit=None):
+    """Đổi bộ đếm ký tự bằng CAS; vượt limit thì trả False, không ghi."""
+    client = aws.s3()
+    key = _usage_key()
+    for _ in range(MAX_USAGE_ATTEMPTS):
+        try:
+            response = client.get_object(Bucket=config.JOBS_BUCKET, Key=key)
+            used, condition = json.loads(response["Body"].read())["chars"], {"IfMatch": response["ETag"]}
+        except client.exceptions.NoSuchKey:
+            used, condition = 0, {"IfNoneMatch": "*"}
+        total = max(0, used + delta)
+        if limit is not None and total > limit:
+            return False
+        try:
+            client.put_object(
+                Bucket=config.JOBS_BUCKET,
+                Key=key,
+                Body=json.dumps({"chars": total}).encode("utf-8"),
+                ContentType="application/json",
+                ServerSideEncryption="AES256",
+                **condition,
+            )
+            return True
+        except client.exceptions.ClientError as error:
+            if error.response["Error"]["Code"] not in CONFLICT_CODES:
+                raise
+    return False
+
+
+def reserve_chars(chars):
+    """Giữ chỗ trong trần ngày trước khi tạo job; đầy hoặc tranh chấp liên tục thì trả False."""
+    return _change_usage(chars, config.DAILY_CHAR_LIMIT)
+
+
+def refund_chars(chars):
+    """Trả lại phần đã giữ khi job không được gửi đi; thất bại chỉ làm trần chặt hơn."""
+    _change_usage(-chars)
 
 
 def find_cached(text_hash):

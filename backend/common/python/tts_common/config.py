@@ -19,4 +19,6 @@ MAX_CHARS = int(os.environ.get("MAX_CHARS", "2000"))
 DEFAULT_SPEED = float(os.environ.get("DEFAULT_SPEED", "0.9"))
 # Job chưa xong sau chừng này giây thì coi như kẹt. Phải lớn hơn event age 600 giây + timeout worker 120 giây.
 STALE_JOB_SECONDS = int(os.environ.get("STALE_JOB_SECONDS", "900"))
+# Trần ký tự mỗi ngày để bảo vệ credit provider; 6.000 ký tự khoảng 3.000 credit Flash.
+DAILY_CHAR_LIMIT = int(os.environ.get("DAILY_CHAR_LIMIT", "6000"))
 JOB_TTL_DAYS = int(os.environ.get("JOB_TTL_DAYS", "30"))

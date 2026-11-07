@@ -336,6 +336,9 @@ select { cursor: pointer; }
 .connection-card > p { color: var(--muted); font-size: 13px; line-height: 2; margin-bottom: 24px; }
 .connection-card > div { display: flex; justify-content: space-between; gap: 14px; padding: 16px 0; border-top: 1px solid var(--line); font-size: 13px; }
 .connection-card strong { font-weight: 500; }
+.token-form { display: flex; align-items: center; gap: 12px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; }
+.token-form input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; }
+.token-form button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: transparent; cursor: pointer; }
 .connection-card > div > span { color: var(--muted); }
 .connection-card code { font-size: 12px; overflow-wrap: anywhere; }
 .help-content { font-size: 13px; line-height: 2; }

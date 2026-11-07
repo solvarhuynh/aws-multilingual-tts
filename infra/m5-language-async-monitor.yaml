@@ -31,6 +31,10 @@ Parameters:
   DefaultSpeed:
     Type: Number
     Default: 0.9
+  DailyCharLimit:
+    Type: Number
+    Default: 6000
+    MinValue: 1
 
 Resources:
   SubmitFunction:
@@ -53,6 +57,7 @@ Resources:
           SYNTH_FUNCTION_NAME: !Ref SynthFunctionName
           MAX_CHARS: !Ref MaxChars
           DEFAULT_SPEED: !Ref DefaultSpeed
+          DAILY_CHAR_LIMIT: !Ref DailyCharLimit
 
   StatsFunction:
     Type: AWS::Serverless::Function

@@ -5,7 +5,6 @@ Description: aws-multilingual-tts root stack for AWS Academy Sandbox
 # PROPOSED / PENDING SANDBOX VALIDATION / NOT DEPLOYED.
 # Mỗi module giữ template riêng trong infra/; EventInvokeConfig duy nhất nằm ở M2.
 # Giá trị key không nằm ở đây; TtsApiParameterName chỉ là tên tham số SSM SecureString.
-# Hosting web của M4 (S3, CloudFront/OAC) chưa nằm trong stack này.
 
 Parameters:
   Env:
@@ -68,6 +67,15 @@ Resources:
         AllowedOrigin: !Ref AllowedOrigin
         DemoToken: !Ref DemoToken
 
+  Hosting:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: infra/m4-frontend-hosting.yaml
+      Parameters:
+        Env: !Ref Env
+        RouterFunctionName: !GetAtt Api.Outputs.HttpRouterFunctionName
+        RouterFunctionUrl: !GetAtt Api.Outputs.HttpRouterFunctionUrl
+
 Outputs:
   HttpRouterFunctionUrl:
     Value: !GetAtt Api.Outputs.HttpRouterFunctionUrl
@@ -75,3 +83,9 @@ Outputs:
     Value: !GetAtt Storage.Outputs.JobsBucketName
   AudioBucketName:
     Value: !GetAtt Storage.Outputs.AudioBucketName
+  WebBucketName:
+    Value: !GetAtt Hosting.Outputs.WebBucketName
+  DistributionId:
+    Value: !GetAtt Hosting.Outputs.DistributionId
+  WebDomain:
+    Value: !GetAtt Hosting.Outputs.WebDomain

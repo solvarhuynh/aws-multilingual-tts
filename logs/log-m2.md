@@ -6,13 +6,26 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: code nối toàn hệ thống trên nhánh `m2-tich-hop-nhom`, chưa commit, chưa chạy trên AWS. Giảng viên đã đồng ý SSM SecureString
+- Đang làm: PR #6 đã mở; phần token client, trần credit, hosting đang chờ commit, chưa chạy trên AWS. Giảng viên đã đồng ý SSM SecureString
 - Đã xong: SB-M2-01, SB-M2-02, SB-M2-03 (đã tick); Lambda tạo được MP3 vi/en/ja bằng ElevenLabs thật và qua thử lỗi Gate 3 trên stack thử. SB-M2-04 chờ M1 và M4 nối frontend
 - Việc tiếp theo: Trung Khang commit và push nhánh, deploy thử toàn hệ thống bằng `TRUNGKHANG/thu-he-thong.sh`; gửi nhóm kết quả
 - Đang bị chặn bởi: hợp đồng nhóm chưa duyệt; SB-M2-04 cần chạy thử trên AWS qua router và frontend
 - Tài nguyên AWS tôi đã tạo: không còn; Trung Khang đã bấm End Lab, stack thử `tts-m2-test` đã kết thúc
 
 ## NHẬT KÝ
+
+### 2026-11-07: Token client, trần credit và hosting
+
+- Đã làm: Trung Khang giao làm nốt phần còn lại. Trạng thái: locally tested, chưa chạy trên AWS. Phần lớn thuộc M1, M4, M5; làm vì frontend thật chưa dùng được hệ thống nếu thiếu, chủ module cần xem lại.
+- M4: web và app gửi `X-Demo-Token` do người dùng nhập ở Cài đặt, không nằm trong bundle; POST gửi `x-amz-content-sha256` cho CloudFront OAC, app dùng `sha256.ts` vì React Native không có `crypto.subtle`. `infra/m4-frontend-hosting.yaml`: S3 web private, CloudFront, OAC cho S3 và Lambda.
+- M1: bỏ quyền CloudFront không có `SourceArn`; quyền mới nằm trong stack hosting, chỉ cho đúng distribution.
+- M5: trần `DAILY_CHAR_LIMIT` 6.000 ký tự mỗi ngày, đếm bằng CAS trong `usage/<ngày>.json`, vượt trần trả 429, gửi lỗi thì hoàn lại.
+- Chưa làm: `Idempotency-Key`; Gemini và stats là MR sau MVP.
+- Rủi ro: Lambda OAC chưa từng thử trên Sandbox. Token lưu ở localStorage và AsyncStorage, chỉ đủ cho demo, không phải xác thực người dùng.
+- File đã đổi: `frontend/`, `backend/submit/app.py`, `backend/common/`, `infra/`, `template.yaml`, `tests/`, `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Việc tiếp theo: commit, push, deploy và chạy `e2e`, `web`, `e2e-cf`.
+- Cần báo module khác: như mục dưới, thêm phần hosting cho M4 và trần credit cho M5.
 
 ### 2026-11-07: Nối phần M2 cần từ các module khác
 
