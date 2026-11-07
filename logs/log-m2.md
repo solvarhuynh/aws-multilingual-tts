@@ -6,9 +6,9 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: chờ điều kiện chạy thật; code và registry M2 đã commit trên nhánh `m2-trungkhang`, chưa push
+- Đang làm: code và registry M2 đã push lên nhánh `m2-trungkhang`, mở PR vào `main` cho Trung Nghĩa kiểm tra; chuẩn bị deploy thử riêng cho M2 trên Sandbox
 - Đã xong: khảo sát ElevenLabs trên tài liệu; registry 33 ngôn ngữ đã nghe duyệt; `tts-voices`, adapter, worker, lưu job/audio S3, `infra/m2-tts-core.yaml` ở mức locally tested. Chưa task nào được tick vì chưa có bằng chứng chạy trên AWS
-- Việc tiếp theo: báo M4, M5 tốc độ mặc định 0.9; sau đó thử trên Sandbox và thử lỗi Gate 3
+- Việc tiếp theo: Trung Khang chạy T2-06 trong Lab; báo M4, M5 tốc độ mặc định 0.9; sau đó thử trên Sandbox và thử lỗi Gate 3
 - Đang bị chặn bởi: lưu key cho Lambda chờ kết quả T2-06; chạy trên AWS chờ bucket, Layer và root SAM; hợp đồng nhóm chưa duyệt
 - Tài nguyên AWS tôi đã tạo: (chưa có)
 
