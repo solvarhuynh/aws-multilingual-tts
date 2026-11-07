@@ -49,8 +49,8 @@ test("Nhập tài liệu: nội dung và giới hạn", async (suite) => {
       await assert.rejects(extractDocument(file("x.exe", "abc")), /Hỗ trợ tệp/);
       await assert.rejects(extractDocument(file("x.pdf", "", 11 * 1024 * 1024)), /10 MB/);
     });
-    await suite.test("từ chối rỗng, dữ liệu nhị phân và quá 20.000 ký tự", async () => {
-      for (const [text, message] of [["   ", /chưa có nội dung/], ["abc\0def", /không phải văn bản/], ["a".repeat(20001), /20.000/]])
+    await suite.test("từ chối rỗng, dữ liệu nhị phân và quá 2.000 ký tự", async () => {
+      for (const [text, message] of [["   ", /chưa có nội dung/], ["abc\0def", /không phải văn bản/], ["a".repeat(2001), /2\.000/]])
         await assert.rejects(extractDocument(file("x.txt", text)), message);
     });
   } finally { await env.close(); }

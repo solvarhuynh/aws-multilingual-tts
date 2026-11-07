@@ -45,12 +45,37 @@ export const demoLanguages: Language[] = [
 export const languageNames: Record<string, string> = {
   "vi-VN": "Tiếng Việt",
   "en-US": "Tiếng Anh (Mỹ)",
+  "en-GB": "Tiếng Anh (Anh)",
   "ja-JP": "Tiếng Nhật",
   "ko-KR": "Tiếng Hàn",
+  "cmn-CN": "Tiếng Trung",
+  "hi-IN": "Tiếng Hindi",
+  "id-ID": "Tiếng Indonesia",
+  "ms-MY": "Tiếng Mã Lai",
+  "fil-PH": "Tiếng Philippines",
+  "ta-IN": "Tiếng Tamil",
+  "ar-SA": "Tiếng Ả Rập",
+  "tr-TR": "Tiếng Thổ Nhĩ Kỳ",
   "fr-FR": "Tiếng Pháp",
   "de-DE": "Tiếng Đức",
   "es-ES": "Tiếng Tây Ban Nha",
-  "cmn-CN": "Tiếng Trung",
+  "pt-PT": "Tiếng Bồ Đào Nha",
+  "it-IT": "Tiếng Ý",
+  "nl-NL": "Tiếng Hà Lan",
+  "pl-PL": "Tiếng Ba Lan",
+  "ru-RU": "Tiếng Nga",
+  "uk-UA": "Tiếng Ukraina",
+  "sv-SE": "Tiếng Thụy Điển",
+  "nb-NO": "Tiếng Na Uy",
+  "da-DK": "Tiếng Đan Mạch",
+  "fi-FI": "Tiếng Phần Lan",
+  "el-GR": "Tiếng Hy Lạp",
+  "cs-CZ": "Tiếng Séc",
+  "sk-SK": "Tiếng Slovakia",
+  "ro-RO": "Tiếng Romania",
+  "hu-HU": "Tiếng Hungary",
+  "bg-BG": "Tiếng Bulgaria",
+  "hr-HR": "Tiếng Croatia",
 };
 export const samples: Record<string, string> = {
   "vi-VN":
@@ -62,7 +87,11 @@ export const samples: Record<string, string> = {
   "ko-KR":
     "도서관은 월요일부터 토요일까지, 오전 여덟 시부터 오후 여섯 시까지 운영합니다.\n\n온라인으로 도서를 검색할 수 있습니다. 도서관 안에서는 조용히 해 주세요.",
 };
-export const MAX_CHARS = 20000;
+export const MAX_CHARS = 2000;
+// Dải ElevenLabs đã đo; 0.5 và 2.0 bị từ chối.
+export const MIN_SPEED = 0.7;
+export const MAX_SPEED = 1.2;
+export const DEFAULT_SPEED = 0.9;
 export const starterPresets = [
   {
     id: "announcement",
@@ -99,6 +128,9 @@ export const starterPresets = [
   },
 ];
 export const formatNumber = (n: number) => new Intl.NumberFormat("vi-VN").format(n);
+// ID giọng thật là chuỗi ngẫu nhiên nên luôn hiển thị theo tên trong registry.
+export const voiceLabel = (languages: Language[], id: string) =>
+  languages.flatMap((l) => l.voices).find((v) => v.id === id)?.name ?? id.replace(" (demo)", "");
 export const formatTime = (seconds: number) =>
   `${Math.floor(Math.max(0, seconds) / 60)}:${String(Math.floor(Math.max(0, seconds) % 60)).padStart(2, "0")}`;
 export const estimateDuration = (text: string, speed = 1) =>
@@ -132,8 +164,8 @@ export function validateInput(text: string, speed: number): string | null {
   if (!text.trim()) return "Bạn hãy nhập nội dung muốn chuyển thành giọng nói.";
   if (text.length > MAX_CHARS)
     return `Nội dung tối đa ${formatNumber(MAX_CHARS)} ký tự. Hãy rút gọn văn bản rồi thử lại.`;
-  if (!Number.isFinite(speed) || speed < 0.5 || speed > 2)
-    return "Tốc độ đọc cần nằm trong khoảng 0,5× đến 2×.";
+  if (!Number.isFinite(speed) || speed < MIN_SPEED || speed > MAX_SPEED)
+    return "Tốc độ đọc cần nằm trong khoảng 0,7× đến 1,2×.";
   return null;
 }
 

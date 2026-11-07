@@ -16,7 +16,7 @@ import { useStudio } from '../state/Studio';
 import { usePlayback } from '../state/Playback';
 import { api, DEMO } from '../lib/api';
 import { base64Bytes, checkedText, extractDocument, MAX_FILE_BYTES } from '../lib/document';
-import { duration, languageNames, MAX_CHARS, number, samples, time, validate, type Correction, type Input, type Recording } from '../lib/model';
+import { DEFAULT_SPEED, duration, languageNames, MAX_CHARS, MAX_SPEED, MIN_SPEED, number, samples, time, validate, type Correction, type Input, type Recording } from '../lib/model';
 
 export default function Compose() {
   const keyboard = useKeyboardState();
@@ -130,7 +130,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
         </View>}
         <Pressable accessibilityRole="button" accessibilityLabel="Chọn giọng đọc" disabled={busy} onPress={() => setSheet('voices')}
           style={[styles.voicePill, { backgroundColor: colors.raised }]}><View style={[styles.voiceDot, { backgroundColor: colors.blueSoft }]}><Icon name="mic" color={colors.blue} size={18} /></View>
-          <View style={{ flex: 1, minWidth: 0 }}><Label weight="500" size={16}>{loadingVoices ? 'Đang tải giọng đọc…' : availableVoice?.id || 'Chọn giọng đọc'}</Label><Label size={12} muted>{languageNames[mode === 'translation' ? target : lang]}</Label></View>
+          <View style={{ flex: 1, minWidth: 0 }}><Label weight="500" size={16}>{loadingVoices ? 'Đang tải giọng đọc…' : (availableVoice?.name ?? availableVoice?.id) || 'Chọn giọng đọc'}</Label><Label size={12} muted>{languageNames[mode === 'translation' ? target : lang]}</Label></View>
           <Icon name="next" size={16} color={colors.secondary} /></Pressable>
         {mode === 'document' && <Action icon="upload" disabled={busy || importing} onPress={() => void importFile()}>{importing ? 'Đang đọc tài liệu…' : documentName || 'Chọn PDF, Word hoặc TXT'}</Action>}
         <TextInput accessibilityLabel="Nội dung cần đọc" value={draft} onChangeText={text => { setDraft(text); setError(''); }} editable={!busy && !importing}
@@ -162,10 +162,10 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     </Sheet>
     <Sheet title="Cài đặt giọng đọc" visible={sheet === 'settings'} close={() => setSheet(null)}>
       <Label size={18} weight="600">Tốc độ đọc</Label><Label size={34} weight="600" style={{ color: colors.blue }}>{speed.toFixed(2).replace('.', ',')}×</Label>
-      <Slider accessibilityLabel="Tốc độ đọc" value={speed} onValueChange={setSpeed} minimumValue={0.5} maximumValue={2} step={0.05}
+      <Slider accessibilityLabel="Tốc độ đọc" value={speed} onValueChange={value => setSpeed(Math.round(value * 100) / 100)} minimumValue={MIN_SPEED} maximumValue={MAX_SPEED} step={0.05}
         minimumTrackTintColor={colors.blue} maximumTrackTintColor={colors.line} thumbTintColor={colors.blue} style={{ width: '100%', height: 44 }} />
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Label size={13} muted>Chậm · 0,5×</Label><Label size={13} muted>Nhanh · 2×</Label></View>
-      <Action onPress={() => setSpeed(1)}>Đặt lại 1×</Action>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Label size={13} muted>Chậm · 0,7×</Label><Label size={13} muted>Nhanh · 1,2×</Label></View>
+      <Action onPress={() => setSpeed(DEFAULT_SPEED)}>Đặt lại 0,9×</Action>
     </Sheet>
     <Sheet title={sheet === 'source' ? 'Ngôn ngữ gốc' : 'Dịch sang'} visible={sheet === 'source' || sheet === 'target'} close={() => setSheet(null)}>
       {languages.filter(l => l.voices.length).map(l => <Action key={l.lang} onPress={() => {

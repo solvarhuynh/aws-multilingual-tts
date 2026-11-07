@@ -1,14 +1,15 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { languageNames } from "../lib/data";
-import type { HistoryItem, Page } from "../lib/types";
+import { languageNames, voiceLabel } from "../lib/data";
+import type { HistoryItem, Language, Page } from "../lib/types";
 import { Button, Icon } from "./ui";
 
 const searchKey = (text: string) => text.toLocaleLowerCase("vi").normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d");
 
-export default function HeaderSearch({ pages, history, onNavigate, onRecording }: {
+export default function HeaderSearch({ pages, history, languages = [], onNavigate, onRecording }: {
   pages: { id: Page; title: string; icon: string }[];
   history: HistoryItem[];
+  languages?: Language[];
   onNavigate: (page: Page) => void;
   onRecording: (item: HistoryItem) => void;
 }) {
@@ -23,9 +24,9 @@ export default function HeaderSearch({ pages, history, onNavigate, onRecording }
     ...pages.filter((page) => searchKey(page.title).includes(term)).slice(0, 4).map((page) => ({
       id: page.id, label: page.title, detail: "Công cụ", icon: page.icon, choose: () => onNavigate(page.id),
     })),
-    ...history.filter((item) => searchKey(`${item.text} ${item.voice} ${languageNames[item.lang] || item.lang}`)
+    ...history.filter((item) => searchKey(`${item.text} ${voiceLabel(languages, item.voice)} ${languageNames[item.lang] || item.lang}`)
       .includes(term)).slice(0, 3).map((item) => ({
-      id: item.jobId, label: item.text.slice(0, 60), detail: `${item.voice} · ${languageNames[item.lang] || item.lang}`,
+      id: item.jobId, label: item.text.slice(0, 60), detail: `${voiceLabel(languages, item.voice)} · ${languageNames[item.lang] || item.lang}`,
       icon: "headphones", choose: () => onRecording(item),
     })),
   ].slice(0, 6) : [];

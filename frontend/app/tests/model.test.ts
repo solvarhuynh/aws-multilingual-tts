@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { duration, isRecording, normalize, splitSpeech, validate, type Input } from '../src/lib/model';
+import { readFileSync } from 'node:fs';
+import { DEFAULT_SPEED, duration, isRecording, languageNames, MAX_SPEED, MIN_SPEED, normalize, splitSpeech, validate, voiceName, type Input } from '../src/lib/model';
 
 const input: Input = { text: 'Xin chào.', lang: 'vi-VN', voice: 'Linh', speed: 1, translateTo: null };
 test('Văn bản rỗng hiển thị thời lượng bằng không', () => {
@@ -9,9 +10,23 @@ test('Văn bản rỗng hiển thị thời lượng bằng không', () => {
 });
 test('Chặn nội dung rỗng, quá dài và tốc độ sai', () => {
   assert.equal(validate(input), null);
-  for (const text of ['', '  \n ', 'x'.repeat(20001)]) assert.ok(validate({ ...input, text }));
-  for (const speed of [0, 2.1, NaN, Infinity]) assert.ok(validate({ ...input, speed }));
+  for (const text of ['', '  \n ', 'x'.repeat(2001)]) assert.ok(validate({ ...input, text }));
+  assert.equal(validate({ ...input, text: 'x'.repeat(2000) }), null);
+  for (const speed of [MIN_SPEED, DEFAULT_SPEED, MAX_SPEED]) assert.equal(validate({ ...input, speed }), null);
+  for (const speed of [0, 0.5, 1.3, 2, 2.1, NaN, Infinity]) assert.ok(validate({ ...input, speed }));
   assert.ok(validate({ ...input, translateTo: 'vi-VN' }));
+});
+test('Hiển thị tên giọng, không lộ ID ngẫu nhiên', () => {
+  const languages = [{ lang: 'vi-VN', provider: 'elevenlabs', engine: null, voices: [{ id: 'XrExE9', gender: 'F', name: 'Matilda' }, { id: 'Linh', gender: 'F' }] }];
+  assert.equal(voiceName(languages, 'XrExE9'), 'Matilda');
+  assert.equal(voiceName(languages, 'Linh'), 'Linh');
+  assert.equal(voiceName([], 'XrExE9'), 'XrExE9');
+});
+test('Mọi ngôn ngữ trong registry đều có tên tiếng Việt', () => {
+  const registry = JSON.parse(readFileSync(new URL('../../../config/voices.json', import.meta.url), 'utf8'));
+  const codes = Object.keys(registry).filter(code => !code.startsWith('_'));
+  assert.equal(codes.length, 33);
+  assert.deepEqual(codes.filter(code => !languageNames[code]), []);
 });
 test('Tìm tiếng Việt không dấu, kể cả chữ đ', () => {
   assert.equal(normalize('Giọng đọc tiếng Việt'), 'giong doc tieng viet');

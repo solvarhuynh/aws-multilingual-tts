@@ -1,13 +1,16 @@
 # M2 - Trung Khang: worker tts-synthesize và API tts-voices.
-# PROPOSED / PENDING SANDBOX VALIDATION / NOT DEPLOYED. M1 ghép vào root SAM.
+# PROPOSED / NOT DEPLOYED qua root; đã thử riêng trên Sandbox. Root template.yaml gọi file này.
 # Dùng LabRole có sẵn: phải truyền ARN để SAM không tự tạo IAM role.
-# Timeout, bộ nhớ và retry là giá trị đề xuất chưa đo; chỉnh theo T2-07 và chính sách của M5.
+# Timeout 120 giây đủ cho 2.000 ký tự (đo được 6,8 giây); retry và event age chờ M5 chốt.
 # Giá trị API key không nằm trong file này; chỉ truyền tên tham chiếu khi đã có cơ chế được duyệt.
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: M2 worker and voices Lambdas for the proposed AWS Academy Sandbox architecture
 
 Parameters:
+  Env:
+    Type: String
+    Default: dev
   LabRoleArn:
     Type: String
     Description: ARN of the existing LabRole
@@ -49,7 +52,7 @@ Resources:
   SynthesizeFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: tts-synthesize
+      FunctionName: !Sub "tts-synthesize-${Env}"
       CodeUri: ../backend/synthesize/
       Handler: app.handler
       Runtime: python3.12
@@ -77,7 +80,7 @@ Resources:
   VoicesFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: tts-voices
+      FunctionName: !Sub "tts-voices-${Env}"
       CodeUri: ../backend/voices/
       Handler: app.handler
       Runtime: python3.12

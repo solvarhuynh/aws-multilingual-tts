@@ -1,23 +1,30 @@
 """Lưu job dạng JSON trên S3, mỗi job một file.
 
 S3 không có transaction nên mọi cập nhật dùng CAS: chỉ ghi nếu ETag chưa đổi.
-Phần worker đã hiện thực; các hàm còn lại chờ M3.
 """
 
+import calendar
 import json
 import time
 from dataclasses import dataclass
 
-from . import aws, config
-from .utils import are_valid_ids
+from . import aws, config, storage
+from .utils import JOB_ID_PATTERN, are_valid_ids, make_job_id
 
 
 MAX_CLAIM_ATTEMPTS = 3
 CONFLICT_CODES = {"PreconditionFailed", "ConditionalRequestConflict"}
+TERMINAL_STATUSES = {"DONE", "FAILED"}
+MAX_LIST_PAGES = 5
+TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
 
 class JobConflict(Exception):
     """Job đã bị đổi bởi tiến trình khác, không được ghi đè."""
+
+
+class JobBusy(Exception):
+    """Job đang chạy nên chưa được xóa."""
 
 
 @dataclass(frozen=True)
@@ -34,6 +41,27 @@ class ClaimResult:
 
     job: StoredJob | None = None
     reason: str = ""
+
+
+def _timestamp():
+    """Trả thời gian hiện tại theo chuẩn ISO 8601 UTC."""
+    return time.strftime(TIMESTAMP_FORMAT, time.gmtime())
+
+
+def _is_visible(data, now):
+    """Job đang xóa hoặc hết hạn thì coi như không còn."""
+    expires_at = data.get("expiresAt")
+    return not data.get("deleting") and (expires_at is None or expires_at > now)
+
+
+def _is_stale(data, now):
+    """Job chưa xong, không có lease còn hạn và đã quá lâu không cập nhật."""
+    if data.get("status") in TERMINAL_STATUSES or (data.get("leaseUntil") or 0) > now:
+        return False
+    updated_at = data.get("updatedAt")
+    if not updated_at:
+        return False
+    return now - calendar.timegm(time.strptime(updated_at, TIMESTAMP_FORMAT)) >= config.STALE_JOB_SECONDS
 
 
 def _key(user_id, job_id):
@@ -53,13 +81,31 @@ def _read(user_id, job_id):
     return StoredJob(json.loads(response["Body"].read()), response["ETag"])
 
 
+def _list_job_ids(user_id):
+    """Đọc danh sách mã job trong scope, giới hạn số trang để chi phí có trần."""
+    client = aws.s3()
+    prefix = f"{config.JOBS_PREFIX}{user_id}/"
+    options = {"Bucket": config.JOBS_BUCKET, "Prefix": prefix}
+    job_ids = []
+    for _ in range(MAX_LIST_PAGES):
+        response = client.list_objects_v2(**options)
+        for item in response.get("Contents", []):
+            job_id = item["Key"][len(prefix):].removesuffix(".json")
+            if JOB_ID_PATTERN.fullmatch(job_id):
+                job_ids.append(job_id)
+        if not response.get("IsTruncated"):
+            break
+        options["ContinuationToken"] = response["NextContinuationToken"]
+    return job_ids
+
+
 def _write(job, **changes):
     """Ghi bản mới bằng CAS; ETag đã đổi thì raise JobConflict."""
     data = {
         **job.data,
         **changes,
         "version": job.data.get("version", 0) + 1,
-        "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "updatedAt": _timestamp(),
     }
     client = aws.s3()
     try:
@@ -82,7 +128,7 @@ def _unclaimable_reason(data, now):
     """Trả lý do không được claim, hoặc chuỗi rỗng nếu được phép."""
     if data.get("deleting"):
         return "DELETING"
-    if data.get("status") in {"DONE", "FAILED"}:
+    if data.get("status") in TERMINAL_STATUSES:
         return "TERMINAL"
     if data.get("expiresAt") is not None and data["expiresAt"] <= now:
         return "EXPIRED"
@@ -129,31 +175,111 @@ def fail_job(job, message):
     return _write(job, status="FAILED", leaseUntil=None, errorMessage=message)
 
 
-def create_job(user_id, text, lang, voice, speed, translate_to=None):
-    """Tạo job cho người dùng và trả thông tin job mới."""
-    raise NotImplementedError
+def create_job(user_id, text, lang, voice, speed, translate_to=None, provider=None, engine=None):
+    """Tạo job PENDING; If-None-Match chặn ghi đè nếu trùng mã."""
+    job_id = make_job_id()
+    now = int(time.time())
+    timestamp = _timestamp()
+    data = {
+        "schemaVersion": 1,
+        "version": 1,
+        "userId": user_id,
+        "jobId": job_id,
+        "text": text,
+        "lang": lang,
+        "translateTo": translate_to,
+        "voice": voice,
+        "provider": provider,
+        "engine": engine,
+        "speed": speed,
+        "status": "PENDING",
+        "createdAt": timestamp,
+        "updatedAt": timestamp,
+        "expiresAt": now + config.JOB_TTL_DAYS * 86400,
+        "charCount": len(text),
+        "textHash": None,
+        "chunkCount": 1,
+        "chunksDone": 0,
+        "audioKey": None,
+        "errorMessage": None,
+        "attempt": 0,
+        "leaseUntil": None,
+        "dispatchState": "CREATED",
+        "deleting": False,
+    }
+    aws.s3().put_object(
+        Bucket=config.JOBS_BUCKET,
+        Key=_key(user_id, job_id),
+        Body=json.dumps(data, ensure_ascii=False).encode("utf-8"),
+        ContentType="application/json",
+        ServerSideEncryption="AES256",
+        IfNoneMatch="*",
+    )
+    return data
 
 
 def get_job(user_id, job_id):
-    """Tìm một job theo người dùng và mã job."""
-    raise NotImplementedError
+    """Trả job còn hiệu lực; thiếu, hết hạn hoặc đang xóa thì trả None."""
+    job = _read(user_id, job_id)
+    return job.data if job and _is_visible(job.data, int(time.time())) else None
 
 
 def update_job(user_id, job_id, **fields):
-    """Cập nhật các trường được chỉ định của một job."""
-    raise NotImplementedError
+    """Cập nhật vài trường bằng CAS, thử lại có giới hạn; job không còn thì trả None."""
+    for _ in range(MAX_CLAIM_ATTEMPTS):
+        job = _read(user_id, job_id)
+        if job is None:
+            return None
+        try:
+            return _write(job, **fields).data
+        except JobConflict:
+            continue
+    raise JobConflict
+
+
+def fail_stale_job(user_id, job_id, message):
+    """Đánh FAILED job quá hạn và không có lease; worker đến muộn sẽ thấy trạng thái cuối."""
+    job = _read(user_id, job_id)
+    if job is None or not _is_stale(job.data, int(time.time())):
+        return job.data if job else None
+    try:
+        return fail_job(job, message).data
+    except JobConflict:
+        current = _read(user_id, job_id)
+        return current.data if current else None
 
 
 def list_jobs(user_id, limit=20, cursor=None):
-    """Liệt kê job của người dùng theo giới hạn và con trỏ trang."""
-    raise NotImplementedError
+    """Liệt kê job mới nhất trước; trả (items, nextCursor), cursor là jobId cuối đã xem."""
+    job_ids = sorted(_list_job_ids(user_id), reverse=True)
+    if cursor:
+        job_ids = [job_id for job_id in job_ids if job_id < cursor]
+    now = int(time.time())
+    items = []
+    last_seen = None
+    for job_id in job_ids:
+        if len(items) >= limit:
+            return items, last_seen
+        last_seen = job_id
+        job = _read(user_id, job_id)
+        if job and _is_visible(job.data, now):
+            items.append(job.data)
+    return items, None
 
 
 def delete_job(user_id, job_id):
-    """Xóa job của người dùng."""
-    raise NotImplementedError
+    """Xóa job đã kết thúc: đặt tombstone, xóa audio rồi metadata; gọi lại vẫn an toàn."""
+    job = _read(user_id, job_id)
+    if job is None:
+        return
+    if not job.data.get("deleting"):
+        if job.data.get("status") not in TERMINAL_STATUSES:
+            raise JobBusy
+        job = _write(job, deleting=True)
+    storage.delete_audio(storage.audio_key(user_id, job_id))
+    aws.s3().delete_object(Bucket=config.JOBS_BUCKET, Key=_key(user_id, job_id))
 
 
 def find_cached(text_hash):
-    """Tìm job đã hoàn tất có cùng mã băm văn bản."""
-    raise NotImplementedError
+    """Cache theo nội dung chưa bật ở MVP nên không có kết quả."""
+    return None

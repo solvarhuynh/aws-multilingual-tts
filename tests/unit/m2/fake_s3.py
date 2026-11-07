@@ -57,5 +57,17 @@ class FakeS3:
         expected = options.get("IfMatch")
         if expected is not None and self.objects.get((Bucket, Key), (None, None))[1] != expected:
             raise ClientError("PreconditionFailed")
+        if options.get("IfNoneMatch") == "*" and (Bucket, Key) in self.objects:
+            raise ClientError("PreconditionFailed")
         self.seed(Bucket, Key, Body)
         return {"ETag": self.objects[Bucket, Key][1]}
+
+    def delete_object(self, Bucket, Key):
+        self.objects.pop((Bucket, Key), None)
+
+    def list_objects_v2(self, Bucket, Prefix, ContinuationToken=None):
+        keys = sorted(key for bucket, key in self.objects if bucket == Bucket and key.startswith(Prefix))
+        return {"Contents": [{"Key": key} for key in keys], "IsTruncated": False}
+
+    def generate_presigned_url(self, operation, Params, ExpiresIn):
+        return f"https://signed.test/{Params['Key']}?expires={ExpiresIn}"

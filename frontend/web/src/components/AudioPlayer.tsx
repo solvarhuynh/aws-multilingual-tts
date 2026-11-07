@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEMO } from "../lib/api";
-import { estimateDuration, formatTime, languageNames } from "../lib/data";
+import { estimateDuration, formatTime, languageNames, voiceLabel } from "../lib/data";
 import { Button, Icon, Slider, ToolArt } from "./ui";
-import type { HistoryItem } from "../lib/types";
+import type { HistoryItem, Language } from "../lib/types";
 
 export default function AudioPlayer({
   item,
   queue,
+  languages = [],
   onSelect,
   onLibrary,
   volume,
@@ -17,6 +18,7 @@ export default function AudioPlayer({
 }: {
   item: HistoryItem | null;
   queue: HistoryItem[];
+  languages?: Language[];
   onSelect: (item: HistoryItem) => Promise<unknown>;
   onLibrary: () => void;
   volume: number;
@@ -231,7 +233,7 @@ export default function AudioPlayer({
         <div className="player-meta">
           <strong title={item?.text}>{item ? item.text : "Chưa có âm thanh"}</strong>
           <span>
-            {item ? `${item.voice.replace(" (demo)", "")} · ${languageNames[item.lang] || item.lang}` : ""}
+            {item ? `${voiceLabel(languages, item.voice)} · ${languageNames[item.lang] || item.lang}` : ""}
           </span>
         </div>
       </div>

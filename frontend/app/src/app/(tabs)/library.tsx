@@ -6,15 +6,15 @@ import { Action, Circle, Empty, Icon, Label, SearchField } from '../../component
 import { Page } from '../../components/layout';
 import { useStudio } from '../../state/Studio';
 import { usePlayback } from '../../state/Playback';
-import { covers, date, languageNames, normalize, type Recording } from '../../lib/model';
+import { covers, date, languageNames, normalize, voiceName, type Recording } from '../../lib/model';
 
 export default function Library() {
-  const { colors, history, removeRecording, setNotice, refresh, refreshing, cursor, setDraft } = useStudio();
+  const { colors, history, languages, removeRecording, setNotice, refresh, refreshing, cursor, setDraft } = useStudio();
   const { current, playing, play, toggle, clear } = usePlayback();
   const [query, setQuery] = useState('');
   const [deleting, setDeleting] = useState<string | null>(null);
   const deleteLock = useRef(false);
-  const items = history.filter(r => normalize(`${r.text} ${r.voice} ${languageNames[r.lang]}`).includes(normalize(query)));
+  const items = history.filter(r => normalize(`${r.text} ${voiceName(languages, r.voice)} ${languageNames[r.lang]}`).includes(normalize(query)));
   const remove = (record: Recording) => {
     const execute = async () => {
       if (deleteLock.current) return;
@@ -35,7 +35,7 @@ export default function Library() {
           <View style={styles.recordTop}><Pressable accessibilityRole="button" accessibilityLabel={`Mở bản thu ${record.text.slice(0, 30)}`}
             onPress={() => { void play(record); router.push('/recording'); }} style={styles.recordMain}>
             <LinearGradient colors={covers[index % covers.length]} style={styles.cover}><Icon name="wave" color="#FFFFFF" size={28} /></LinearGradient>
-            <View style={{ flex: 1, minWidth: 0, gap: 8 }}><Label weight="600" size={18} lines={2}>{record.text}</Label><Label size={12} muted lines={1}>{date(record.createdAt)} · {record.voice}</Label>
+            <View style={{ flex: 1, minWidth: 0, gap: 8 }}><Label weight="600" size={18} lines={2}>{record.text}</Label><Label size={12} muted lines={1}>{date(record.createdAt)} · {voiceName(languages, record.voice)}</Label>
               <Label size={12} muted>{languageNames[record.lang] ?? record.lang}{record.local ? ' · Nghe trên máy' : ''}</Label></View></Pressable>
             <Circle name="trash" label="Xóa bản thu" size={36} disabled={deleting === record.jobId} onPress={() => remove(record)} />
           </View>

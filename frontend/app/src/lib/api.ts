@@ -29,7 +29,7 @@ export const api = {
   async voices(): Promise<Language[]> {
     const data = await request<{ languages: Language[] }>('/voices');
     if (!Array.isArray(data?.languages) || !data.languages.every(l => typeof l?.lang === 'string' && Array.isArray(l.voices) &&
-      l.voices.every(v => typeof v?.id === 'string' && typeof v.gender === 'string'))) throw new Error('Danh sách giọng đọc chưa hợp lệ.');
+      l.voices.every(v => typeof v?.id === 'string' && typeof v.gender === 'string' && (v.name === undefined || typeof v.name === 'string')))) throw new Error('Danh sách giọng đọc chưa hợp lệ.');
     return data.languages;
   },
   async correct(text: string, lang: string): Promise<Correction | null> {

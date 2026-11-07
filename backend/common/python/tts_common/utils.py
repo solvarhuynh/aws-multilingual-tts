@@ -10,6 +10,7 @@ import unicodedata
 
 USER_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 JOB_ID_PATTERN = re.compile(r"^\d{13}-[0-9a-f]{8}$")
+DEMO_SCOPE = "demo"
 
 
 def are_valid_ids(user_id, job_id):
@@ -39,6 +40,5 @@ def text_hash(text, lang, voice, speed):
 
 
 def get_user_id(event):
-    """Lấy mã sub từ Cognito authorizer; trả guest khi chưa có đăng nhập."""
-    claims = (event or {}).get("requestContext", {}).get("authorizer", {}).get("claims", {})
-    return claims.get("sub") or "guest"
+    """Trả scope demo dùng chung; backend tự gán, không nhận từ client."""
+    return DEMO_SCOPE

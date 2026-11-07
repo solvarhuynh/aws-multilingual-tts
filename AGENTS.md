@@ -16,14 +16,14 @@ Luồng Sandbox đang **PROPOSED / PENDING GROUP SIGN-OFF / NOT DEPLOYED**:
 
 `Web/app M4 → CloudFront + S3 web → Lambda HTTP entry M1 → submit M5 → Lambda async Event → worker M2 → TTS provider ngoài AWS → S3 jobs/audio M3 → polling + presigned URL.`
 
-Cấu hình kế hoạch trong `samconfig.toml` và `config/settings.json` đã chuyển sang `us-east-1`. Runtime vẫn chưa sẵn sàng: backend còn stub/501 và `backend/common/python/tts_common/config.py` vẫn đọc biến môi trường cũ. `template.yaml` còn ProjectMarker SSM String để giữ SAM skeleton; không deploy template này. Không coi config/voice placeholder là dịch vụ đã chạy.
+Cấu hình trong `samconfig.toml` và `config/settings.json` đã chuyển sang `us-east-1`. Backend đã có code cho submit, worker, voices, history và router; stats và sửa lỗi đánh máy là MR chưa bật. `template.yaml` ghép các stack trong `infra/`, chưa gồm hosting web của M4. Toàn hệ thống chưa deploy; chỉ M2 đã thử riêng trên Sandbox.
 
 ## Giới hạn AWS Academy
 
 - Tài nguyên regional dùng `us-east-1`; IAM và CloudFront là global. Lab reset tài nguyên và dữ liệu khi hết phiên.
 - IAM read-only: dùng `LabRole` có sẵn cho Lambda; không tạo role, policy hay GitHub OIDC mới. EC2 fallback cần `LabInstanceProfile` và kiểm tra riêng.
-- Có tên dịch vụ trong allowlist không chứng minh action cụ thể được phép. Function URL, Lambda Invoke, CloudFront OAC, S3 policy/CAS, CloudFormation và CloudWatch actions vẫn **UNVERIFIED / NEEDS SANDBOX TEST**.
-- KMS chỉ list theo handout; SSM SecureString chưa được chứng minh. Nếu trường không duyệt được cách bảo vệ API key/demo token thì live TTS/Gemini bị chặn; tiếp tục bằng mocks.
+- Có tên dịch vụ trong allowlist không chứng minh action cụ thể được phép. Lambda Invoke, S3 CAS, CloudFormation và CloudWatch Logs đã thử đạt ở stack M2; Function URL, CloudFront OAC và S3 policy vẫn **UNVERIFIED / NEEDS SANDBOX TEST**.
+- KMS chỉ list theo handout, nhưng SSM SecureString với khóa mặc định đã thử đạt và giảng viên đồng ý dùng cho API key provider. Demo token vẫn cần cách bảo vệ riêng.
 - Polly, DynamoDB, API Gateway, SQS/DLQ, Secrets Manager, Comprehend, Translate, Cognito, X-Ray/RUM, EventBridge và Budgets **OUT OF BASELINE**. Chỉ dùng lại khi có xác nhận riêng và test Sandbox.
 - Không xuất AWS credentials khỏi Lab IDE/CloudShell. Không ghi key, token, text riêng tư hoặc presigned URL đầy đủ vào repo, browser bundle, log hay evidence.
 

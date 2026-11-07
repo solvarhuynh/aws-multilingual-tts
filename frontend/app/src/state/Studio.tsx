@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { AccessibilityInfo, Appearance, AppState, useColorScheme } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { api, DEMO } from '../lib/api';
-import { demoLanguages, isRecording, type Language, type Preferences, type Recording } from '../lib/model';
+import { DEFAULT_SPEED, demoLanguages, isRecording, type Language, type Preferences, type Recording } from '../lib/model';
 
 const KEYS = { preferences: 'tts.app.preferences.v1', recordings: 'tts.app.recordings.v1', draft: 'tts.app.draft.v1' };
 const defaults: Preferences = { theme: 'system', reducedMotion: false, haptics: true, favorites: [] };
@@ -35,7 +35,7 @@ function useStudioState() {
   const [loadingVoices, setLoadingVoices] = useState(!DEMO);
   const [voiceError, setVoiceError] = useState('');
   const voiceRequest = useRef(0);
-  const [speed, setSpeed] = useState(1);
+  const [speed, setSpeed] = useState(DEFAULT_SPEED);
   const [cursor, setCursor] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState('');

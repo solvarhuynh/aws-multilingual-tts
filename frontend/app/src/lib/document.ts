@@ -1,11 +1,11 @@
 import { unzipSync, strFromU8 } from 'fflate';
-import { MAX_CHARS } from './model';
+import { MAX_CHARS, number } from './model';
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export function checkedText(text: string) {
   const result = text.replace(/\u0000/g, '').trim();
   if (!result) throw new Error('Tài liệu không có văn bản đọc được. Nếu là bản scan, hãy dùng tài liệu có lớp chữ.');
-  if (result.length > MAX_CHARS) throw new Error('Tài liệu vượt 20.000 ký tự. Hãy chọn phần nội dung ngắn hơn.');
+  if (result.length > MAX_CHARS) throw new Error(`Tài liệu vượt ${number(MAX_CHARS)} ký tự. Hãy chọn phần nội dung ngắn hơn.`);
   return result;
 }
 export function base64Bytes(text: string) {
