@@ -1,9 +1,92 @@
-# M2 - Trung Khang: synthesize worker, voices và external provider adapter.
-# PLANNING ONLY / NOT DEPLOYABLE - 2026-11-06, proposed pending group sign-off.
-# Regional resources: us-east-1; Lambda uses existing LabRole if allowed.
-# ElevenLabs is a non-AWS candidate; verify account/model/voices/vi-en-ja/MP3/cost.
-# Use M3 S3 jobs/audio common, CAS/lease and partial-save recovery.
-# M2 owns the ONLY worker EventInvokeConfig in this file; M5 supplies policy.
-# Async Event is not SQS/DLQ. No Polly/Secrets Manager in baseline.
-# Secret storage, egress, destination permissions UNVERIFIED; no safe secret -> BLOCKER.
-# Worker/runtime/provider code not implemented by this comment-only migration.
+# M2 - Trung Khang: worker tts-synthesize và API tts-voices.
+# PROPOSED / PENDING SANDBOX VALIDATION / NOT DEPLOYED. M1 ghép vào root SAM.
+# Dùng LabRole có sẵn: phải truyền ARN để SAM không tự tạo IAM role.
+# Không có giá trị mặc định cho thời gian và retry: chờ số đo T2-07 và đề xuất của M5.
+# Giá trị API key không nằm trong file này; chỉ truyền tên tham chiếu khi đã có cơ chế được duyệt.
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: M2 worker and voices Lambdas for the proposed AWS Academy Sandbox architecture
+
+Parameters:
+  LabRoleArn:
+    Type: String
+    Description: ARN of the existing LabRole
+  CommonLayerArn:
+    Type: String
+    Description: tts_common Lambda Layer ARN from M3
+  JobsBucket:
+    Type: String
+  JobsPrefix:
+    Type: String
+  AudioBucket:
+    Type: String
+  TtsApiParameterName:
+    Type: String
+    Description: Name of the approved key reference, never the key value
+  WorkerTimeoutSeconds:
+    Type: Number
+    MinValue: 30
+    MaxValue: 900
+  WorkerMemoryMb:
+    Type: Number
+    MinValue: 128
+  MaximumRetryAttempts:
+    Type: Number
+    MinValue: 0
+    MaxValue: 2
+    Description: Provided by the M5 retry policy
+  MaximumEventAgeInSeconds:
+    Type: Number
+    MinValue: 60
+    MaxValue: 21600
+    Description: Provided by the M5 retry policy
+
+Resources:
+  SynthesizeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: tts-synthesize
+      CodeUri: ../backend/synthesize/
+      Handler: app.handler
+      Runtime: python3.12
+      Role: !Ref LabRoleArn
+      Timeout: !Ref WorkerTimeoutSeconds
+      MemorySize: !Ref WorkerMemoryMb
+      Layers:
+        - !Ref CommonLayerArn
+      Environment:
+        Variables:
+          JOBS_BUCKET: !Ref JobsBucket
+          JOBS_PREFIX: !Ref JobsPrefix
+          AUDIO_BUCKET: !Ref AudioBucket
+          TTS_API_PARAMETER_NAME: !Ref TtsApiParameterName
+
+  # EventInvokeConfig duy nhất của worker; M5 chỉ cung cấp số liệu, không tạo cái thứ hai.
+  SynthesizeEventInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref SynthesizeFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: !Ref MaximumRetryAttempts
+      MaximumEventAgeInSeconds: !Ref MaximumEventAgeInSeconds
+
+  VoicesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: tts-voices
+      CodeUri: ../backend/voices/
+      Handler: app.handler
+      Runtime: python3.12
+      Role: !Ref LabRoleArn
+      Timeout: 10
+      MemorySize: 128
+      Layers:
+        - !Ref CommonLayerArn
+
+Outputs:
+  SynthesizeFunctionName:
+    Value: !Ref SynthesizeFunction
+  SynthesizeFunctionArn:
+    Value: !GetAtt SynthesizeFunction.Arn
+  VoicesFunctionArn:
+    Value: !GetAtt VoicesFunction.Arn
