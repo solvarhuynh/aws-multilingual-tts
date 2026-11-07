@@ -1,0 +1,579 @@
+{
+  "_status": "LOCALLY TESTED 2026-11-07 / PENDING SANDBOX VALIDATION / NOT DEPLOYED",
+  "vi-VN": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "vi",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      },
+      {
+        "id": "nPczCjzI2devNBz1zQrb",
+        "name": "Brian",
+        "gender": "M"
+      }
+    ]
+  },
+  "en-US": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "en",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      },
+      {
+        "id": "nPczCjzI2devNBz1zQrb",
+        "name": "Brian",
+        "gender": "M"
+      }
+    ]
+  },
+  "ja-JP": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "ja",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      },
+      {
+        "id": "nPczCjzI2devNBz1zQrb",
+        "name": "Brian",
+        "gender": "M"
+      }
+    ]
+  },
+  "cmn-CN": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "zh",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "ko-KR": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "ko",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "hi-IN": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "hi",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "id-ID": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "id",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "ms-MY": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "ms",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "fil-PH": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "fil",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "ta-IN": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "ta",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "ar-SA": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "ar",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "tr-TR": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "tr",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "en-GB": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "en",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "fr-FR": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "fr",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "de-DE": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "de",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "es-ES": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "es",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "pt-PT": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "pt",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "it-IT": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "it",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "nl-NL": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "nl",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "pl-PL": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "pl",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "ru-RU": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "ru",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "uk-UA": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "uk",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "sv-SE": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "sv",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "nb-NO": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "no",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "da-DK": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "da",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "fi-FI": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "fi",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "el-GR": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "el",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "cs-CZ": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "cs",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "sk-SK": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "sk",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "ro-RO": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "ro",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "hu-HU": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "hu",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "bg-BG": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "bg",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  },
+  "hr-HR": {
+    "provider": "elevenlabs",
+    "engine": null,
+    "model": "eleven_flash_v2_5",
+    "languageCode": "hr",
+    "speedRange": [
+      0.7,
+      1.2
+    ],
+    "voices": [
+      {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda",
+        "gender": "F"
+      }
+    ]
+  }
+}

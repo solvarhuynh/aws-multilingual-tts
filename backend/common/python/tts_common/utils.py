@@ -2,9 +2,24 @@
 
 import hashlib
 import json
+import re
 import secrets
 import time
 import unicodedata
+
+
+USER_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+JOB_ID_PATTERN = re.compile(r"^\d{13}-[0-9a-f]{8}$")
+
+
+def are_valid_ids(user_id, job_id):
+    """Kiểm tra mã trước khi ghép vào khóa S3, chặn đường dẫn giả mạo."""
+    return (
+        isinstance(user_id, str)
+        and isinstance(job_id, str)
+        and USER_ID_PATTERN.fullmatch(user_id) is not None
+        and JOB_ID_PATTERN.fullmatch(job_id) is not None
+    )
 
 
 def make_job_id():

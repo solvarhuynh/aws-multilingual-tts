@@ -5,6 +5,8 @@ import os
 
 ENV = os.environ.get("ENV", "dev")
 AUDIO_BUCKET = os.environ.get("AUDIO_BUCKET")
+JOBS_BUCKET = os.environ.get("JOBS_BUCKET")
+JOBS_PREFIX = os.environ.get("JOBS_PREFIX", "jobs/")
 JOBS_TABLE = os.environ.get("JOBS_TABLE")
 QUEUE_URL = os.environ.get("QUEUE_URL")
 SYNTH_FUNCTION_NAME = os.environ.get("SYNTH_FUNCTION_NAME")
