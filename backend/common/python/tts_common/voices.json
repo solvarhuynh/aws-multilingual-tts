@@ -1,0 +1,7 @@
+{
+  "_status": "PROPOSED / PENDING PROVIDER VERIFICATION / NOT DEPLOYED",
+  "_note": "Placeholder registry only. M2 must verify provider, language, voice IDs and entitlement before GET /voices serves this file.",
+  "vi-VN": { "provider": "pending", "engine": null, "voices": [] },
+  "en-US": { "provider": "pending", "engine": null, "voices": [] },
+  "ja-JP": { "provider": "pending", "engine": null, "voices": [] }
+}

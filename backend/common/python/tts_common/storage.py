@@ -1,9 +1,43 @@
-"""Các thao tác lưu âm thanh trong S3; M3 sẽ hiện thực."""
+"""Lưu âm thanh trong S3 riêng tư. Phần worker đã hiện thực; presign và xóa chờ M3."""
+
+from . import aws, config
+from .utils import are_valid_ids
+
+
+def _audio_key(user_id, job_id):
+    """Tạo khóa file sau khi kiểm tra mã."""
+    if not are_valid_ids(user_id, job_id):
+        raise ValueError("Mã job không hợp lệ")
+    return f"audio/{user_id}/{job_id}.mp3"
 
 
 def put_audio(user_id, job_id, data: bytes) -> str:
     """Lưu dữ liệu âm thanh cho job và trả khóa đối tượng S3."""
-    raise NotImplementedError
+    key = _audio_key(user_id, job_id)
+    aws.s3().put_object(
+        Bucket=config.AUDIO_BUCKET,
+        Key=key,
+        Body=data,
+        ContentType="audio/mpeg",
+        ServerSideEncryption="AES256",
+    )
+    return key
+
+
+def find_audio(user_id, job_id):
+    """Trả khóa file nếu đã có, ngược lại trả None.
+
+    Không có s3:ListBucket thì S3 trả 403 cho file chưa có; lỗi đó được raise, không coi là chưa có.
+    """
+    key = _audio_key(user_id, job_id)
+    client = aws.s3()
+    try:
+        client.head_object(Bucket=config.AUDIO_BUCKET, Key=key)
+    except client.exceptions.ClientError as error:
+        if error.response["Error"]["Code"] == "404":
+            return None
+        raise
+    return key
 
 
 def get_audio_url(key, ttl=None) -> str:
