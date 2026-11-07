@@ -10,6 +10,7 @@ Các file trong thư mục này là tài liệu tham chiếu cho agent và ngư�
 | [MODULE-BACKLOG-AND-ACCEPTANCE.md](MODULE-BACKLOG-AND-ACCEPTANCE.md) | Agent/người điều phối cần xem dependency và trình tự bàn giao giữa M1–M5 | Bản đồ phối hợp liên module; nội dung acceptance chi tiết nằm trong các task, tránh duy trì hai checklist trùng nhau. |
 | [SANDBOX-SERVICE-MATRIX.md](SANDBOX-SERVICE-MATRIX.md) | M1/agent cần quyết định một AWS service/action có trong giới hạn lab hay chưa | Ma trận dịch vụ và mức độ xác minh. Allowlist không đồng nghĩa mọi action được cấp quyền. |
 | [SANDBOX-VALIDATION-RUNBOOK.md](SANDBOX-VALIDATION-RUNBOOK.md) | Chỉ khi được giao kiểm tra capability trong một phiên Sandbox | Quy trình đọc thông tin và probe; tài liệu không tự cấp quyền chạy thao tác. Level 2 cần yêu cầu/approval cụ thể. |
+| [FALLBACK-B-EC2-DECISION.md](FALLBACK-B-EC2-DECISION.md) | Xem khảo sát Lab 1/3 của M1 | Lịch sử fallback EC2; không thay runbook Azure/Cloud Foundations Sandbox. Code tham khảo ở scripts/m1/. |
 | [OLD-TO-NEW-CHANGELOG.md](OLD-TO-NEW-CHANGELOG.md) | Agent cần biết quyết định nào đã đổi so với kiến trúc/tài liệu cũ | Lịch sử migration; không dùng làm baseline hiện hành nếu khác với `AGENTS.md`, README hoặc contract hiện tại. |
 
 ## Đường đọc nhanh

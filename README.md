@@ -70,6 +70,7 @@ Job mới trả 202 rồi PENDING → PROCESSING → DONE/FAILED. Worker đọc 
 | infra, template.yaml | Năm stack con và root CloudFormation/SAM |
 | scripts/azure.py | Cấu hình và review/deploy Azure cho stack mới hoặc hiện có |
 | scripts/sandbox.sh | Upload web, lấy mã, smoke HTTP và alias configure/plan |
+| scripts/m1 | Khảo sát Lab 1/3 cũ của M1; không chạy trong quy trình Azure mặc định |
 | docs, logs | Hướng dẫn, task, kế hoạch tham chiếu và bằng chứng từng người |
 
 Hai bản registry Azure ở config và Layer là cần thiết để đóng gói Lambda; configure giữ chúng đồng bộ. Không sửa thủ công chỉ một bản. Adapter ElevenLabs còn cho dữ liệu/kiểm thử cũ, không phải mặc định deploy.

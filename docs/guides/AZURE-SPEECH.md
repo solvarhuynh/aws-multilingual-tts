@@ -43,6 +43,8 @@ Năm tài khoản Academy không mặc nhiên dùng chung Lambda, S3 hay lịch 
 
 Không cần năm resource Azure nếu chỉ dùng một demo chung. Chủ resource giữ key và cấu hình; người dùng giao diện chỉ cần link/mã demo. Không chia sẻ mật khẩu Azure/AWS hoặc AWS credentials. Nếu cần deploy riêng với resource Azure chung, chủ key thực hiện cấu hình trong môi trường được giao và cả nhóm theo dõi quota chung.
 
+Các script khảo sát riêng của M1 ở scripts/m1/ thuộc Lab 1/3, không dùng thay quy trình Sandbox/Azure này.
+
 Người được nhóm giao triển khai thực hiện các bước tạo/cập nhật tài nguyên. M1 phụ trách hạ tầng/router, M2 provider/worker, M3 dữ liệu, M4 web/app/hosting, M5 submit/điều phối. Cùng một AWS account chỉ để một người cập nhật stack tại một thời điểm.
 
 <a id="tong-quan"></a>
