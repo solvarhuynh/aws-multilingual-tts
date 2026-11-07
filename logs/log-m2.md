@@ -6,13 +6,45 @@
 ## TRẠNG THÁI NHANH
 
 - Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: PR #6 đã mở; phần token client, trần credit, hosting đang chờ commit, chưa chạy trên AWS. Giảng viên đã đồng ý SSM SecureString
+- Đang làm: bốn task M2 đã tick; chờ nhóm xem lại và duyệt hợp đồng. Dịch để sau MVP
 - Đã xong: SB-M2-01, SB-M2-02, SB-M2-03 (đã tick); Lambda tạo được MP3 vi/en/ja bằng ElevenLabs thật và qua thử lỗi Gate 3 trên stack thử. SB-M2-04 chờ M1 và M4 nối frontend
-- Việc tiếp theo: Trung Khang commit và push nhánh, deploy thử toàn hệ thống bằng `TRUNGKHANG/thu-he-thong.sh`; gửi nhóm kết quả
-- Đang bị chặn bởi: hợp đồng nhóm chưa duyệt; SB-M2-04 cần chạy thử trên AWS qua router và frontend
-- Tài nguyên AWS tôi đã tạo: không còn; Trung Khang đã bấm End Lab, stack thử `tts-m2-test` đã kết thúc
+- Việc tiếp theo: dọn stack, End Lab, gửi nhóm kết quả; luồng dịch làm sau khi có key Gemini và nhóm đồng ý
+- Đang bị chặn bởi: hợp đồng nhóm chưa duyệt
+- Tài nguyên AWS tôi đã tạo: stack `tts-dev` và các stack con, bucket `tts-*-dev-*`, tham số `/tts/dev/elevenlabs`, CloudFront, us-east-1; cần chạy `don-dep`
 
 ## NHẬT KÝ
+
+### 2026-11-07: Việc sau: luồng dịch
+
+- Hiện trạng: chưa có bước dịch. ElevenLabs chỉ đọc đúng chữ nhận được. Trung Khang thử gõ tiếng Việt, chọn giọng Tây Ban Nha: vẫn tạo được MP3 nhưng nghe lạ, đúng như dự kiến. Trang Dịch và đọc gửi `translateTo` nên bị từ chối `FEATURE_NOT_ENABLED`.
+- Luồng dự kiến: gõ văn bản, chọn ngôn ngữ đích, Gemini dịch, người dùng xem lại bản dịch, rồi `POST /synthesize` với văn bản đã dịch và giọng của ngôn ngữ đích.
+- Cần có: key Gemini lưu ở SSM SecureString, xử lý lỗi khi Gemini hỏng, giới hạn chi phí, và nhóm đồng ý đổi quy tắc không dịch ngầm trong `QUY-UOC-CHUNG.md`. Không dùng Amazon Translate vì nằm ngoài baseline.
+- Thứ tự: làm sau MP3 MVP, cùng đợt MR Gemini sửa lỗi đánh máy vì dùng chung key.
+- Trạng thái: planned. Chưa làm code.
+
+### 2026-11-07: Thử trên trình duyệt và tick SB-M2-04
+
+- Đã làm: Trung Khang mở web qua CloudFront, nhập mã truy cập, thấy danh sách giọng thật với tên Matilda, chọn giọng và tạo được MP3, gồm cả giọng Tây Ban Nha. Trạng thái: deployed & demoed trên stack thử.
+- Tick: SB-M2-04. Giọng không hỗ trợ trả lỗi rõ đã kiểm ở worker trên Sandbox và ở `tts-submit` bằng unit test.
+- Lỗi đã sửa: thẻ giọng ghi cứng "Tiếng Việt" với provider ngoài, đổi thành tên provider. Web test 60/60.
+- Chưa kiểm: app di động; trần 429 trên AWS. Trung Khang chưa báo riêng phần tải và xóa bản thu trên giao diện; API tương ứng đã đạt qua router.
+- File đã đổi: `frontend/web/src/App.tsx`, `docs/tasks/task-m2.md`, `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): như mục trạng thái nhanh.
+- Việc tiếp theo: deploy lại web để nhận nhãn mới, rồi dọn stack.
+- Cần báo module khác: M4 biết trang Dịch và đọc đang báo lỗi cho đến khi có luồng dịch.
+
+### 2026-11-07: Chạy toàn hệ thống trên Sandbox
+
+- Đã làm: Trung Khang chạy `TRUNGKHANG/thu-he-thong.sh` trong CloudShell, commit `e075220`, stack `tts-dev` gồm 5 stack con. Trạng thái: sandbox verified cho phần dưới; chưa thử trên trình duyệt.
+- Deploy: CloudFormation tạo được toàn bộ stack lồng nhau, gồm CloudFront, OAC cho S3 và Lambda, Function URL với `LabRole`.
+- Qua router, 12/12: sai token trả 401; `GET /voices` 200, 33 ngôn ngữ, có tên giọng; `/text/correct` skipped; `/stats` 501; sai tốc độ 400; `POST /synthesize` 202; job DONE sau 8,4 giây tính cả polling; presigned URL tải được MP3 41.838 byte; `GET /history` có job; `DELETE` 200; job đã xóa trả 404.
+- Qua CloudFront, 4/4: trang web 200; sai token 401; `GET /voices` 200; POST có hash qua OAC 200. Bucket web và Function URL không cần mở công khai.
+- Chưa kiểm: bấm thử trên trình duyệt, ô nhập mã, phát MP3 trên giao diện; `POST /synthesize` qua CloudFront mới kiểm gián tiếp bằng `/text/correct`; app di động; trần 429 trên AWS.
+- Tick: chưa tick SB-M2-04 vì tiêu chí yêu cầu frontend chọn được giọng thật.
+- File đã đổi: `logs/log-m2.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): như mục trạng thái nhanh.
+- Việc tiếp theo: thử trên trình duyệt, tick SB-M2-04, dọn stack.
+- Cần báo module khác: M1 và M4 có thể dùng kết quả Function URL, OAC. Chủ module vẫn tự xác minh và tick task của mình.
 
 ### 2026-11-07: Token client, trần credit và hosting
 

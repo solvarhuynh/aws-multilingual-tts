@@ -327,7 +327,7 @@ export default function App() {
                 </p>
                 <div className="voice-card-bottom">
                   <small>
-                    {DEMO ? "Giọng minh họa" : v.provider === "polly" ? "Amazon Polly" : "Tiếng Việt"}
+                    {DEMO ? "Giọng minh họa" : v.provider === "elevenlabs" ? "ElevenLabs" : v.provider}
                   </small>
                   <Button
                     className="secondary-button"
