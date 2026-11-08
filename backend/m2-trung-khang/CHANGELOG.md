@@ -17,6 +17,18 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 
 ## NHẬT KÝ
 
+### 2026-11-08: Kế hoạch nghiệm thu Azure
+
+- Đã làm: đọc lại repo sau khi M4 chuyển provider mặc định sang Azure Speech và tổ chức lại thư mục. Viết `scripts/acceptance.sh` để nghiệm thu Azure trên stack `tts-dev`: catalog, đo vi/en/ja, tốc độ, lỗi và retry; thêm kế hoạch vào README. Trạng thái: coded, chưa chạy trên Sandbox.
+- Kiểm tra: `bash -n` đạt; chạy với AWS giả để kiểm luồng script, khôi phục cấu hình worker đúng một lần. Kết quả PASS/FAIL ở lần chạy giả không có ý nghĩa nghiệm thu.
+- Sửa test: `test_azure.py` chỉ kiểm quyền file 0600 khi không chạy trên Windows, vì Windows không có quyền kiểu POSIX. `python3.12 -m unittest discover -s backend/m2-trung-khang/tests` đạt 64/64 trên Windows.
+- Dọn máy cá nhân: xóa các thư mục cũ chỉ còn `__pycache__` sau khi đổi cấu trúc; git không theo dõi các thư mục này.
+- Ghi nhận: README đã ghi bốn task tick theo bản ElevenLabs. Với Azure còn thiếu số liệu vi/en/ja, E2E trên root stack và `voices.azure.json` thật.
+- File đã đổi: `backend/m2-trung-khang/scripts/acceptance.sh`, `backend/m2-trung-khang/tests/test_azure.py`, `backend/m2-trung-khang/README.md`, `backend/m2-trung-khang/CHANGELOG.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Việc tiếp theo: Trung Khang tạo Azure Speech F0, configure, plan, apply, rồi chạy `acceptance.sh tat-ca`.
+- Cần báo module khác: nhóm trưởng xác nhận với giảng viên việc dùng Azure thay Polly, vì AGENTS ghi chưa có bằng chứng duyệt.
+
 ### 2026-11-07: Thử trang dịch và trần credit trên trình duyệt
 
 - Đã làm: Trung Khang thử trên web qua CloudFront. Trang Dịch và đọc báo "Tính năng dịch chưa được bật.", không treo. Hạ `DAILY_CHAR_LIMIT` xuống 1 thì web báo "Hôm nay đã dùng hết hạn mức", không tạo bản thu mới. Trạng thái: deployed & demoed trên stack thử.

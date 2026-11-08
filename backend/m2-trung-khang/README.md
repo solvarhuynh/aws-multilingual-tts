@@ -17,6 +17,7 @@ Nhận common/schema/CAS và bucket outputs từ M3, async policy từ M5, quy�
 | `config/` | Registry nguồn; voices.azure.json được configure lấy từ Azure. |
 | `infra/tts.yaml` | Worker, voices và một EventInvokeConfig của worker. |
 | `tests/` | Provider/voice/worker tests; dùng fixture S3 của M3. |
+| `scripts/acceptance.sh` | Nghiệm thu Azure trên stack `tts-dev`: catalog, đo vi/en/ja, tốc độ, lỗi và retry. |
 
 Đọc [AGENTS.md](../../AGENTS.md), [kiến trúc](../../docs/ARCHITECTURE.md) và [API/dữ liệu](../../docs/CONVENTIONS.md) trước khi sửa. Quyền AWS, secret và gate triển khai được quy định một lần ở AGENTS; không tự thêm dịch vụ ngoài baseline.
 
@@ -78,6 +79,25 @@ python3.12 -m unittest discover -s backend/m2-trung-khang/tests
 ```
 
 Suite dùng mocks, không cần AWS credentials hoặc provider key. Khi sửa interface dùng chung, chạy thêm suite M2/M3/M5 và router theo AGENTS. Khi sửa template, chạy `cfn-lint` cho root và các template con liên quan. Không đánh đồng mock pass với quyền/runtime Sandbox.
+
+## Kế hoạch nghiệm thu Azure
+
+Trạng thái: **coded**, script đã chạy thử với AWS giả, chưa chạy trên Sandbox. Chạy sau khi stack `tts-dev` đã apply với Azure theo [hướng dẫn Azure](../../docs/AZURE-SPEECH.md) mục 7 và 9. Script gọi Azure thật, khoảng 3.000 ký tự cho cả bộ, nhỏ so với hạn mức F0.
+
+```bash
+bash backend/m2-trung-khang/scripts/acceptance.sh tat-ca
+```
+
+| Bước | Kiểm tra | Đạt khi | Task |
+|---|---|---|---|
+| `catalog` | `GET /voices` trên Lambda | HTTP 200, có vi-VN, en-US, ja-JP, provider `azure`; đếm ngôn ngữ có cả giọng nữ và nam | SB-M2-04 |
+| `do` | Mỗi giọng vi/en/ja một câu ngắn ở 0.9; một bài 2.000 ký tự | DONE ở attempt 1, MP3 hợp lệ, `audio/mpeg`, AES256; ghi thời gian chờ và `durationMs` | SB-M2-01, 02 |
+| `toc-do` | Tiếng Việt ở 0.7, 1.0, 1.2; thử 0.5 và 1.3 | Ba mức đầu tạo được và nghe khác nhau; 0.5, 1.3 bị từ chối trước khi gọi Azure | SB-M2-02 |
+| `loi` | ETag cũ, 3 event trùng, lưu dở, lease còn và hết hạn, sai giọng, key sai, S3 lỗi tạm thời | ETag cũ bị từ chối; trùng chỉ xử lý một lần; key sai FAILED không retry; lỗi tạm thời được Lambda retry và DONE ở attempt 2 | SB-M2-03 |
+
+Bước `loi` tạm đổi biến môi trường của `tts-synthesize-dev` và tạo tham số key giả, rồi tự khôi phục khi thoát. Kết quả lưu ở `~/m2-nghiem-thu/` trong CloudShell, MP3 ở thư mục `mp3/` để nghe. Ghi kết quả vào CHANGELOG; chỉ tick lại task khi bước tương ứng đạt.
+
+Chưa nằm trong script: lỗi 429 khi hết hạn mức F0, giọng trên app di động, và dựng mới stack trong phiên lab khác.
 
 ## Việc tiếp theo và nghiệm thu
 
