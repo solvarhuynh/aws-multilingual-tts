@@ -32,6 +32,8 @@ PREFERRED = {
     "ja-JP": ("ja-JP-NanamiNeural", "ja-JP-KeitaNeural"),
 }
 VI_NAMES = {"vi-VN-HoaiMyNeural": "Hoài My", "vi-VN-NamMinhNeural": "Nam Minh"}
+# Chỉ Azure có giọng riêng cho Đài Loan và tiếng Quảng Đông; đặt ngay sau tiếng Trung đại lục.
+AZURE_EXTRA_LANGUAGES = ("zh-TW", "zh-HK")
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -84,6 +86,13 @@ def aws(*args, payload=None, parse_json=True):
     return json.loads(result.stdout) if parse_json and result.stdout.strip() else {}
 
 
+def azure_targets(base_languages):
+    """Danh sách ngôn ngữ cần lấy giọng: registry gốc thêm các biến thể tiếng Trung của Azure."""
+    targets = [lang for lang in base_languages if lang not in AZURE_EXTRA_LANGUAGES]
+    position = targets.index("cmn-CN") + 1 if "cmn-CN" in targets else len(targets)
+    return targets[:position] + list(AZURE_EXTRA_LANGUAGES) + targets[position:]
+
+
 def build_registry(items, target_languages, region):
     """Chỉ lấy giọng Neural GA trả về từ endpoint của key/vùng vừa kiểm tra."""
     if not isinstance(items, list):
@@ -133,7 +142,7 @@ def configure(region):
         body = response.read(5_000_001)
     if len(body) > 5_000_000:
         raise ValueError("Azure voices response too large")
-    targets = json.loads((REGISTRY_SOURCE / "voices.json").read_text(encoding="utf-8"))
+    targets = azure_targets(json.loads((REGISTRY_SOURCE / "voices.json").read_text(encoding="utf-8")))
     registry = build_registry(json.loads(body), targets, region)
     aws("ssm", "put-parameter", payload={
         "Name": PARAMETER, "Type": "SecureString", "Value": key, "Overwrite": True,

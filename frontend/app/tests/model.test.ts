@@ -27,6 +27,8 @@ test('Mọi ngôn ngữ trong registry đều có tên tiếng Việt', () => {
   const codes = Object.keys(registry).filter(code => !code.startsWith('_'));
   assert.equal(codes.length, 33);
   assert.deepEqual(codes.filter(code => !languageNames[code]), []);
+  // Azure thêm hai biến thể tiếng Trung ngoài registry gốc.
+  assert.deepEqual(['zh-TW', 'zh-HK'].filter(code => !languageNames[code]), []);
 });
 test('Tìm tiếng Việt không dấu, kể cả chữ đ', () => {
   assert.equal(normalize('Giọng đọc tiếng Việt'), 'giong doc tieng viet');

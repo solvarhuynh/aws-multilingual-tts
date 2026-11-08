@@ -140,6 +140,25 @@ class AzureRegistryTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             setup.build_registry([], ["vi-VN", "en-US", "ja-JP"], "eastasia")
 
+    def test_targets_add_taiwan_and_cantonese_after_mainland_chinese(self):
+        targets = setup.azure_targets({"_status": "x", "vi-VN": {}, "cmn-CN": {}, "ko-KR": {}, "zh-TW": {}})
+        self.assertEqual(targets, ["_status", "vi-VN", "cmn-CN", "zh-TW", "zh-HK", "ko-KR"])
+        self.assertEqual(setup.azure_targets(["vi-VN"]), ["vi-VN", "zh-TW", "zh-HK"])
+
+    def test_registry_keeps_chinese_variants_as_separate_languages(self):
+        items = fixture() + [
+            {"Locale": locale, "ShortName": f"{locale}-{name}Neural", "Gender": gender, "VoiceType": "Neural", "Status": "GA"}
+            for locale, name, gender in [
+                ("zh-CN", "Xiaoxiao", "Female"), ("zh-TW", "HsiaoChen", "Female"), ("zh-TW", "YunJhe", "Male"),
+                ("zh-HK", "HiuMaan", "Female"), ("zh-HK", "WanLung", "Male"),
+            ]
+        ]
+        result = setup.build_registry(items, setup.azure_targets(["vi-VN", "en-US", "ja-JP", "cmn-CN"]), "eastasia")
+        self.assertEqual(result["zh-TW"]["languageCode"], "zh-TW")
+        self.assertEqual(result["zh-HK"]["languageCode"], "zh-HK")
+        self.assertEqual([v["gender"] for v in result["zh-HK"]["voices"]], ["F", "M"])
+        self.assertEqual([k for k in result if not k.startswith("_")][-3:], ["cmn-CN", "zh-TW", "zh-HK"])
+
     def test_loader_preserves_elevenlabs_default_and_selects_azure(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(voices.load_registry()["vi-VN"]["provider"], "elevenlabs")

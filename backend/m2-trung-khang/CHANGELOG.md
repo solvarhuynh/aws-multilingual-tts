@@ -17,6 +17,16 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 
 ## NHẬT KÝ
 
+### 2026-11-08: Thêm tiếng Trung phồn thể (Đài Loan) và tiếng Quảng Đông
+
+- Đã làm: Trung Khang yêu cầu tách các biến thể tiếng Trung. Trước đây chỉ có `zh-CN` (Phổ thông đại lục). `deployment/scripts/azure.py` thêm `azure_targets` để `configure` lấy giọng cho `zh-TW` và `zh-HK`, đặt ngay sau `cmn-CN`; registry ElevenLabs gốc không đổi. Tên hiển thị trên web và app: `cmn-CN` "Tiếng Trung giản thể (Phổ thông)", `zh-TW` "Tiếng Trung phồn thể (Đài Loan)", `zh-HK` "Tiếng Quảng Đông (Hồng Kông)". Trạng thái: locally tested.
+- Lý do: hệ thống đọc thành giọng nói nên điều quyết định là giọng. Đài Loan và đại lục cùng nói Phổ thông nhưng khác giọng; tiếng Quảng Đông là ngôn ngữ nói khác, giọng Phổ thông không đọc thay được.
+- Đã chạy: M2 66/66 (thêm 2 test cho danh sách và registry tiếng Trung), M3 43, M5 21, router 15; web 70/70; app 22/22, `tsc`, lint; `py_compile` cho `azure.py`.
+- Chưa kiểm: catalog thật của `eastasia` cho `zh-TW`, `zh-HK` và chất lượng nghe. Cần chạy lại `configure`, `plan`, `apply`, `web` trên Lab rồi thử một câu phồn thể và một câu tiếng Quảng Đông. Stack đang chạy vẫn là registry 33 ngôn ngữ cũ.
+- File đã đổi: `deployment/scripts/azure.py`, `backend/m2-trung-khang/tests/test_azure.py`, `frontend/web/src/lib/data.ts`, `frontend/app/src/lib/model.ts`, `frontend/app/tests/model.test.ts`, `backend/m2-trung-khang/CHANGELOG.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Cần báo module khác: M1 biết `azure.py` thêm danh sách ngôn ngữ riêng cho Azure; M4 biết đổi tên tiếng Trung và thêm hai ngôn ngữ.
+
 ### 2026-11-08: Lỗi tải MP3 sau khi nghe, và cách Azure đọc ký hiệu
 
 - Phát hiện: Trung Khang thử trên web Azure. Bản thu nào đã bấm nghe thì bấm tải báo "Chưa tải được MP3"; bản chưa nghe thì tải được. Phát và xóa vẫn bình thường.
