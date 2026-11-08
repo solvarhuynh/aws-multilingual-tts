@@ -278,7 +278,9 @@ class AzureRegistryTest(unittest.TestCase):
             parameters = {p["ParameterKey"]: p for p in creation["Parameters"]}
             secret = token.read_text()
             self.assertRegex(secret, r"^[a-f0-9]{48}$")
-            self.assertEqual(token.stat().st_mode & 0o777, 0o600)
+            # Windows không có quyền file kiểu POSIX nên chỉ kiểm 0600 trên Linux, nơi script thật chạy.
+            if os.name != "nt":
+                self.assertEqual(token.stat().st_mode & 0o777, 0o600)
             self.assertNotIn(secret, output.getvalue())
             self.assertEqual(parameters["DemoToken"]["ParameterValue"], secret)
             self.assertEqual(creation["ChangeSetType"], "CREATE")

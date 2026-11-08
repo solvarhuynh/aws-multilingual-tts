@@ -159,3 +159,24 @@ test("Giọng thiết bị không dùng thời lượng ước tính làm đồn
     else globalThis.SpeechSynthesisUtterance = OriginalUtterance;
   }
 });
+
+test("Tải MP3 bỏ qua cache để không dính response thiếu CORS từ thẻ audio", async () => {
+  const env = await environment();
+  const { default: Player } = await env.load("components/AudioPlayer.tsx");
+  const notices = [];
+  let requested;
+  globalThis.fetch = async (url, init) => { requested = { url: String(url), init }; return { ok: true, blob: async () => new Blob(["ID3"]) }; };
+  env.win.URL.createObjectURL = () => "blob:mp3";
+  env.win.URL.revokeObjectURL = () => {};
+  try {
+    await act(async () => {
+      env.root.render(React.createElement(Player, { item: recording("one"), queue: [], onSelect: async () => {},
+        onLibrary() {}, volume: .5, onVolume() {}, notify: (...args) => notices.push(args) }));
+      await settle();
+    });
+    await act(async () => { env.mount.querySelector('[aria-label="Tải MP3"]').click(); await settle(); });
+    assert.equal(requested.url, recording("one").audioUrl);
+    assert.equal(requested.init.cache, "no-store");
+    assert.deepEqual(notices, []);
+  } finally { await act(() => env.root.unmount()); await env.close(); }
+});
