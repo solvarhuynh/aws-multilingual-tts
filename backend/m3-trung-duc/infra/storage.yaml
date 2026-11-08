@@ -1,0 +1,103 @@
+# Lifecycle chỉ dọn bất đồng bộ theo tuổi; hết hạn chính xác do code kiểm expiresAt.
+# Dùng LabRole có sẵn, không tạo IAM role. Dữ liệu mất khi hết phiên Lab.
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: M3 private job and audio storage, shared layer and history Lambda
+
+Parameters:
+  Env:
+    Type: String
+    Default: dev
+  LabRoleArn:
+    Type: String
+    Description: ARN of the existing LabRole
+  JobsPrefix:
+    Type: String
+    Default: jobs/
+  RetentionDays:
+    Type: Number
+    Default: 30
+    MinValue: 1
+
+Resources:
+  JobsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "tts-jobs-${Env}-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-jobs
+            Status: Enabled
+            ExpirationInDays: !Ref RetentionDays
+
+  AudioBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "tts-audio-${Env}-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      # Trình duyệt tải MP3 bằng fetch qua presigned URL nên cần CORS GET.
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods:
+              - GET
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-audio
+            Status: Enabled
+            ExpirationInDays: !Ref RetentionDays
+
+  CommonLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub "tts-common-${Env}"
+      ContentUri: ../common
+      CompatibleRuntimes:
+        - python3.12
+      RetentionPolicy: Delete
+
+  HistoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "tts-history-${Env}"
+      CodeUri: ../history
+      Handler: app.handler
+      Runtime: python3.12
+      Role: !Ref LabRoleArn
+      Timeout: 15
+      MemorySize: 256
+      Layers:
+        - !Ref CommonLayer
+      Environment:
+        Variables:
+          JOBS_BUCKET: !Ref JobsBucket
+          JOBS_PREFIX: !Ref JobsPrefix
+          AUDIO_BUCKET: !Ref AudioBucket
+          JOB_TTL_DAYS: !Ref RetentionDays
+
+Outputs:
+  JobsBucketName:
+    Value: !Ref JobsBucket
+  AudioBucketName:
+    Value: !Ref AudioBucket
+  CommonLayerArn:
+    Value: !Ref CommonLayer

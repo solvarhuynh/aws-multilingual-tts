@@ -3,7 +3,6 @@ import { sha256Hex } from './sha256';
 
 export const API_BASE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
 export const DEMO = !API_BASE;
-// Token do người dùng nhập lúc chạy, không nằm trong bundle.
 let demoToken = '';
 export const setDemoToken = (token: string) => { demoToken = token.trim(); };
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {

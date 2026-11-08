@@ -1,3 +1,0 @@
-# boto3 đã có sẵn trong runtime AWS Lambda Python 3.12
-# Thêm các dependency khác nếu cần
-

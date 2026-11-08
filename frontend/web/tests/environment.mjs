@@ -1,7 +1,7 @@
 import { Window } from "happy-dom";
 import { createServer } from "vite";
 
-export async function environment() {
+export async function environment({ demo = false } = {}) {
   const win = new Window({ url: "http://localhost/#studio" });
   const globals = ["document", "location", "localStorage", "navigator", "HTMLElement", "HTMLInputElement", "HTMLSelectElement",
     "HTMLFormElement", "HTMLButtonElement", "HTMLOptionElement", "HTMLMediaElement", "SVGElement", "ShadowRoot", "Document",
@@ -17,7 +17,7 @@ export async function environment() {
   win.scrollTo = () => {};
   const { createRoot } = await import("react-dom/client");
   const server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom", logLevel: "silent",
-    define: { "import.meta.env.VITE_API_BASE_URL": JSON.stringify("https://tts.test") } });
+    define: { "import.meta.env.VITE_API_BASE_URL": JSON.stringify(demo ? "" : "https://tts.test") } });
   const mount = document.createElement("div");
   document.body.append(mount);
   const root = createRoot(mount);

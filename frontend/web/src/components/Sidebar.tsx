@@ -18,7 +18,6 @@ export default function Sidebar({ page, collapsed, count, onToggle, onNavigate }
   const [hint, setHint] = useState<{ text: string; top: number } | null>(null);
   const index = navigation.findIndex((item) => item.id === page);
 
-  // Tooltip nằm ngoài phần cắt nội dung để không bị mép kính che mất.
   function showHint(event: SyntheticEvent<HTMLElement>) {
     if (!collapsed) return;
     const item = (event.target as Element).closest<HTMLElement>("[data-tooltip]");

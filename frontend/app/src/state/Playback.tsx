@@ -39,7 +39,6 @@ function usePlaybackState() {
     return () => { token.current += 1; void Speech.stop().catch(() => {}); };
   }, []);
   useEffect(() => {
-    // AudioPlayer là đối tượng native với thuộc tính loop có setter chính thức.
     // eslint-disable-next-line react-hooks/immutability
     player.loop = repeat;
   }, [player, repeat]);

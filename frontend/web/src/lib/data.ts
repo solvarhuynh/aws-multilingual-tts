@@ -88,7 +88,6 @@ export const samples: Record<string, string> = {
     "도서관은 월요일부터 토요일까지, 오전 여덟 시부터 오후 여섯 시까지 운영합니다.\n\n온라인으로 도서를 검색할 수 있습니다. 도서관 안에서는 조용히 해 주세요.",
 };
 export const MAX_CHARS = 2000;
-// Dải ElevenLabs đã đo; 0.5 và 2.0 bị từ chối.
 export const MIN_SPEED = 0.7;
 export const MAX_SPEED = 1.2;
 export const DEFAULT_SPEED = 0.9;
@@ -130,7 +129,6 @@ export const starterPresets = [
 export const formatNumber = (n: number) => new Intl.NumberFormat("vi-VN").format(n);
 export const providerLabel = (provider?: string) =>
   provider === "azure" ? "Azure Speech" : provider === "elevenlabs" ? "ElevenLabs" : provider === "polly" ? "Amazon Polly" : provider || "";
-// ID giọng thật là chuỗi ngẫu nhiên nên luôn hiển thị theo tên trong registry.
 export const voiceLabel = (languages: Language[], id: string) =>
   languages.flatMap((l) => l.voices).find((v) => v.id === id)?.name ?? id.replace(" (demo)", "");
 export const formatTime = (seconds: number) =>
@@ -177,7 +175,6 @@ export function historyCsv(items: HistoryItem[]): string {
     ...items.map((item) => [item.jobId, item.text, item.lang, item.voice, item.charCount,
       item.speed ?? 1, item.status, item.createdAt]),
   ];
-  // BOM giữ tiếng Việt trong Excel; nội dung người dùng luôn được đọc như văn bản.
   return "\uFEFF" + rows.map((row) => row.map((value) => {
     const text = String(value);
     const cell = /^\s*[=+\-@]/.test(text) ? "'" + text : text;

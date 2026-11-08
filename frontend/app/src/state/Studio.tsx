@@ -121,11 +121,9 @@ function useStudioState() {
   useEffect(() => {
     // Chờ đọc xong token đã lưu, nếu không request đầu sẽ bị từ chối.
     if (DEMO || !ready) return;
-    // Tải dữ liệu ban đầu và phản ánh trạng thái đang tải.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void reloadVoices();
     void refresh();
-    // Chỉ tải danh sách đầu tiên khi mở ứng dụng.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
   const updatePreferences = (patch: Partial<Preferences>) => {

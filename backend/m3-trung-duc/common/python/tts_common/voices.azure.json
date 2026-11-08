@@ -1,0 +1,3 @@
+{
+  "_status": "NOT_CONFIGURED: run python3 deployment/scripts/azure.py configure in CloudShell before deploying Azure"
+}

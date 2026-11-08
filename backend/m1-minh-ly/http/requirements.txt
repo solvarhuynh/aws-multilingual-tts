@@ -1,0 +1,1 @@
+# boto3 đã có sẵn trong runtime AWS Lambda Python 3.12

@@ -1,5 +1,4 @@
 // Cử chỉ kéo/chọn dựa trên expo-glass-tabs (MIT, David Mokos).
-// Đo chính thanh tab để chừa nút + riêng, không suy ra từ bề rộng màn hình.
 import { useCallback, useEffect, useMemo, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { router, Tabs } from 'expo-router';

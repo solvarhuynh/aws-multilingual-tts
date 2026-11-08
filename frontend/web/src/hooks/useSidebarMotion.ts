@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 
-// FLIP: đổi bố cục một lần, rồi dùng transform để nối từ vị trí cũ đến vị trí mới.
 export function useSidebarMotion(toggle: () => void, reduced: boolean) {
   const ref = useRef<HTMLDivElement>(null);
   const running = useRef<Animation[]>([]);

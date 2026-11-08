@@ -24,7 +24,7 @@ credentials
 
 # Kết quả test
 *.mp3
-tests/**/out/
+backend/*/tests/out/
 
 # IDE và hệ điều hành
 .idea/

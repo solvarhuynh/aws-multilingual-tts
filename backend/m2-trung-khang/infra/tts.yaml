@@ -1,0 +1,110 @@
+# Dùng LabRole có sẵn: phải truyền ARN để SAM không tự tạo IAM role.
+# Giá trị API key không nằm trong file này; chỉ truyền tên tham chiếu khi đã có cơ chế được duyệt.
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: M2 worker and voices Lambdas for the proposed AWS Academy Sandbox architecture
+
+Parameters:
+  Env:
+    Type: String
+    Default: dev
+  LabRoleArn:
+    Type: String
+    Description: ARN of the existing LabRole
+  CommonLayerArn:
+    Type: String
+    Description: tts_common Lambda Layer ARN from M3
+  JobsBucket:
+    Type: String
+  JobsPrefix:
+    Type: String
+  AudioBucket:
+    Type: String
+  TtsApiParameterName:
+    Type: String
+    Description: Name of the approved key reference, never the key value
+  TtsProvider:
+    Type: String
+    Default: azure
+    AllowedValues: [elevenlabs, azure]
+  AzureSpeechRegion:
+    Type: String
+    Default: eastasia
+    AllowedPattern: '[a-z][a-z0-9]{1,39}'
+  WorkerTimeoutSeconds:
+    Type: Number
+    Default: 120
+    MinValue: 30
+    MaxValue: 900
+  WorkerMemoryMb:
+    Type: Number
+    Default: 256
+    MinValue: 128
+  MaximumRetryAttempts:
+    Type: Number
+    Default: 1
+    MinValue: 0
+    MaxValue: 2
+    Description: Keeps provider credit retries bounded
+  MaximumEventAgeInSeconds:
+    Type: Number
+    Default: 600
+    MinValue: 60
+    MaxValue: 21600
+    Description: Drops stale events before they spend credit
+
+Resources:
+  SynthesizeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "tts-synthesize-${Env}"
+      CodeUri: ../synthesize
+      Handler: app.handler
+      Runtime: python3.12
+      Role: !Ref LabRoleArn
+      Timeout: !Ref WorkerTimeoutSeconds
+      MemorySize: !Ref WorkerMemoryMb
+      Layers:
+        - !Ref CommonLayerArn
+      Environment:
+        Variables:
+          JOBS_BUCKET: !Ref JobsBucket
+          JOBS_PREFIX: !Ref JobsPrefix
+          AUDIO_BUCKET: !Ref AudioBucket
+          TTS_API_PARAMETER_NAME: !Ref TtsApiParameterName
+          TTS_PROVIDER: !Ref TtsProvider
+          AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
+
+  # EventInvokeConfig duy nhất của worker; không tạo cái thứ hai cho cùng function.
+  SynthesizeEventInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref SynthesizeFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: !Ref MaximumRetryAttempts
+      MaximumEventAgeInSeconds: !Ref MaximumEventAgeInSeconds
+
+  VoicesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "tts-voices-${Env}"
+      CodeUri: ../voices
+      Handler: app.handler
+      Runtime: python3.12
+      Role: !Ref LabRoleArn
+      Timeout: 10
+      MemorySize: 128
+      Layers:
+        - !Ref CommonLayerArn
+      Environment:
+        Variables:
+          TTS_PROVIDER: !Ref TtsProvider
+          AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
+
+Outputs:
+  SynthesizeFunctionName:
+    Value: !Ref SynthesizeFunction
+  SynthesizeFunctionArn:
+    Value: !GetAtt SynthesizeFunction.Arn
+  VoicesFunctionArn:
+    Value: !GetAtt VoicesFunction.Arn

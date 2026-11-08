@@ -6,7 +6,6 @@ export function layoutMetrics(width: number, height: number, insets: Insets, fon
   const contentWidth = Math.max(0, Math.min(960, usableWidth - gutter * 2));
   const dockWidth = Math.max(0, Math.min(640, usableWidth - gutter * 2));
   const dockHeight = usableHeight < 440 ? 56 : 64;
-  // Dock kính iOS nằm sát home indicator; Android giữ trọn vùng nút điều hướng.
   const dockBottom = platform === 'ios' && insets.bottom > 0 ? Math.max(16, insets.bottom - 14) : insets.bottom + 8;
   return { gutter, contentWidth, usableHeight, dockWidth, dockHeight, dockBottom,
     dockSide: (usableWidth - dockWidth) / 2,

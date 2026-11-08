@@ -6,7 +6,6 @@ export const DEMO = !API_BASE;
 const HISTORY_KEY = "voxa.demo.history.v1";
 const TOKEN_KEY = "voxa.demoToken.v1";
 
-// Token do người dùng nhập lúc chạy, không nằm trong bundle.
 export function getDemoToken(): string {
   const token = readStored<unknown>(TOKEN_KEY, "");
   return typeof token === "string" ? token : "";

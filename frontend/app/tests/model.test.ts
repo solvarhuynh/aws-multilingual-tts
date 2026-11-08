@@ -23,7 +23,7 @@ test('Hiển thị tên giọng, không lộ ID ngẫu nhiên', () => {
   assert.equal(voiceName([], 'XrExE9'), 'XrExE9');
 });
 test('Mọi ngôn ngữ trong registry đều có tên tiếng Việt', () => {
-  const registry = JSON.parse(readFileSync(new URL('../../../config/voices.json', import.meta.url), 'utf8'));
+  const registry = JSON.parse(readFileSync(new URL('../../../backend/m2-trung-khang/config/voices.json', import.meta.url), 'utf8'));
   const codes = Object.keys(registry).filter(code => !code.startsWith('_'));
   assert.equal(codes.length, 33);
   assert.deepEqual(codes.filter(code => !languageNames[code]), []);

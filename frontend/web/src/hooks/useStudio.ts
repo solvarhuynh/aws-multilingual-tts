@@ -175,7 +175,6 @@ export function useStudio(
     const currentRevision = revision.current;
     try {
       if (check) {
-        // Kiểm tra chỉ một lần; khi dịch vụ không sẵn sàng, giữ nguyên bản gốc.
         const correction = await api.correct(input.text, input.lang).catch(() => null);
         if (!mounted.current || currentRevision !== revision.current) return;
         setChecking(false);

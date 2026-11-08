@@ -1,5 +1,4 @@
 // SHA-256 cho chuỗi UTF-8. React Native không có crypto.subtle, mà CloudFront OAC
-// bắt buộc gửi hash của body trong x-amz-content-sha256 với request POST.
 const K = new Uint32Array(64);
 {
   const fractionBits = (value: number) => ((value - Math.floor(value)) * 2 ** 32) >>> 0;

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { DEMO } from "../lib/api";
-import { estimateDuration, formatTime, languageNames, voiceLabel } from "../lib/data";
+import { useEffect, useRef, useState } from "react";
+import { usePlayback } from "../hooks/usePlayback";
+import { formatTime, languageNames, voiceLabel } from "../lib/data";
 import { Button, Icon, Slider, ToolArt } from "./ui";
 import type { HistoryItem, Language } from "../lib/types";
 
@@ -27,162 +27,31 @@ export default function AudioPlayer({
   playbackRequest?: { jobId: string; serial: number } | null;
   onPlayingChange?: (jobId: string | null) => void;
 }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [repeat, setRepeat] = useState(false);
   const [switching, setSwitching] = useState(false);
-  const repeatRef = useRef(repeat);
-  repeatRef.current = repeat;
+  const previousVolume = useRef(volume || .8);
+  const { audioRef, source, playing, loading, elapsed, duration, progress, devicePlayback,
+    stop, togglePlayback, seek, mediaEvents } = usePlayback(item, volume, repeat, notify);
+  useEffect(() => { if (volume > 0) previousVolume.current = volume; }, [volume]);
   const recordings = queue
     .filter((recording) => recording.status === "DONE")
     .slice()
     .reverse();
   const currentIndex = recordings.findIndex((recording) => recording.jobId === item?.jobId);
-  const session = useRef(0);
-  const volumeRef = useRef(volume);
-  const previousVolume = useRef(volume || .8);
-  volumeRef.current = volume;
-  const notifyRef = useRef(notify);
-  notifyRef.current = notify;
-
-  useEffect(() => {
-    if ("speechSynthesis" in window) window.speechSynthesis.getVoices();
-  }, []);
-
-  const stop = useCallback(() => {
-    session.current++;
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-    utteranceRef.current = null;
-    audioRef.current?.pause();
-    setPlaying(false);
-  }, []);
-
-  useEffect(() => {
-    stop();
-    setElapsed(0);
-    setDuration(item ? estimateDuration(item.text, item.speed) : 0);
-    return stop;
-  }, [item?.jobId, stop]);
-
-  useEffect(() => {
-    if (volume > 0) previousVolume.current = volume;
-    if (audioRef.current) audioRef.current.volume = volume;
-    if (utteranceRef.current) utteranceRef.current.volume = volume;
-  }, [volume]);
-
-  useEffect(() => {
-    if (!playing || !DEMO) return;
-    const timer = window.setInterval(
-      () => setElapsed((value) => Math.min(value + 0.25, Math.max(0, duration - 0.25))),
-      250,
-    );
-    return () => window.clearInterval(timer);
-  }, [playing, duration]);
-
-  async function togglePlayback() {
-    if (!item) return;
-    if (!DEMO) {
-      const audio = audioRef.current;
-      if (!audio || !item.audioUrl) {
-        notify("Bản thu chưa có đường dẫn âm thanh. Hãy tải lại lịch sử.", true);
-        return;
-      }
-      if (playing) {
-        audio.pause();
-        return;
-      }
-      try {
-        await audio.play();
-      } catch {
-        notify("Không phát được âm thanh. Link nghe có thể đã hết hạn; hãy tải lại lịch sử.", true);
-      }
-      return;
-    }
-    if (!("speechSynthesis" in window)) {
-      notify("Trình duyệt này chưa hỗ trợ nghe thử. Hãy thử Chrome, Edge hoặc Safari.", true);
-      return;
-    }
-    if (playing) {
-      window.speechSynthesis.pause();
-      setPlaying(false);
-      return;
-    }
-    if (window.speechSynthesis.paused && utteranceRef.current) {
-      window.speechSynthesis.resume();
-      setPlaying(true);
-      return;
-    }
-    const synth = window.speechSynthesis;
-    const available = synth
-      .getVoices()
-      .filter((voice) => voice.lang.toLowerCase().split("-")[0] === item.lang.toLowerCase().split("-")[0]);
-    if (!available.length) {
-      notify(
-        `Máy của bạn chưa có giọng ${languageNames[item.lang] || item.lang}. Cài giọng trong hệ điều hành hoặc chọn ngôn ngữ khác.`,
-        true,
-      );
-      return;
-    }
-    stop();
-    setElapsed(0);
-    const currentSession = session.current;
-    // Chia đoạn để tránh giới hạn giọng đọc trên một số trình duyệt.
-    const chunks = item.text.match(/[^.!?。！？\n]+[.!?。！？\n]*|[.!?。！？\n]+/g) || [item.text];
-    const bounded = chunks.flatMap((chunk) => chunk.match(/[\s\S]{1,180}/g) || []);
-    let position = 0;
-    const speakNext = () => {
-      if (currentSession !== session.current) return;
-      if (position >= bounded.length && repeatRef.current) {
-        position = 0;
-        setElapsed(0);
-      }
-      if (position >= bounded.length) {
-        utteranceRef.current = null;
-        setPlaying(false);
-        setElapsed(duration);
-        return;
-      }
-      const utterance = new SpeechSynthesisUtterance(bounded[position++]);
-      utterance.lang = item.lang;
-      utterance.voice =
-        available[
-          item.voice.includes("Minh") || item.voice === "Matthew" ? Math.min(1, available.length - 1) : 0
-        ];
-      utterance.rate = item.speed || 1;
-      utterance.volume = volumeRef.current;
-      utterance.onend = speakNext;
-      utterance.onerror = (event) => {
-        if (currentSession !== session.current || event.error === "canceled" || event.error === "interrupted")
-          return;
-        utteranceRef.current = null;
-        setPlaying(false);
-        notifyRef.current("Trình duyệt không đọc được nội dung. Hãy thử lại hoặc đổi ngôn ngữ.", true);
-      };
-      utteranceRef.current = utterance;
-      synth.speak(utterance);
-    };
-    setPlaying(true);
-    speakNext();
-  }
-
   const toggleRef = useRef(togglePlayback);
   toggleRef.current = togglePlayback;
   useEffect(() => { onPlayingChange?.(playing ? item?.jobId || null : null); }, [playing, item?.jobId, onPlayingChange]);
   useEffect(() => () => onPlayingChange?.(null), [onPlayingChange]);
   useEffect(() => {
     if (!playbackRequest || playbackRequest.jobId !== item?.jobId) return;
-    // Cho effect đổi bản thu dừng phiên cũ trước khi phát yêu cầu mới.
     const timer = window.setTimeout(() => void toggleRef.current(), 0);
     return () => window.clearTimeout(timer);
   }, [playbackRequest, item?.jobId]);
 
   async function download() {
     if (!item) return;
-    if (DEMO || !item.audioUrl) {
+    if (!item.audioUrl) {
       notify("Bản nghe thử dùng giọng trên máy. Cần kết nối máy chủ để tải MP3.");
       return;
     }
@@ -249,11 +118,12 @@ export default function AudioPlayer({
           </Button>
           <Button
             className="player-play"
-            disabled={!item || switching}
+            disabled={!item || switching || loading}
+            aria-busy={loading}
             onClick={togglePlayback}
             aria-label={playing ? "Tạm dừng âm thanh" : "Phát âm thanh"}
           >
-            <Icon name={playing ? "pause" : "play"} size={22} />
+            <Icon name={loading ? "clock" : playing ? "pause" : "play"} size={22} />
           </Button>
           <Button
             className="icon-button"
@@ -278,26 +148,22 @@ export default function AudioPlayer({
           <div className="audio-track">
             <span
               className="track-fill"
-              style={{ width: `${duration ? Math.min(100, (elapsed / duration) * 100) : 0}%` }}
+              style={{ width: `${progress * 100}%` }}
             />
             <input
               type="range"
               className="seek-range"
               aria-label="Vị trí phát"
+              aria-valuetext={devicePlayback ? `Đã đọc ${Math.round(progress * 100)}% nội dung` : duration ? `${formatTime(elapsed)} / ${formatTime(duration)}` : "Chưa xác định thời lượng"}
               min={0}
               max={duration || 1}
               step={0.1}
-              value={elapsed}
-              disabled={!item || DEMO}
-              onChange={(e) => {
-                if (audioRef.current && Number.isFinite(audioRef.current.duration)) {
-                  audioRef.current.currentTime = Number(e.target.value);
-                  setElapsed(Number(e.target.value));
-                }
-              }}
+              value={Math.min(duration || 1, elapsed)}
+              disabled={!item || devicePlayback || !duration}
+              onChange={(e) => seek(Number(e.target.value))}
             />
           </div>
-          <time>{formatTime(duration)}</time>
+          <time title={devicePlayback && !duration ? "Thời lượng được xác định khi thiết bị đọc xong" : undefined}>{item && !duration ? "—:—" : formatTime(duration)}</time>
         </div>
       </div>
       <div className="player-actions">
@@ -322,8 +188,8 @@ export default function AudioPlayer({
         />
         <Button
           className="download-button"
-          disabled={!item || downloading || DEMO || !item.audioUrl}
-          title={DEMO ? "Nghe thử trên thiết bị chưa có tệp MP3" : "Tải bản thu MP3"}
+          disabled={!item || downloading || !item.audioUrl}
+          title={devicePlayback ? "Nghe thử trên thiết bị chưa có tệp MP3" : "Tải bản thu MP3"}
           onClick={download}
           aria-label="Tải MP3"
         >
@@ -331,24 +197,7 @@ export default function AudioPlayer({
           <span>MP3</span>
         </Button>
       </div>
-      <audio
-        ref={audioRef}
-        src={item?.audioUrl || undefined}
-        preload="metadata"
-        loop={repeat}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
-        onTimeUpdate={(e) => setElapsed(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => {
-          if (Number.isFinite(e.currentTarget.duration)) setDuration(e.currentTarget.duration);
-        }}
-        onError={() => {
-          setPlaying(false);
-          if (item?.audioUrl)
-            notifyRef.current("Không tải được âm thanh. Link nghe có thể đã hết hạn.", true);
-        }}
-      />
+      <audio key={source} ref={audioRef} src={item?.audioUrl || undefined} preload="metadata" loop={repeat} {...mediaEvents} />
     </section>
   );
 }

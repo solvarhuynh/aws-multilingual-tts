@@ -17,7 +17,6 @@ export interface Recording extends Job {
 export interface Correction { originalText: string; correctedText: string; hasTypos: boolean }
 export interface Preferences { theme: ThemeMode; reducedMotion: boolean; haptics: boolean; favorites: string[]; demoToken: string }
 export const MAX_CHARS = 2000;
-// Dải ElevenLabs đã đo; 0.5 và 2.0 bị từ chối.
 export const MIN_SPEED = 0.7;
 export const MAX_SPEED = 1.2;
 export const DEFAULT_SPEED = 0.9;
@@ -68,7 +67,6 @@ export const samples = [
   { title: 'Giới thiệu', icon: 'mic' as const, text: 'Xin chào, chúng tôi là Nhóm 5. Đây là ứng dụng chuyển văn bản thành giọng nói đa ngôn ngữ của nhóm.' },
 ];
 export const number = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
-// ID giọng thật là chuỗi ngẫu nhiên nên luôn hiển thị theo tên trong registry.
 export const voiceName = (languages: Language[], id: string) =>
   languages.flatMap(l => l.voices).find(v => v.id === id)?.name ?? id;
 export const time = (value: number) => `${Math.floor(Math.max(0, value) / 60)}:${String(Math.floor(Math.max(0, value) % 60)).padStart(2, '0')}`;
