@@ -21,7 +21,7 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 
 - Phát hiện: Trung Khang thử trên web Azure. Bản thu nào đã bấm nghe thì bấm tải báo "Chưa tải được MP3"; bản chưa nghe thì tải được. Phát và xóa vẫn bình thường.
 - Nguyên nhân: thẻ `<audio>` tải presigned URL không kèm `Origin`, S3 trả không có header CORS và trình duyệt lưu cache. Nút tải dùng `fetch` cùng URL, lấy lại bản cache thiếu CORS nên bị chặn. Không phải lỗi backend hay Azure.
-- Đã sửa: `frontend/web/src/components/AudioPlayer.tsx` gọi `fetch` với `cache: "no-store"` khi tải. Thêm test trong `frontend/web/tests/player.test.mjs`; test fail khi bỏ bản sửa và đạt khi có. `npm run test:ui` đạt 70/70, `tsc` đạt. Trạng thái: locally tested, chưa deploy lại lên Lab. Code thuộc M4, sửa vì phát hiện trong nghiệm thu M2.
+- Đã sửa: `frontend/web/src/components/AudioPlayer.tsx` gọi `fetch` với `cache: "no-store"` khi tải. Thêm test trong `frontend/web/tests/player.test.mjs`; test fail khi bỏ bản sửa và đạt khi có. `npm run test:ui` đạt 70/70, `tsc` đạt. Trạng thái: deployed & demoed. Commit `84811bd` deploy lại web bằng `sandbox.sh web` (bundle đổi sang `index-BMPgcUeX.js`); sau khi tải lại trang, Trung Khang nghe một bản cũ rồi tải MP3 được. Code thuộc M4, sửa vì phát hiện trong nghiệm thu M2.
 - Ký hiệu: Azure bỏ qua `@ ! # $` khi đứng riêng và đọc `&` là "và". Đây là cách Azure chuẩn hóa văn bản, không phải code bỏ ký tự: adapter chỉ escape XML rồi gửi nguyên văn. Ký hiệu có ngữ cảnh như "5$" hay "a@b.com" thường được đọc thành chữ.
 - File đã đổi: `frontend/web/src/components/AudioPlayer.tsx`, `frontend/web/tests/player.test.mjs`, `backend/m2-trung-khang/CHANGELOG.md`.
 - Tài nguyên AWS đã tạo/sửa (tên, region): không.
