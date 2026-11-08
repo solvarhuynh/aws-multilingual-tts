@@ -4,18 +4,46 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 
 
 **Người phụ trách:** Trung Khang
-**Danh sách việc:** `docs/tasks/task-m2.md`
+**Danh sách việc:** [README.md](README.md)
 
 ## TRẠNG THÁI NHANH
 
-- Ngày cập nhật lần cuối: 2026-11-07
-- Đang làm: bốn task M2 đã tick, code đã vào `main` qua PR #6, #7 do Trung Khang tự merge; chờ nhóm xem lại và duyệt hợp đồng. Dịch để sau MVP
-- Đã xong: SB-M2-01, SB-M2-02, SB-M2-03 (đã tick); Lambda tạo được MP3 vi/en/ja bằng ElevenLabs thật và qua thử lỗi Gate 3 trên stack thử. SB-M2-04 chờ M1 và M4 nối frontend
-- Việc tiếp theo: dọn stack, End Lab, gửi nhóm kết quả; nhóm xem lại PR #6, #7; luồng dịch làm sau khi có key Gemini và nhóm đồng ý
-- Đang bị chặn bởi: hợp đồng nhóm chưa duyệt
-- Tài nguyên AWS tôi đã tạo: stack `tts-dev` và các stack con, bucket `tts-*-dev-*`, tham số `/tts/dev/elevenlabs`, CloudFront, us-east-1; cần chạy `don-dep`
+- Ngày cập nhật lần cuối: 2026-11-08
+- Đang làm: nghiệm thu Azure trên Sandbox đã đạt 23/23; chờ nhóm duyệt hợp đồng và giảng viên xác nhận dùng Azure thay Polly
+- Đã xong: SB-M2-01 đến 04 có bằng chứng với Azure trên root stack `tts-dev` tạo mới, kèm bằng chứng lịch sử với ElevenLabs
+- Việc tiếp theo: End Lab; mở PR vào `main`; giai đoạn 2: thêm ngôn ngữ nếu cần, chức năng Dịch và đọc
+- Đang bị chặn bởi: chưa có xác nhận giảng viên cho kiến trúc thay thế (API Gateway, Polly, DynamoDB)
+- Tài nguyên AWS tôi đã tạo: stack `tts-dev` và 5 stack con, tham số `/tts/dev/azure-speech`, us-east-1; mất khi End Lab. Azure Speech F0 ở `eastasia` vẫn còn
 
 ## NHẬT KÝ
+
+### 2026-11-08: Lỗi tải MP3 sau khi nghe, và cách Azure đọc ký hiệu
+
+- Phát hiện: Trung Khang thử trên web Azure. Bản thu nào đã bấm nghe thì bấm tải báo "Chưa tải được MP3"; bản chưa nghe thì tải được. Phát và xóa vẫn bình thường.
+- Nguyên nhân: thẻ `<audio>` tải presigned URL không kèm `Origin`, S3 trả không có header CORS và trình duyệt lưu cache. Nút tải dùng `fetch` cùng URL, lấy lại bản cache thiếu CORS nên bị chặn. Không phải lỗi backend hay Azure.
+- Đã sửa: `frontend/web/src/components/AudioPlayer.tsx` gọi `fetch` với `cache: "no-store"` khi tải. Thêm test trong `frontend/web/tests/player.test.mjs`; test fail khi bỏ bản sửa và đạt khi có. `npm run test:ui` đạt 70/70, `tsc` đạt. Trạng thái: locally tested, chưa deploy lại lên Lab. Code thuộc M4, sửa vì phát hiện trong nghiệm thu M2.
+- Ký hiệu: Azure bỏ qua `@ ! # $` khi đứng riêng và đọc `&` là "và". Đây là cách Azure chuẩn hóa văn bản, không phải code bỏ ký tự: adapter chỉ escape XML rồi gửi nguyên văn. Ký hiệu có ngữ cảnh như "5$" hay "a@b.com" thường được đọc thành chữ.
+- File đã đổi: `frontend/web/src/components/AudioPlayer.tsx`, `frontend/web/tests/player.test.mjs`, `backend/m2-trung-khang/CHANGELOG.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Cần báo module khác: M4 xem lại bản sửa tải MP3. App di động không tải MP3 bằng `fetch` nên không gặp lỗi này.
+
+### 2026-11-08: Nghiệm thu Azure trên Sandbox
+
+- Đã làm: Trung Khang tạo Azure Speech Free F0 ở `eastasia` bằng Azure for Students, chạy trong CloudShell từ nhánh `m2-trungkhang`: `azure.py configure`, `plan` (5 stack con đều Add, không Remove hay replacement), `apply`, `sandbox.sh web`, rồi `scripts/acceptance.sh tat-ca`. Key nhập ở prompt kín, không qua chat, repo hay log. Trạng thái: sandbox verified; giao diện deployed & demoed.
+- Dựng mới: root stack `tts-dev` tạo mới hoàn toàn trên Lab; ba Lambda `tts-synthesize-dev`, `tts-voices-dev`, `tts-submit-dev` dùng Azure `eastasia`. Đây là lần đầu luồng tạo mới có bằng chứng.
+- Catalog: `/voices` HTTP 200, 33 ngôn ngữ, cả 33 có giọng nữ và nam, provider `azure`. vi-VN: Hoài My, Nam Minh; en-US: Jenny, Guy; ja-JP: Nanami, Keita.
+- Đo, tốc độ 0.9: 6 giọng vi/en/ja đều DONE ở attempt 1, MP3 hợp lệ, `audio/mpeg`, AES256. Thời gian worker 1.311 đến 2.278 ms, chờ từ lúc gửi event khoảng 2,5 giây. Bài 2.000 ký tự tiếng Việt: worker 27.479 ms, MP3 1.705.536 byte. Timeout 120 giây còn dư khoảng 4 lần.
+- Tốc độ: 0.7, 1.0, 1.2 đều DONE, file 70.560, 49.536, 41.472 byte, giảm đúng theo tốc độ. 0.5 và 1.3 FAILED `UNSUPPORTED_SPEED` trong khoảng 0,8 giây, không gọi Azure.
+- Lỗi và retry, 10/10: ETag cũ bị S3 từ chối `PreconditionFailed`; 3 event trùng cho 1 job, một DONE và hai SKIPPED `TERMINAL`; MP3 đã có thì DONE mà không gọi Azure, file giữ 10 byte; lease còn hạn SKIPPED `LEASE_ACTIVE`; lease hết hạn DONE ở attempt 2; sai giọng FAILED `LANG_NOT_SUPPORTED`; key sai FAILED `PROVIDER_AUTH` ở attempt 1, không retry; S3 lỗi tạm thời `NoSuchBucket` ghi RETRY, Lambda tự thử lại và DONE ở attempt 2, version 5. Cấu hình worker được khôi phục sau bước này.
+- Giao diện: Trung Khang chọn giọng và nghe MP3 trên `https://<CloudFront của stack>`, báo đạt.
+- Bảo mật trên stack mới: `sandbox.sh e2e-cf` 4/4 PASS (trang web 200, sai mã 401, `/voices` 200, `/text/correct` 200). Gọi thẳng không qua CloudFront và không ký: Function URL `/voices`, `index.html` bucket web, liệt kê bucket audio và jobs đều 403.
+- So với ElevenLabs: Azure chậm hơn với văn bản dài (27,5 giây so với 6,8 giây cho 2.000 ký tự) nhưng hạn mức F0 lớn hơn nhiều và có sẵn giọng nam cho mọi ngôn ngữ.
+- Chưa kiểm: lỗi 429 khi hết hạn mức F0; ba event trùng lần này cũng đến sau khi job xong, nên chưa thấy hai worker tranh nhau đúng cùng lúc; app di động; dựng lại ở phiên lab khác.
+- Tick: bốn task giữ tick, cập nhật trạng thái trong README sang Azure.
+- File đã đổi: `backend/m2-trung-khang/README.md`, `backend/m2-trung-khang/CHANGELOG.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): root stack `tts-dev` và 5 stack con, tham số SSM `/tts/dev/azure-speech`, us-east-1; worker tạm đổi biến môi trường rồi khôi phục. Azure: resource Speech F0 ở `eastasia`, không xóa khi End Lab.
+- Việc tiếp theo: End Lab; mở PR vào `main`.
+- Cần báo module khác: M4, M5 biết thời gian Azure với văn bản dài khoảng 27 giây. Nhóm trưởng xác nhận với giảng viên việc dùng Azure thay Polly.
 
 ### 2026-11-08: Kế hoạch nghiệm thu Azure
 

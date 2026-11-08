@@ -59,7 +59,9 @@ export default function AudioPlayer({
     try {
       const url = new URL(item.audioUrl);
       if (!["http:", "https:"].includes(url.protocol)) throw new Error("Invalid URL");
-      const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
+      // Thẻ audio đã tải cùng URL không kèm Origin nên bản trong cache thiếu header CORS;
+      // bỏ qua cache để S3 trả lại response có CORS cho fetch.
+      const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(30000) });
       if (!response.ok) throw new Error("Download failed");
       const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
