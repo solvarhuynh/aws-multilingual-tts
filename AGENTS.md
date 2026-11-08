@@ -4,9 +4,9 @@
 
 Thành viên nên nắm bối cảnh chung trước khi làm: `README.md` và [sơ đồ kiến trúc](docs/overview/ARCHITECTURE.md). Trước khi sửa, xem `AGENTS.md`, log của module mình và **toàn bộ** `docs/tasks/task-mN.md`; task có phạm vi, các bước, dependencies, giới hạn và tiêu chí nghiệm thu.
 
-Agent hỗ trợ một thành viên phải đọc `AGENTS.md`, `README.md`, [bản đồ tài liệu](docs/README.md), [kiến trúc](docs/overview/ARCHITECTURE.md), [quy ước chung/API](docs/overview/QUY-UOC-CHUNG.md), log và task đầy đủ của module đó. Sau đó mở kế hoạch/guide đúng chủ đề theo [bản đồ plans](docs/plans/README.md) khi cần quyết định, dependency, Sandbox hoặc deploy. Không cần đọc hết `docs/plans/`, và không bỏ qua task chỉ vì README có phần tóm tắt.
+Agent hỗ trợ một thành viên phải đọc `AGENTS.md`, `README.md`, [bản đồ tài liệu](docs/README.md), [kiến trúc](docs/overview/ARCHITECTURE.md), [quy ước chung/API](docs/overview/QUY-UOC-CHUNG.md), log và task đầy đủ của module đó. Khi cần triển khai, mở [hướng dẫn Azure](docs/guides/AZURE-SPEECH.md); khi cần kiểm quyền Sandbox, mở đúng file trong `docs/reference/`. Không bỏ qua task chỉ vì README có phần tóm tắt.
 
-Các file trong `docs/plans/` là tài liệu tham chiếu chi tiết cho agent và người phụ trách; không bắt mọi thành viên đọc toàn bộ. Mục tiêu là giữ tài liệu để tìm hiểu đúng lúc, không xóa chúng để rút ngắn danh sách đọc. Mở `DEPLOY.md` và validation runbook chỉ khi được giao thao tác Sandbox; thao tác ghi resource vẫn theo phê duyệt nêu dưới đây.
+`docs/reference/` giữ ma trận quyền, runbook kiểm quyền và phương án EC2 lịch sử; thành viên chỉ mở khi task cần. Task, kiến trúc và quy ước chung là tài liệu làm việc chính. Chỉ mở validation runbook khi được giao thao tác Sandbox; thao tác ghi resource vẫn theo phê duyệt nêu dưới đây.
 
 ## Dự án và trạng thái hiện tại
 
@@ -14,9 +14,9 @@ Các file trong `docs/plans/` là tài liệu tham chiếu chi tiết cho agent 
 
 Luồng Sandbox đang **PROPOSED / PENDING GROUP SIGN-OFF / NOT DEPLOYED**:
 
-`Web/app M4 → CloudFront + S3 web → Lambda HTTP entry M1 → submit M5 → Lambda async Event → worker M2 → TTS provider ngoài AWS → S3 jobs/audio M3 → polling + presigned URL.`
+`Web/app M4 → CloudFront + S3 web → Lambda HTTP entry M1 → submit M5 → Lambda async Event → worker M2 → Azure Speech → S3 jobs/audio M3 → polling + presigned URL.`
 
-Cấu hình trong `samconfig.toml` và `config/settings.json` đã chuyển sang `us-east-1`. Backend đã có code cho submit, worker, voices, history và router; stats và sửa lỗi đánh máy là MR chưa bật. `template.yaml` ghép các stack trong `infra/`, chưa gồm hosting web của M4. Toàn hệ thống chưa deploy; chỉ M2 đã thử riêng trên Sandbox.
+Cấu hình trong `samconfig.toml` và `config/settings.json` dùng `us-east-1`; `config/settings.json` và root SAM chọn Azure mặc định. Backend đã có code cho submit, worker, voices, history và router; stats và sửa lỗi đánh máy là MR chưa bật. `template.yaml` ghép cả stack hosting M4. M4 ghi nhận đã cập nhật một stack/web hiện có sang Azure trong phiên 08/11/2026; khả năng tạo lại toàn bộ hệ thống từ stack mới và trên mỗi phiên lab vẫn cần kiểm chứng. M2 có bằng chứng thử riêng trên Sandbox.
 
 ## Giới hạn AWS Academy
 
@@ -32,7 +32,7 @@ Cấu hình trong `samconfig.toml` và `config/settings.json` đã chuyển sang
 - Giữ bảy public paths: `POST /text/correct`, `POST /synthesize`, `GET /voices`, `GET /jobs/{id}`, `GET /history`, `DELETE /history/{id}`, `GET /stats`.
 - Job mới trả HTTP `202` và được xử lý async. Trạng thái: `PENDING → PROCESSING → DONE | FAILED`. Error JSON: `{"error":{"code":"...","message":"..."}}`.
 - S3 jobs, audio và hosting là ba bucket riêng; jobs là JSON theo từng job. S3 không có DB transaction, query index hay TTL. Không lưu presigned URL trong metadata.
-- Các tên biến kế hoạch: `JOBS_BUCKET`, `JOBS_PREFIX`, `AUDIO_BUCKET`, `SYNTH_FUNCTION_NAME`. Chúng chưa được nối vào runtime.
+- Runtime dùng `JOBS_BUCKET`, `JOBS_PREFIX`, `AUDIO_BUCKET`, `SYNTH_FUNCTION_NAME`; root SAM truyền các giá trị này qua stack con. Kiểm lại giá trị thực sau mỗi lần dựng lab.
 - Auth một scope dùng chung `demo` qua `X-Demo-Token` chỉ là đề xuất cần nhóm duyệt, không phải phân quyền nhiều người dùng. Backend gán scope; không nhận `userId`, bucket hay ARN từ client.
 - Ngôn ngữ tổng hợp phải chọn rõ từ voice registry đã xác minh. Không dịch ngầm. Gemini typo là MR sau khi MP3 MVP chạy: người dùng duyệt đề xuất, lỗi provider thì dùng nguyên bản, không sửa ngữ pháp/văn phong và không tạo job từ `/text/correct`.
 

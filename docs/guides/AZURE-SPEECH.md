@@ -668,7 +668,7 @@ Lệnh/tên thao tác đã đối chiếu source nhóm; tên menu Portal có th�
 | [infra/m5-language-async-monitor.yaml](../../infra/m5-language-async-monitor.yaml) | Submit/giới hạn ứng dụng. |
 | [infra/m4-frontend-hosting.yaml](../../infra/m4-frontend-hosting.yaml) | CloudFront/OAC/S3 web. |
 | [frontend/README.md](../../frontend/README.md) | Chạy/kiểm web và Expo. |
-| [DEPLOY.md](DEPLOY.md) | Quyền/triển khai/phối hợp owner. |
+| [Ma trận Sandbox](../reference/SANDBOX-SERVICE-MATRIX.md) | Quyền và giới hạn dịch vụ cần kiểm theo phiên. |
 | [Quy ước chung](../overview/QUY-UOC-CHUNG.md) | Bảy paths, async, scope và dữ liệu. |
 
 Nguồn Microsoft/AWS dẫn ngay tại phần Azure, quota, vùng và CloudShell. Kết quả một phiên không thay thế kiểm quyền/giới hạn của tài khoản khác.

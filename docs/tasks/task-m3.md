@@ -1,6 +1,6 @@
 # M3 — Trung Đức: S3 jobs/audio, common và history
 
-**2026-11-06 — PLANNED / PROPOSED / PENDING GROUP SIGN-OFF.** Phân công cho implementation sau; chưa code/deploy trong lượt re-plan. Task chỉ tick khi có output và kiểm chứng phù hợp, không chấm mức độ module.
+**Cập nhật 2026-11-08.** Common S3 repository/history đã có code và local test theo log M3; retention/reset rehearsal còn mở. Task chỉ tick khi có output và kiểm chứng tương ứng.
 
 ## 1. Vai trò trong luồng TTS
 
@@ -20,11 +20,11 @@ Mã nguồn M3 (`backend/common/python/tts_common/`, `backend/history/app.py`) v
 
 backend/common/, backend/history/, infra/m3-storage-data.yaml.
 
-Chỉ sửa runtime khi được giao implementation. M1 tích hợp root IaC, không nhận logic Lambda mọi module. Lượt này chỉ cập nhật tài liệu/comment infra.
+M3 sở hữu schema/common/S3/history; M2 và M5 dùng interface M3 khi tích hợp.
 
 ## 4. Constraints Sandbox
 
-Regional us-east-1; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. Allowlist không chứng minh quyền từng action. Function URL/OAC/Invoke/SSM SecureString còn UNVERIFIED / NEEDS SANDBOX TEST. Runtime/config vẫn cũ, chỉ đổi ở Gate 1.
+Regional `us-east-1`; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. M2 đã thử một số thao tác S3/CAS riêng trên Sandbox; stack storage M3 và retention/reset vẫn cần evidence của M3.
 
 ## 5. IAM và secret cần kiểm
 
@@ -59,7 +59,7 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** Duyệt object keys/scope/paging; implement create/get/update/list/delete dưới tên cũ; JOBS_BUCKET/PREFIX config sau review; không global index JSON. **CLI/test khi được duyệt:** Mock CRUD/paging/expired/path traversal; T2-02. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Per-job JSON v1 trong private jobs bucket, API callers giữ import. **Evidence AWS/local:** Object schema/CAS headers/GET response sanitized. Tách local mock với sandbox verified.
 - **Risk / rollback:** Không query/index/transaction → bounded dataset, RDS chỉ phase riêng. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** CRUD đúng field, reject client scope, expiry lọc khi đọc. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho mocks. **Blocking status:** PLANNED; common trước M2/M5.
+- **Acceptance:** CRUD đúng field, reject client scope, expiry lọc khi đọc. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho mocks. **Current status:** CODED / LOCALLY TESTED; cần kiểm stack M3 trên Sandbox
 
 ### SB-M3-02 — Audio private và presigned playback
 
@@ -68,7 +68,7 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** Tách audio/jobs/web buckets; put_audio/get_audio_url/delete_audio; SSE-S3/BPA; TTL presign không dài hơn credential/session còn lại. **CLI/test khi được duyệt:** Mock object keys/expiry; private direct deny + playback sau approval. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** MP3 private, URL mới mỗi response, không lưu URL trong metadata. **Evidence AWS/local:** Bucket policy/BPA và audio object/URL test đã che signature. Tách local mock với sandbox verified.
 - **Risk / rollback:** Rò presign→TTL ngắn/redaction; reset URL hết hạn phải refresh. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Không public audio, URL còn hạn nghe được, lỗi missing/expired rõ. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Có mocks; presign effective test cần account. **Blocking status:** PLANNED sau Gate 0.
+- **Acceptance:** Không public audio, URL còn hạn nghe được, lỗi missing/expired rõ. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Có mocks; presign effective test cần account. **Current status:** CODED / LOCALLY TESTED; presign/audio cần E2E trên stack demo
 
 ### SB-M3-03 — CAS, lease và idempotency storage
 
@@ -77,7 +77,7 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** Conditional create/update ETag, version/lease/attempt, idempotency mapping/tombstone; primitives cho M2/M5; bounded conflict retry, không claim exactly-once. **CLI/test khi được duyệt:** Race fixtures 412/409, stale lease, crash mapping/job/audio; T2-02. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Single-writer claim và safe transitions; mapping recovery có test. **Evidence AWS/local:** Conflict status/ETag/result logs không text. Tách local mock với sandbox verified.
 - **Risk / rollback:** S3 multi-object không transaction→document reconciliation; rollback không delete job đang chạy. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Concurrent claims không double call trong lease; terminal state không regress. **Effort tương đối:** 2 buổi dự kiến. **Can run without account:** Có mocks; semantics runtime cần sandbox. **Blocking status:** PLANNED; M2/M5 cùng review contract.
+- **Acceptance:** Concurrent claims không double call trong lease; terminal state không regress. **Effort tương đối:** 2 buổi dự kiến. **Can run without account:** Có mocks; semantics runtime cần sandbox. **Current status:** CODED / LOCALLY TESTED; race/concurrency thực cần kiểm
 
 ### SB-M3-04 — History, job polling và delete terminal
 
@@ -86,16 +86,16 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** GET history/jobs tạo URL theo state; opaque cursor scoped; shared controlled demo; busy delete 409; tombstone terminal delete retry. **CLI/test khi được duyệt:** API fixtures paging/404/expiry/delete partial/job busy; E2E after approval. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** History API theo 7-path contract, không claim user isolation. **Evidence AWS/local:** API response + object state sau delete. Tách local mock với sandbox verified.
 - **Risk / rollback:** Delete race/partial failure→tombstone recovery; cursor tampering reject. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Không thấy expired/deleting items; polling DONE/audio hợp lệ. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có local contract. **Blocking status:** PLANNED sau common.
+- **Acceptance:** Không thấy expired/deleting items; polling DONE/audio hợp lệ. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có local contract. **Current status:** CODED / LOCALLY TESTED; history cần E2E trên stack demo
 
 ### SB-M3-05 — Retention và reset-safe data/evidence
 
 - **Owner:** M3 Trung Đức. **Phase:** Gate 3 và 5. **Mục tiêu:** Retention và reset-safe data/evidence. **Kiến thức AWS:** S3 private jobs JSON, S3 private audio, Lambda tts-history, common packaging/Layer candidate, S3 Lifecycle.
-- **Dependencies và input:** SB-M3-01/04 và handout reset. **Files implementation later:** infra/m3-storage-data.yaml, common helpers, docs/guides/DEPLOY.md qua M1 coordination.
+- **Dependencies và input:** SB-M3-01/04 và handout reset. **Files implementation later:** infra/m3-storage-data.yaml, common helpers, docs/guides/AZURE-SPEECH.md qua M1 coordination.
 - **Steps cấp cao:** Lifecycle theo prefix, app expiresAt, bounded stale-job inspection helpers; hướng dẫn backup sample config/evidence không PII, không nghĩ S3 bền qua reset. **CLI/test khi được duyệt:** Lifecycle config read-only sau deploy; reset rehearsal có duyệt. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Retention rõ, recovery dữ liệu dở, sample manifest không secret. **Evidence AWS/local:** Console lifecycle + expired fixture + phiên mới. Tách local mock với sandbox verified.
 - **Risk / rollback:** Lifecycle không đúng giây/reset xóa sớm→evidence backup ngoài lab. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Không gọi Lifecycle là DynamoDB TTL; rehearsal dữ liệu mẫu đạt. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Có design offline; rehearsal cần account. **Blocking status:** PLANNED, không EventBridge sweeper baseline.
+- **Acceptance:** Không gọi Lifecycle là DynamoDB TTL; rehearsal dữ liệu mẫu đạt. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Có design offline; rehearsal cần account. **Current status:** OPEN; lifecycle đã cấu hình, còn rehearsal reset/retention
 
 ## 10. Quy tắc owner và bàn giao
 
@@ -107,7 +107,7 @@ Mock-by-default; không credentials và không gọi AWS/provider mặc định.
 
 ## 12. Kiểm thử Sandbox dự kiến
 
-Theo [validation runbook](../plans/SANDBOX-VALIDATION-RUNBOOK.md): Level 1 chỉ đọc khi được yêu cầu; Level 2 resource mutation/call trả phí cần approval cụ thể. Evidence ghi action/principal/region/status/error sanitized, tách local mock với sandbox verified.
+Theo [validation runbook](../reference/SANDBOX-VALIDATION-RUNBOOK.md): Level 1 chỉ đọc khi được yêu cầu; Level 2 resource mutation/call trả phí cần approval cụ thể. Evidence ghi action/principal/region/status/error sanitized, tách local mock với sandbox verified.
 
 ## 13. Retry và dữ liệu dở
 
@@ -131,4 +131,4 @@ Thành viên chỉ cập nhật logs/log-m3.md của mình sau thực hiện, gi
 
 ## 18. Bước tiếp theo
 
-SB-M3-01 theo dependency/approval trong task. **CURRENT RUNTIME CONFIG STILL OLD — Gate 1**; chưa sửa code/config/deployable templates. [Backlog đầy đủ](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md) và [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md) là tài liệu bàn giao chung.
+Hoàn thiện SB-M3-05: kiểm retention và dựng lại dữ liệu/stack sau reset trên phiên được giao; đối chiếu code chung với submit/worker. Xem [kiến trúc](../overview/ARCHITECTURE.md) và [hướng dẫn Azure](../guides/AZURE-SPEECH.md).

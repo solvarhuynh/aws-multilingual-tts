@@ -1,6 +1,6 @@
 # M4 — Nguyên Khang: Frontend hiện có, CloudFront hosting và tái triển khai
 
-**Phân công 2026-11-06 — PROPOSED / PENDING GROUP SIGN-OFF.** Lượt re-plan ban đầu không code/deploy. Ngày 2026-11-07 người dùng giao chuẩn bị M4 local; xem mục 19. API contract chung và quyền Sandbox vẫn cần xác nhận, chưa deploy AWS. Task chỉ tick khi có output và kiểm chứng phù hợp.
+**Cập nhật 2026-11-08.** M4 có web/app, hosting CloudFront và log cập nhật một stack/web hiện có sang Azure Speech. M4 phụ trách tích hợp giao diện và hosting; adapter/worker TTS vẫn do M2 sở hữu. Kiểm lại khả năng tạo stack mới, OAC, app native và reset trước khi tick thêm task.
 
 ## 1. Vai trò trong luồng TTS
 
@@ -12,17 +12,17 @@ Giao: Existing UI dùng API thật, CloudFront HTTPS/private S3, no-cache API be
 
 ## 2. Hiện trạng có bằng chứng
 
-Web/app có API adapters, luồng polling và kiểm thử local; xem bằng chứng ngày 2026-11-07 trong logs/log-m4.md. Giai đoạn chuẩn bị hosting tĩnh và các khoảng trống API được ghi ở mục 19. Audit trong [migration plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md#1-executive-summary-và-audit-thực-tế) là mốc re-plan cũ.
+Web/app có API adapters, polling và kiểm thử local. Mục 19 giữ lịch sử chuẩn bị; mục 20 ghi việc đổi từ ElevenLabs sang Azure sau khi ElevenLabs chặn request. README/log M4 ghi web Azure đã được thử trong một phiên, nhưng app native, CREATE mới và reset cần evidence riêng.
 
 ## 3. Phạm vi files
 
 frontend/, infra/m4-frontend-hosting.yaml; .github/workflows/ chỉ bảo trì, không OIDC deploy baseline.
 
-Chỉ sửa runtime khi được giao implementation. M1 tích hợp root IaC, không nhận logic Lambda mọi module. Lượt re-plan chỉ cập nhật tài liệu/comment; yêu cầu riêng ngày 2026-11-07 cho phép chuẩn bị local của M4, không giao agent thao tác AWS.
+M4 sở hữu frontend, S3 web, CloudFront/OAC và thao tác deploy web. Thay đổi provider trong commit Azure phải được M2 review ở adapter/worker và M5 review ở submit/giới hạn.
 
 ## 4. Constraints Sandbox
 
-Regional us-east-1; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. Allowlist không chứng minh quyền từng action. Function URL/OAC/Invoke/SSM SecureString còn UNVERIFIED / NEEDS SANDBOX TEST. samconfig.toml/config/settings.json đã đặt us-east-1; backend/common/root SAM vẫn chưa sẵn sàng deploy như AGENTS.md hiện hành.
+Regional `us-east-1`; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. Config/root SAM đã có Azure/hosting; Function URL/OAC/S3 policy và khả năng CREATE mới phải kiểm trong phiên Sandbox được giao.
 
 ## 5. IAM và secret cần kiểm
 
@@ -65,7 +65,7 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** S3 REST origin private, distribution HTTPS/default root, API behaviors no-cache; Lambda OAC association phối hợp M1; không global SPA error rewrite API. **CLI/test khi được duyệt:** T2-04 sau approval, GET/OPTIONS/POST/DELETE/deep-link/cache/header tests. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** HTTPS static web, S3 direct deny, API responses không cache. **Evidence AWS/local:** Distribution/OAC/bucket policy và request responses. Tách local mock với sandbox verified.
 - **Risk / rollback:** OAC denied→report blocker hoặc NONE exception riêng; không public bucket. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Private static works, JSON 401/404 không thành HTML, POST hash/signing đúng. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho IaC design; AWS test cần account. **Blocking status:** UNVERIFIED capability.
+- **Acceptance:** Private static works, JSON 401/404 không thành HTML, POST hash/signing đúng. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho IaC design; AWS test cần account. **Current status:** Template hosting đã code; OAC/API origin cần kiểm theo phiên
 
 ### SB-M4-03 — Tích hợp API/token/voices/async vào UI sẵn có
 
@@ -74,7 +74,7 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** Runtime X-Demo-Token memory, API base URL, exact POST hash nếu OAC, verified voice registry; 202 polling/history/typo skipped; reject translate/auto rõ. **CLI/test khi được duyệt:** Existing frontend tests + mock contract; sandbox E2E khi được duyệt. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** TTS flow không submit trùng, token không bundle, không key browser. **Evidence AWS/local:** Network sanitized + UI polling/playback video từ AWS thật. Tách local mock với sandbox verified.
 - **Risk / rollback:** SigV4 Authorization conflict→custom header; token không localStorage. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** 7 routes compatible, user thấy lỗi tính năng chưa bật, không xây lại UI cơ bản. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có mock frontend. **Blocking status:** PLANNED, auth field pending sign-off.
+- **Acceptance:** 7 routes compatible, user thấy lỗi tính năng chưa bật, không xây lại UI cơ bản. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có mock frontend. **Current status:** Web/app đã có tích hợp; cần E2E Azure và xác nhận 7 routes
 
 ### SB-M4-04 — Manual web deploy và reset/rebind
 
@@ -83,7 +83,7 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** Build web/dist, Lab IDE/CloudShell upload private S3/invalidate; lưu manifest URL không secret, rebuild URL mới sau reset; app native không upload như website. **CLI/test khi được duyệt:** Upload/invalidation có duyệt; reset rehearsal T2-08. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Repeatable manual deploy không OIDC/key dài hạn/GitHub credentials. **Evidence AWS/local:** CloudFront URL và artifact/version trước/sau phiên. Tách local mock với sandbox verified.
 - **Risk / rollback:** URL stale khi reset→rebuild/rebind, rollback static artifact chỉ từ source tin cậy. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Phiên mới web trỏ API mới, key/token không trong artifact. **Effort tương đối:** 1 phiên rehearsal dự kiến. **Can run without account:** Có runbook/build offline; upload cần account. **Blocking status:** PLANNED; không GitHub OIDC deploy baseline.
+- **Acceptance:** Phiên mới web trỏ API mới, key/token không trong artifact. **Effort tương đối:** 1 phiên rehearsal dự kiến. **Can run without account:** Có runbook/build offline; upload cần account. **Current status:** Đã có quy trình upload; CREATE mới/reset/rebind còn cần rehearsal
 
 ## 10. Quy tắc owner và bàn giao
 
@@ -95,7 +95,7 @@ Mock-by-default; không credentials và không gọi AWS/provider mặc định.
 
 ## 12. Kiểm thử Sandbox dự kiến
 
-Theo [validation runbook](../plans/SANDBOX-VALIDATION-RUNBOOK.md): Level 1 chỉ đọc khi được yêu cầu; Level 2 resource mutation/call trả phí cần approval cụ thể. Evidence ghi action/principal/region/status/error sanitized, tách local mock với sandbox verified.
+Theo [validation runbook](../reference/SANDBOX-VALIDATION-RUNBOOK.md): Level 1 chỉ đọc khi được yêu cầu; Level 2 resource mutation/call trả phí cần approval cụ thể. Evidence ghi action/principal/region/status/error sanitized, tách local mock với sandbox verified.
 
 ## 13. Retry và dữ liệu dở
 
@@ -119,7 +119,7 @@ Thành viên chỉ cập nhật logs/log-m4.md của mình sau thực hiện, gi
 
 ## 18. Bước tiếp theo
 
-Thực hiện hướng dẫn hosting thủ công ở mục 19 khi lab/owner đã sẵn sàng; phối hợp M1 trước phần API origin. Root SAM/backend vẫn chưa sẵn sàng deploy. [Backlog](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md) và [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md) tiếp tục là tài liệu bàn giao chung.
+Theo [hướng dẫn Azure](../guides/AZURE-SPEECH.md), kiểm CREATE mới, API qua CloudFront, web/app native và reset/rebind; ghi evidence vào log M4 rồi cập nhật SB-M4-02/03/04. Phối hợp M1 về URL/OAC và M2 về giọng Azure.
 
 ## 19. Bàn giao local ngày 2026-11-07
 

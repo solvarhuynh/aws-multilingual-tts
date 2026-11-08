@@ -37,7 +37,7 @@
 
 ### 2026-11-07 — Xây dựng Tài liệu Đánh giá Phương án Dự phòng B: EC2 (SB-M1-05)
 
-- **Tài liệu [`docs/plans/FALLBACK-B-EC2-DECISION.md`](../docs/plans/FALLBACK-B-EC2-DECISION.md):**
+- **Tài liệu [`docs/reference/FALLBACK-B-EC2-DECISION.md`](../docs/reference/FALLBACK-B-EC2-DECISION.md):**
   - Phân tích sự kiện kích hoạt (Trigger): Lệnh `lambda:CreateFunction` bị từ chối trên tài khoản thực hành do Lab 1 IAM giới hạn quyền.
   - Đánh giá 6 bài Lab của môn học: Nhóm có sẵn **Lab 2 (VPC & Web Server)** và **Lab 3 (Introduction to Amazon EC2)** mở toàn quyền cho EC2.
   - Thiết kế kiến trúc Fallback B: Chạy HTTP Router trên EC2 `t2.micro` (Amazon Linux 2023), gắn `LabInstanceProfile`, bảo vệ bằng Security Group cổng 80/443.

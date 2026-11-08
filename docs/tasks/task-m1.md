@@ -1,6 +1,6 @@
 # M1 — Minh Lý: HTTP API, tích hợp Sandbox và quan sát chung
 
-**2026-11-06 — PLANNED / PROPOSED / PENDING GROUP SIGN-OFF.** Phân công cho implementation sau; chưa code/deploy trong lượt re-plan. Task chỉ tick khi có output và kiểm chứng phù hợp, không chấm mức độ module.
+**Cập nhật 2026-11-08.** Router, root SAM và dashboard đã có code; M1 có bằng chứng thử EC2 fallback trong một lab. Cần tách kết quả đó khỏi khả năng tạo lại root stack Lambda trong phiên mới. Task chỉ tick khi có output và kiểm chứng tương ứng.
 
 ## 1. Vai trò trong luồng TTS
 
@@ -14,17 +14,17 @@ Giao: Capability evidence, HTTP route map, existing-role wiring, root IaC, dashb
 
 ## 2. Hiện trạng có bằng chứng
 
-template.yaml:29 chỉ ProjectMarker; samconfig.toml:11 và config/settings.json:2 còn region cũ. Xem [audit file:line](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md#1-executive-summary-và-audit-thực-tế). Log cũ là lịch sử, không phải test mới.
+`backend/http/app.py`, `infra/m1-api-security.yaml`, `template.yaml` và dashboard đã có code. Root SAM ghép cả hosting M4, region đã là `us-east-1`. Function URL/OAC trên stack mới cần kiểm trong Sandbox; xem `logs/log-m1.md` cho kết quả từng phiên.
 
 ## 3. Phạm vi files
 
-template.yaml, samconfig.toml, infra/m1-api-security.yaml, scripts/, config/settings.json; backend/http/ dự kiến, chưa tạo.
+template.yaml, samconfig.toml, infra/m1-api-security.yaml, scripts/m1/, config/settings.json, backend/http/ và dashboard.
 
-Chỉ sửa runtime khi được giao implementation. M1 tích hợp root IaC, không nhận logic Lambda mọi module. Lượt này chỉ cập nhật tài liệu/comment infra.
+M1 tích hợp root IaC và HTTP entry; logic nghiệp vụ Lambda vẫn thuộc owner từng module.
 
 ## 4. Constraints Sandbox
 
-Regional us-east-1; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. Allowlist không chứng minh quyền từng action. Function URL/OAC/Invoke/SSM SecureString còn UNVERIFIED / NEEDS SANDBOX TEST. Runtime/config vẫn cũ, chỉ đổi ở Gate 1.
+Regional `us-east-1`; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. Allowlist không chứng minh quyền từng action. M2 đã thử riêng Invoke/SSM/S3; Function URL/OAC/resource policy của root stack cần kiểm riêng.
 
 ## 5. IAM và secret cần kiểm
 
@@ -55,11 +55,11 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 ### SB-M1-01 — Xác minh capability và quyền lab
 
 - **Owner:** M1 Minh Lý. **Phase:** Gate 0. **Mục tiêu:** Xác minh capability và quyền lab. **Kiến thức AWS:** Lambda HTTP entry/Function URL candidate, CloudFormation/SAM với LabRole hiện hữu, CloudWatch Dashboard/Alarms và SNS.
-- **Dependencies và input:** Handout + phiên lab đang mở, không credentials trong repo. **Files implementation later:** Không sửa code ở task probe; evidence ngoài account, docs/plans.
+- **Dependencies và input:** Handout + phiên lab đang mở, không credentials trong repo. **Files:** Probe ở `scripts/m1/`; hướng dẫn kiểm quyền ở `docs/reference/`, evidence riêng theo phiên.
 - **Steps cấp cao:** Đọc metadata rồi lập probe được duyệt cho LabRole/PassRole/Function URL/resource policy/Invoke/SSM/KMS; tách caller và runtime. **CLI/test khi được duyệt:** T2-01, T2-03, T2-06; Level 1 runbook. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Capability matrix có status/error/principal thật. **Evidence AWS/local:** Screenshot role/config và kết quả mock, không value secret. Tách local mock với sandbox verified.
 - **Risk / rollback:** Denied → giữ BLOCKER hoặc fallback B được duyệt, không sửa LabRole. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Gate 0 có kết luận cho HTTP/invoke/secret hoặc blocker rõ. **Effort tương đối:** 1 phiên khảo sát dự kiến, chưa đo. **Can run without account:** Một phần: audit/docs/mock không account; sandbox probes cần account. **Blocking status:** BLOCKED chờ phiên lab + approval Level 2.
+- **Acceptance:** Gate 0 có kết luận cho HTTP/invoke/secret hoặc blocker rõ. **Effort tương đối:** 1 phiên khảo sát dự kiến, chưa đo. **Can run without account:** Một phần: audit/docs/mock không account; sandbox probes cần account. **Current status:** Gate 0 đã có log ở Lab 1/3; Function URL/OAC của root stack vẫn cần kiểm
 
 ### SB-M1-02 — Di trú region và root IaC dùng role hiện hữu
 
@@ -68,7 +68,7 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** Đổi region/runtime wiring sau Gate 0; explicit Role ARN; kiểm transform không sinh IAM/API Gateway; tách Parameters/Outputs từng module. **CLI/test khi được duyệt:** sam validate --lint; sam build sau implementation; T2-01 nếu duyệt. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Root stack us-east-1, existing role, no unsupported services. **Evidence AWS/local:** Transformed resources/changeset và stack sau deploy được duyệt. Tách local mock với sandbox verified.
 - **Risk / rollback:** Config cũ deploy nhầm → review region; rollback code/changeset trước execute. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Validate/build và review resource inventory; deploy có evidence riêng. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho local review/build; deploy cần account. **Blocking status:** PLANNED, phụ thuộc Gate 0.
+- **Acceptance:** Validate/build và review resource inventory; deploy có evidence riêng. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho local review/build; deploy cần account. **Current status:** Root SAM đã code; CREATE mới và resource inventory cần evidence
 
 ### SB-M1-03 — HTTP router và compatibility
 
@@ -77,25 +77,25 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** Parse v2 method/path/query/base64/JSON, token auth context backend, route tới 4 owner handlers qua Invoke; CORS một nguồn, body limits, không cache API. **CLI/test khi được duyệt:** Unit/contract router fixtures; T2-03/04 sau duyệt. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** 7 paths giữ nguyên, normalized internal context và JSON errors. **Evidence AWS/local:** Function URL/config, OPTIONS/POST/401/404 responses. Tách local mock với sandbox verified.
 - **Risk / rollback:** Invoke denied → routing nhiều URL candidate; NONE chỉ exception có duyệt. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** 7 routes và invalid/missing token/base64/malformed JSON pass tests. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho mock; URL/OAC cần account. **Blocking status:** PLANNED; token secret là blocker trước public.
+- **Acceptance:** 7 routes và invalid/missing token/base64/malformed JSON pass tests. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có cho mock; URL/OAC cần account. **Current status:** Router đã code/local test; URL/OAC và demo token cần kiểm
 
 ### SB-M1-04 — Giám sát và alarm Sandbox
 
 - **Owner:** M1 Minh Lý. **Phase:** Gate 3. **Mục tiêu:** Giám sát và alarm Sandbox. **Kiến thức AWS:** Lambda HTTP entry/Function URL candidate, CloudFormation/SAM với LabRole hiện hữu, CloudWatch Dashboard/Alarms và SNS.
-- **Dependencies và input:** Logs/functions thật; M5 metric schema; quyền action thật. **Files implementation later:** infra/m1-api-security.yaml, docs/guides/DEPLOY.md.
+- **Dependencies và input:** Logs/functions thật; M5 metric schema; quyền action thật. **Files implementation later:** infra/m1-api-security.yaml, docs/guides/AZURE-SPEECH.md.
 - **Steps cấp cao:** Dashboard Lambda/errors/throttle/async age/drop/destination failures; nhận metric nghiệp vụ M5, SNS xác nhận subscription và cảnh báo test. **CLI/test khi được duyệt:** CloudWatch Console; T2-08 được duyệt. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Dashboard và alarm/SNS phù hợp service thật, không X-Ray/RUM baseline. **Evidence AWS/local:** Dashboard + notification test đã nhận. Tách local mock với sandbox verified.
 - **Risk / rollback:** Alarm giả do thiếu metric → kiểm dimensions; rollback alarm test riêng. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Theo dõi được job và lỗi mẫu; ghi rõ action denied nếu chưa đủ. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Một phần: config design offline. **Blocking status:** PLANNED sau MVP.
+- **Acceptance:** Theo dõi được job và lỗi mẫu; ghi rõ action denied nếu chưa đủ. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Một phần: config design offline. **Current status:** Dashboard đã code; alarm/SNS thực tế cần evidence
 
 ### SB-M1-05 — IaC/session reset và fallback decision
 
 - **Owner:** M1 Minh Lý. **Phase:** Gate 5. **Mục tiêu:** IaC/session reset và fallback decision. **Kiến thức AWS:** Lambda HTTP entry/Function URL candidate, CloudFormation/SAM với LabRole hiện hữu, CloudWatch Dashboard/Alarms và SNS.
-- **Dependencies và input:** Gate 0 decisions, Gate 1–3 outputs, M4 frontend requirements. **Files implementation later:** scripts/ dự kiến, docs/guides/DEPLOY.md, template.yaml nếu được giao implementation.
+- **Dependencies và input:** Gate 0 decisions, Gate 1–3 outputs, M4 frontend requirements. **Files implementation later:** scripts/ dự kiến, docs/guides/AZURE-SPEECH.md, template.yaml nếu được giao implementation.
 - **Steps cấp cao:** Script tái deploy không secret trong Lab IDE/CloudShell; manifest suffix/URLs; review fallback B khi A không khả thi, không tự tạo EC2. **CLI/test khi được duyệt:** Reset/redeploy rehearsal T2-08, không lệnh destroy chung. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Một phiên lab dựng lại được, account credentials ở lab. **Evidence AWS/local:** Manifest sanitized + thời gian thao tác thực + URL mới. Tách local mock với sandbox verified.
 - **Risk / rollback:** Reset mất evidence → backup ngoài lab trước; rollback chỉ probe/resource được duyệt. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Phiên mới demo lại được hoặc blocker cụ thể có owner. **Effort tương đối:** 1 phiên rehearsal dự kiến. **Can run without account:** Có cho runbook; rehearsal cần account. **Blocking status:** PLANNED; không thực hiện reset phiên người khác.
+- **Acceptance:** Phiên mới demo lại được hoặc blocker cụ thể có owner. **Effort tương đối:** 1 phiên rehearsal dự kiến. **Can run without account:** Có cho runbook; rehearsal cần account. **Current status:** EC2 fallback đã thử live; reset/redeploy root stack còn mở
 
 ## 10. Quy tắc owner và bàn giao
 
@@ -107,7 +107,7 @@ Mock-by-default; không credentials và không gọi AWS/provider mặc định.
 
 ## 12. Kiểm thử Sandbox dự kiến
 
-Theo [validation runbook](../plans/SANDBOX-VALIDATION-RUNBOOK.md): Level 1 chỉ đọc khi được yêu cầu; Level 2 resource mutation/call trả phí cần approval cụ thể. Evidence ghi action/principal/region/status/error sanitized, tách local mock với sandbox verified.
+Theo [validation runbook](../reference/SANDBOX-VALIDATION-RUNBOOK.md): Level 1 chỉ đọc khi được yêu cầu; Level 2 resource mutation/call trả phí cần approval cụ thể. Evidence ghi action/principal/region/status/error sanitized, tách local mock với sandbox verified.
 
 ## 13. Retry và dữ liệu dở
 
@@ -131,4 +131,4 @@ Thành viên chỉ cập nhật logs/log-m1.md của mình sau thực hiện, gi
 
 ## 18. Bước tiếp theo
 
-SB-M1-01 theo dependency/approval trong task. **CURRENT RUNTIME CONFIG STILL OLD — Gate 1**; chưa sửa code/config/deployable templates. [Backlog đầy đủ](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md) và [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md) là tài liệu bàn giao chung.
+Đối chiếu checklist đã tick với log/evidence theo từng phiên, xác minh Function URL/OAC/resource policy và khả năng dựng lại root stack. Xem [kiến trúc](../overview/ARCHITECTURE.md) và [hướng dẫn Azure](../guides/AZURE-SPEECH.md) để phối hợp M4.

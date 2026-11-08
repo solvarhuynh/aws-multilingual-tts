@@ -1,6 +1,6 @@
 # Báo cáo Đánh giá và Quyết định Phương án Dự phòng B (Fallback B: EC2 Router)
 
-> Tài liệu khảo sát lịch sử của M1 tại các bài Lab 1/3, không phải hướng dẫn deploy Azure hiện hành. Kết quả quyền của các bài lab đó không đại diện cho Cloud Foundations Sandbox đã chạy Lambda của M2/M4. Code khảo sát được gom vào `scripts/m1/`; `probe_ec2.py` là kiểm tra thủ công, không chạy như unit test. Quy trình nhóm hiện tại: [Azure → AWS → web/app](../guides/AZURE-SPEECH.md).
+> Tài liệu khảo sát lịch sử của M1 tại các bài Lab 1/3, không phải hướng dẫn deploy Azure hiện hành. Các nhãn ElevenLabs bên dưới mô tả phương án ở thời điểm viết; provider hiện dùng là Azure Speech. Kết quả quyền của các bài lab đó không đại diện cho Cloud Foundations Sandbox đã chạy Lambda của M2/M4. Code khảo sát ở `scripts/m1/`; `probe_ec2.py` là kiểm tra thủ công. Quy trình nhóm hiện tại: [Azure → AWS → web/app](../guides/AZURE-SPEECH.md).
 
 **Tác giả:** M1 — Minh Lý  
 **Mục tiêu:** Đánh giá tính khả thi và kế hoạch chuyển đổi từ Lambda (Phương án A) sang EC2 (Phương án B) khi bị giới hạn quyền tại AWS Academy Sandbox.  

@@ -1,6 +1,6 @@
 # M5 — Trung Nghĩa: Submit, điều phối async, ngôn ngữ và kiểm thử
 
-**2026-11-06 — PLANNED / PROPOSED / PENDING GROUP SIGN-OFF.** Phân công cho implementation sau; chưa code/deploy trong lượt re-plan. Task chỉ tick khi có output và kiểm chứng phù hợp, không chấm mức độ module.
+**Cập nhật 2026-11-08.** Submit và test M5 đã có code trên main qua commit tích hợp của M2; M5 cần review, nhận bàn giao và hoàn thiện idempotency/recovery/telemetry. Stats và Gemini typo chưa bật. Task chỉ tick khi owner kiểm kết quả theo acceptance.
 
 ## 1. Vai trò trong luồng TTS
 
@@ -14,17 +14,17 @@ Giao: Submit 202/IDs event/idempotency policy, recovery workflow, application me
 
 ## 2. Hiện trạng có bằng chứng
 
-backend/submit/app.py:14 và backend/stats/app.py:12 trả 501; root tests/ chưa tồn tại. Xem [audit file:line](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md#1-executive-summary-và-audit-thực-tế). Log cũ là lịch sử, không phải test mới.
+`backend/submit/app.py` đã tạo job, giới hạn quota và gửi worker bằng Lambda Event; `tests/unit/m5/test_submit.py` có test. `backend/stats/app.py` còn trả 501. `logs/log-m5.md` chưa phản ánh hết code tích hợp chéo; M5 cần rà từng acceptance trước khi tick.
 
 ## 3. Phạm vi files
 
-backend/submit/, backend/stats/, tests/ dự kiến, infra/m5-language-async-monitor.yaml.
+backend/submit/, backend/stats/, tests/unit/m5/, infra/m5-language-async-monitor.yaml.
 
-Chỉ sửa runtime khi được giao implementation. M1 tích hợp root IaC, không nhận logic Lambda mọi module. Lượt này chỉ cập nhật tài liệu/comment infra.
+M5 sở hữu hành vi submit/async/recovery/telemetry; nhận bàn giao phần M2 đã tích hợp và phối hợp contract với M1–M4.
 
 ## 4. Constraints Sandbox
 
-Regional us-east-1; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. Allowlist không chứng minh quyền từng action. Function URL/OAC/Invoke/SSM SecureString còn UNVERIFIED / NEEDS SANDBOX TEST. Runtime/config vẫn cũ, chỉ đổi ở Gate 1.
+Regional `us-east-1`; IAM/CloudFront global; tài nguyên/data reset cuối mỗi session. M2 đã thử riêng Invoke/SSM/S3; orchestration M5 trong root stack và E2E cần kiểm riêng.
 
 ## 5. IAM và secret cần kiểm
 
@@ -59,7 +59,7 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** Explicit lang vi/en/ja theo registry, text/speed limits đo từ provider, translateTo chưa bật reject rõ, typo mặc định skipped original; không tạo job ở correction. **CLI/test khi được duyệt:** Validation mocks empty/malformed/too-long/auto/translation/speed/typo fallback. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Request hợp lệ không đổi ý nghĩa, errors theo schema, 7 paths giữ. **Evidence AWS/local:** Contract test responses, Lambda config khi deploy. Tách local mock với sandbox verified.
 - **Risk / rollback:** Không tự nhận diện/dịch bằng service ngoài baseline; input invalid không tiêu credits. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Không tạo job khi typo, explicit lang validation pass, no false success. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Có. **Blocking status:** PLANNED sau common/registry contract.
+- **Acceptance:** Không tạo job khi typo, explicit lang validation pass, no false success. **Effort tương đối:** 1 buổi dự kiến. **Can run without account:** Có. **Current status:** Submit đã có validation inline; M5 cần review acceptance và validator local chưa push
 
 ### SB-M5-02 — Async dispatch + idempotency orchestration
 
@@ -68,7 +68,7 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** Create PENDING qua common, mapping Idempotency-Key, Invoke Event IDs-only, 202 khi accepted; invoke lỗi update FAILED nếu được; replay không tạo job mới. **CLI/test khi được duyệt:** Event mocks accepted/refused/crash gap/replay/conflict; T2-05. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Async-all MVP không threshold 2500 giả, payload không text/key. **Evidence AWS/local:** 202 response, IDs event/log, state transitions. Tách local mock với sandbox verified.
 - **Risk / rollback:** No transaction create/invoke→dispatchState/recovery; exactly-once không hứa. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Accepted→202, rejected→sanitized 503, replay same key bounded. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có mocks. **Blocking status:** PLANNED; S3 common trước.
+- **Acceptance:** Accepted→202, rejected→sanitized 503, replay same key bounded. **Effort tương đối:** 1–2 buổi dự kiến. **Can run without account:** Có mocks. **Current status:** Submit/dispatch đã có code; idempotency/replay/recovery còn mở
 
 ### SB-M5-03 — Recovery policy, credit guard và telemetry
 
@@ -77,16 +77,16 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** M5 đề xuất retry/event-age cho M2 config duy nhất; stale inspector/manual recovery; counters CAS M3 trước dispatch, log jobId/duration/attempt/outcome qua EMF nếu được. **CLI/test khi được duyệt:** Transient/permanent/timeout/stale/limit fixtures; T2-05/08. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Business metric schema + recovery decision tree + no unsafe replay. **Evidence AWS/local:** CloudWatch Logs/Metrics, budget counter, destination delivery failure nếu có. Tách local mock với sandbox verified.
 - **Risk / rollback:** Counter không transaction→reserve trước dispatch, refund bounded; unknown provider billing→operator review. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** No unlimited retries; logs không key/text; caps trước provider-backed public demo. **Effort tương đối:** 2 buổi dự kiến. **Can run without account:** Có design/mock. **Blocking status:** PLANNED; simple cap/auth guard trước public, resilience nâng cao Gate 3.
+- **Acceptance:** No unlimited retries; logs không key/text; caps trước provider-backed public demo. **Effort tương đối:** 2 buổi dự kiến. **Can run without account:** Có design/mock. **Current status:** Quota cơ bản đã có; recovery/metric nghiệp vụ chưa nghiệm thu
 
 ### SB-M5-04 — Backend testing matrix và bàn giao E2E
 
 - **Owner:** M5 Trung Nghĩa. **Phase:** Gate 1–5. **Mục tiêu:** Backend testing matrix và bàn giao E2E. **Kiến thức AWS:** Lambda tts-submit/tts-stats, Lambda async invocation có điều kiện, application Logs/Metrics; Gemini là MR ngoài AWS.
-- **Dependencies và input:** M1–M3 interfaces, M4 adapter mapping. **Files implementation later:** tests/ dự kiến unit/contract/integration mocks, docs/guides/DEPLOY.md phối hợp.
+- **Dependencies và input:** M1–M3 interfaces, M4 adapter mapping. **Files implementation later:** tests/ dự kiến unit/contract/integration mocks, docs/guides/AZURE-SPEECH.md phối hợp.
 - **Steps cấp cao:** Suite mock router/common/provider/dispatch qua owner fixtures, failure paths/reset tests; phối hợp M4 tests frontend hiện có, không default AWS calls. **CLI/test khi được duyệt:** Offline unit/contract command chốt khi tạo suite; E2E vi/en/ja sau approval. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Repeatable tests không credentials, report links rõ tầng local/sandbox. **Evidence AWS/local:** Test report + sandbox evidence theo từng gate, không số pass giả. Tách local mock với sandbox verified.
 - **Risk / rollback:** Test gọi live vô ý→mock-by-default/env guard, live chỉ action được duyệt. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** Unit/contract pass, failure/retry cases đủ, no external request mặc định. **Effort tương đối:** 1–2 buổi dự kiến rồi bổ sung theo gates. **Can run without account:** Có cho mock suite. **Blocking status:** PLANNED, không tạo suite ở re-plan.
+- **Acceptance:** Unit/contract pass, failure/retry cases đủ, no external request mặc định. **Effort tương đối:** 1–2 buổi dự kiến rồi bổ sung theo gates. **Can run without account:** Có cho mock suite. **Current status:** Có test submit; ma trận backend/E2E chưa hoàn tất
 
 ### SB-M5-05 — MR Gemini typo và stats bounded scan
 
@@ -95,7 +95,7 @@ Effort bên dưới là ước lượng theo buổi/phiên, không phải độ 
 - **Steps cấp cao:** Sau MP3 MVP, bảo vệ key/timeout; typo checked/skipped và UTF-16 offsets, user review; stats quét giới hạn, feature unavailable rõ nếu chưa bật. **CLI/test khi được duyệt:** Mock Gemini failures/schema/UTF-16/no job; stats empty/paging/scan cap. Các lệnh tham chiếu là hướng dẫn, NOT RUN.
 - **Expected output:** Typos only/fail-open original, stats đúng dữ liệu không số giả. **Evidence AWS/local:** Correction API responses và stats/scan evidence, không key value. Tách local mock với sandbox verified.
 - **Risk / rollback:** MR thiếu secret→skipped; stats cap→503, không quét vô hạn. Rollback có thể khôi phục code/resource test đã review; không xóa resource nhóm để “thử lại”.
-- **Acceptance:** User chọn trước synthesize; no grammar rewrite; no job trong correct; stats status honest. **Effort tương đối:** 1–2 buổi dự kiến khi MR được duyệt. **Can run without account:** Có mocks; Gemini thật cần approval. **Blocking status:** DEFERRED sau MVP; Comprehend/Translate OUT OF BASELINE.
+- **Acceptance:** User chọn trước synthesize; no grammar rewrite; no job trong correct; stats status honest. **Effort tương đối:** 1–2 buổi dự kiến khi MR được duyệt. **Can run without account:** Có mocks; Gemini thật cần approval. **Current status:** DEFERRED sau MP3 MVP; Gemini và stats chưa bật
 
 ## 10. Quy tắc owner và bàn giao
 
@@ -107,7 +107,7 @@ Mock-by-default; không credentials và không gọi AWS/provider mặc định.
 
 ## 12. Kiểm thử Sandbox dự kiến
 
-Theo [validation runbook](../plans/SANDBOX-VALIDATION-RUNBOOK.md): Level 1 chỉ đọc khi được yêu cầu; Level 2 resource mutation/call trả phí cần approval cụ thể. Evidence ghi action/principal/region/status/error sanitized, tách local mock với sandbox verified.
+Theo [validation runbook](../reference/SANDBOX-VALIDATION-RUNBOOK.md): Level 1 chỉ đọc khi được yêu cầu; Level 2 resource mutation/call trả phí cần approval cụ thể. Evidence ghi action/principal/region/status/error sanitized, tách local mock với sandbox verified.
 
 ## 13. Retry và dữ liệu dở
 
@@ -131,4 +131,4 @@ Thành viên chỉ cập nhật logs/log-m5.md của mình sau thực hiện, gi
 
 ## 18. Bước tiếp theo
 
-SB-M5-01 theo dependency/approval trong task. **CURRENT RUNTIME CONFIG STILL OLD — Gate 1**; chưa sửa code/config/deployable templates. [Backlog đầy đủ](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md) và [plan](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md) là tài liệu bàn giao chung.
+Review submit hiện có theo SB-M5-01/02, chốt idempotency/recovery/quota/telemetry và bổ sung test E2E. Gemini/stats chỉ sau MP3 MVP. Xem [kiến trúc](../overview/ARCHITECTURE.md) và [hướng dẫn Azure](../guides/AZURE-SPEECH.md).

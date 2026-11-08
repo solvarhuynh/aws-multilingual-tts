@@ -1,8 +1,8 @@
-# Kiến trúc kế hoạch AWS Academy Sandbox
+# Kiến trúc TTS trên AWS Academy Sandbox
 
-**PROPOSED / PENDING GROUP SIGN-OFF — 2026-11-06.** Region theo vùng us-east-1; LabRole hiện hữu, không tạo role mới. Sơ đồ là phương án cần kiểm chứng, không bằng chứng deploy. Chi tiết/sequence/failure/so sánh A-B-C ở [kế hoạch chính](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md).
+**Cập nhật 2026-11-08.** AWS regional resources dùng `us-east-1`, Lambda dùng LabRole hiện hữu. Root SAM đã ghép cả hosting M4; M4 ghi đã cập nhật một stack/web hiện có sang Azure và thử trên web. Sơ đồ mô tả code/cấu hình hiện tại, không chứng minh stack mới sẽ tạo được trong mọi phiên Academy. [Hướng dẫn Azure](../guides/AZURE-SPEECH.md) là quy trình deploy hiện hành.
 
-## Baseline ứng viên A
+## Luồng hiện tại
 
 ~~~mermaid
 flowchart LR
@@ -12,7 +12,7 @@ flowchart LR
     H["M1 Function URL và HTTP router candidate"]
     S["M5 tts-submit"]
     X["M2 tts-synthesize"]
-    P["External TTS - ElevenLabs candidate"]
+    P["Azure Speech - TTS ngoài AWS"]
     V["M2 tts-voices"]
     R["M3 tts-history"]
     J["M3 S3 JSON jobs"]
@@ -52,7 +52,7 @@ flowchart LR
     class U,P,G ext;
 ~~~
 
-Cam M1, xanh dương M2, xanh lá M3, tím M4, đỏ M5, viền đứt ngoài AWS. OAC là cơ chế CloudFront ký truy cập origin. Private web/jobs/audio là ba bucket riêng; dữ liệu MP3 đọc bằng presigned URL có hạn. Secret storage SSM SecureString chỉ candidate, cần quyền KMS; thiếu cơ chế trường chấp thuận thì BLOCKER provider.
+Cam M1, xanh dương M2, xanh lá M3, tím M4, đỏ M5, viền đứt ngoài AWS. OAC là cơ chế CloudFront ký truy cập origin. Web/jobs/audio là ba bucket riêng; dữ liệu MP3 đọc bằng presigned URL có hạn. Key Azure được cấu hình qua SSM SecureString; demo token có cơ chế và giới hạn riêng.
 
 ## Luồng và routing
 
@@ -62,7 +62,7 @@ Một router M1 xử lý 7 paths từ payload v2.0 rồi RequestResponse invoke 
 
 Default static behavior → S3 REST origin private; /synthesize, /text/*, /voices, /jobs/*, /history, /history/*, /stats → router URL với OriginPath rỗng. Forward query/app headers cần thiết, không viewer Host; API cache disabled, POST/DELETE/OPTIONS được phép. Không rewrite API errors thành static index.html.
 
-Lambda OAC cần AWS_IAM Function URL, SourceArn và hai invoke permissions theo [nguồn S1/S7](../plans/SANDBOX-SERVICE-MATRIX.md). POST/PUT cần body SHA-256 header, frontend chỉ thêm sau contract sign-off. Auth app token đề xuất X-Demo-Token để không xung đột SigV4 Authorization. CORS không phải authentication. NONE URL chỉ controlled demo exception có duyệt và guard credits.
+Lambda OAC cần AWS_IAM Function URL, SourceArn và hai invoke permissions theo [nguồn S1/S7](../reference/SANDBOX-SERVICE-MATRIX.md). POST/PUT cần body SHA-256 header theo cấu hình origin. API dùng `X-Demo-Token` cho demo scope chung; CORS không phải xác thực. Quyền Function URL/OAC cần kiểm lại trong phiên lab.
 
 ## Typo/language sau MVP
 
@@ -72,7 +72,7 @@ Baseline yêu cầu chọn lang rõ từ registry provider đã kiểm vi/en/ja;
 
 ## Capability gates và fallback
 
-Function URL/resource policy, Lambda Invoke, CloudFront OAC, secret SecureString/KMS và external egress đều **UNVERIFIED / NEEDS SANDBOX TEST**. Tính năng AWS chung có tài liệu không chứng minh Academy cấp action.
+M2 đã thử riêng Lambda Invoke, S3 CAS, CloudFormation, CloudWatch Logs và SecureString trong Sandbox; M4 ghi nhận web/stack Azure chạy trong một phiên. Function URL/resource policy, CloudFront OAC và S3 policy của stack mới vẫn cần kiểm theo principal/phiên thực tế. Tính năng AWS chung có tài liệu không chứng minh Academy cấp action.
 
 Nếu A bị chặn: B = EC2/Beanstalk HTTP + S3 JSON có điều kiện instance/profile/SG/HTTPS/network/quota; C = RDS PostgreSQL optional khi cần query và đã có secret/VPC/egress/cost evidence. Không triển khai server/RDS/NAT trong re-plan. Không bảo vệ key đủ an toàn → giữ mocks/BLOCKER.
 
@@ -82,6 +82,6 @@ Kiến trúc cũ có API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Cognito/Comp
 
 ## Hiện trạng
 
-Backend đã có code cho submit, worker, voices, history và router; stats và sửa lỗi đánh máy là MR chưa bật. samconfig.toml và config/settings.json đã dùng us-east-1. Toàn hệ thống chưa deploy; chỉ M2 đã thử riêng trên Sandbox. Frontend tồn tại, chưa build/test lại lượt này. Không deploy AWS; kế hoạch không đảm bảo data còn sau lab reset.
+Backend đã có code cho submit, worker, voices, history và router; stats và sửa lỗi đánh máy là MR chưa bật. `config/settings.json` và root SAM chọn Azure mặc định, `samconfig.toml` dùng `us-east-1`. Việc tạo mới stack, chạy E2E web/app và dựng lại sau lab reset cần bằng chứng riêng. Không lấy kết quả một phiên làm bằng chứng cho phiên khác.
 
-Nguồn chuẩn: [API/data proposed](QUY-UOC-CHUNG.md), [service matrix](../plans/SANDBOX-SERVICE-MATRIX.md), [backlog](../plans/MODULE-BACKLOG-AND-ACCEPTANCE.md), [validation](../plans/SANDBOX-VALIDATION-RUNBOOK.md).
+Phụ thuộc kỹ thuật: M3 giao schema/common/CAS cho M2 và M5; M2 giao worker, voice registry và MP3 cho M5/M4; M5 giao response 202 và event contract cho M1/M4; M1 giao route/URL cho M4. M2 sở hữu một `EventInvokeConfig` của worker, M5 chốt policy nghiệp vụ. Nguồn chuẩn: [API/data](QUY-UOC-CHUNG.md), [ma trận Sandbox](../reference/SANDBOX-SERVICE-MATRIX.md), [runbook xác minh](../reference/SANDBOX-VALIDATION-RUNBOOK.md).

@@ -1,6 +1,6 @@
 # Runbook xác minh AWS Academy Sandbox
 
-**2026-11-06 — tài liệu hướng dẫn, mọi AWS test dưới đây NOT RUN.** Không yêu cầu gửi AWS/Gemini/ElevenLabs key qua chat. Không chạy lệnh trong tài liệu chỉ vì mở file; cần yêu cầu thực hiện riêng trong phiên lab, và approval cụ thể cho Level 2.
+**Tài liệu hướng dẫn; lệnh trong file không tự chạy.** Log M2 ghi một số phép thử Sandbox riêng từ 07/11; mỗi phép thử mới cần ghi action, phiên và principal. Không gửi AWS/Azure/Gemini key qua chat. Chỉ chạy lệnh khi được giao thao tác trong phiên lab.
 
 Nguồn constraints: handout do người dùng cung cấp, không phải AWS commercial account. Kiểm role **caller lab** và **LabRole runtime** riêng: caller đọc được parameter không chứng minh Lambda được decrypt; Lambda gọi AWS được không chứng minh CloudFormation được tạo resource.
 
@@ -143,7 +143,7 @@ Lambda runtime probe dùng GetParameter WithDecryption và chỉ trả boolean �
 
 **Expected:** một câu ngắn vi/en/ja lần lượt trong cap được duyệt, voice/model thực từ provider account, nhận audio MP3, đo input/latency/status/usage trước-sau, không log text/key. Xác minh speed supported range, char limit/output format/account quotas, quality/licensing; mock retry cho phần lớn test để tránh phí.
 
-Không đưa câu lệnh curl có xi-api-key thật trong tài liệu/chat. Provider không có credentials hoặc credits thì **NOT TESTED**, không “free tier nên chạy được”. Network denied → không tự tạo NAT/VPC; fallback provider khác cần quyền/account riêng.
+Không đưa lệnh curl có API key thật trong tài liệu/chat. Nếu chưa có credentials hoặc quota thì ghi **NOT TESTED**, không suy từ tên gói Free. Network denied → không tự tạo NAT/VPC; fallback provider khác cần quyền/account riêng.
 
 **Cleanup docs only:** xóa dummy job/audio theo policy, thu hồi test credentials bằng cách trường/provider cho phép; giữ chỉ evidence không nhạy cảm. **Cost:** provider credits thực + Lambda/S3; external credits không reset theo lab. **Evidence:** measured usage, MP3 test được phép chia sẻ và metadata đã sanitize.
 
