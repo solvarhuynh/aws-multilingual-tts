@@ -14,7 +14,7 @@ Giao: Schema v1, interface common giữ tên, S3 repository/CAS/lease/idempotenc
 
 ## 2. Hiện trạng có bằng chứng
 
-backend/common/python/tts_common/db.py:6 và storage.py:6 còn stub; backend/history/app.py:12 trả 501. Xem [audit file:line](../plans/AWS-ACADEMY-SANDBOX-MIGRATION-PLAN.md#1-executive-summary-và-audit-thực-tế). Log cũ là lịch sử, không phải test mới.
+Mã nguồn M3 (`backend/common/python/tts_common/`, `backend/history/app.py`) và hạ tầng `infra/m3-storage-data.yaml` đã được hoàn thiện. Bộ kiểm thử `tests/unit/m3/test_jobs.py` (26 test cases) đã đạt 26/26 PASS trên local (S3 CAS, schema v1, cursor pagination, presigned URL, stale recovery, tombstone delete, daily quota). Quyết định kỹ thuật: giữ nguyên luồng hiện tại đã pass test. Trạng thái: CODED & LOCALLY TESTED; chờ xác minh trên AWS Sandbox.
 
 ## 3. Phạm vi files
 
@@ -40,13 +40,13 @@ Lambda dùng existing LabRole, không tạo/sửa policy/role/OIDC. LabRole khô
 
 API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Comprehend/Translate/Cognito/X-Ray/RUM/EventBridge/Budgets ngoài allowlist. Gemini chỉ MR sau MP3 thật: typo-only, skipped bản gốc khi lỗi, user review, UTF-16 offsets, không tạo job ở correct. Không tự dịch/đoán lang cho synthesize; provider voice/speed phải kiểm chứng.
 
-## 8. Checklist chưa thực hiện
+## 8. Checklist tiến độ
 
-- [ ] SB-M3-01 — Schema v1 và S3 repository giữ interface.
-- [ ] SB-M3-02 — Audio private và presigned playback.
-- [ ] SB-M3-03 — CAS, lease và idempotency storage.
-- [ ] SB-M3-04 — History, job polling và delete terminal.
-- [ ] SB-M3-05 — Retention và reset-safe data/evidence.
+- [x] SB-M3-01 — Schema v1 và S3 repository giữ interface (CODED & LOCALLY TESTED).
+- [x] SB-M3-02 — Audio private và presigned playback (CODED & LOCALLY TESTED).
+- [x] SB-M3-03 — CAS, lease và idempotency storage (CODED & LOCALLY TESTED; CAS claim, stale fail và daily quota).
+- [x] SB-M3-04 — History, job polling và delete terminal (CODED & LOCALLY TESTED).
+- [ ] SB-M3-05 — Retention và reset-safe data/evidence (Infra Lifecycle đã cấu hình, chờ rehearsal Sandbox).
 
 ## 9. Task chi tiết và acceptance
 
