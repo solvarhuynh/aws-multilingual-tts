@@ -35,6 +35,14 @@ Không cần đọc ngay năm tài liệu trong `plans/`. Chỉ mở chúng khi 
 | [AZURE-SPEECH](guides/AZURE-SPEECH.md) | Cả năm thành viên | Từ Azure Students/F0 đến tạo/cập nhật AWS Sandbox, web/app, lỗi thường gặp và reset |
 | [GIT-VA-LOGS](guides/GIT-VA-LOGS.md) | Cả nhóm khi commit/log | Quy tắc nhánh, secret và nhật ký |
 
+## Báo cáo và tài liệu tham khảo
+
+- [Báo cáo rà soát repo M1–M5](reports/BAO-CAO-RA-SOAT-REPO-M1-M5.md) — dành cho nhóm trưởng/thành viên cần nắm lịch sử thay đổi, trạng thái từng module, phần làm chéo ownership và việc còn lại.
+- `plans/` — tài liệu quyết định, dependency và Sandbox dùng khi cần tra cứu; không phải danh sách bắt buộc đọc mỗi lần làm task. Xem [bản đồ plans](plans/README.md) để chọn đúng file.
+- `logs/` — nhật ký/evidence theo thành viên; mỗi người cập nhật log của module mình.
+
+Các file task, kiến trúc, quy ước và hướng dẫn ở trên là tài liệu làm việc hiện hành. Báo cáo và plans bổ sung bối cảnh, không thay thế task module hoặc log mới nhất.
+
 ## Kế hoạch chi tiết
 
 Không cần mở toàn bộ `plans/`. [Bản đồ kế hoạch](plans/README.md) phân loại năm file theo mục đích và chỉ ra file nào là lịch sử, file nào dùng khi xử lý Sandbox. Task `task-mN.md` là nguồn chính cho phạm vi và acceptance của từng thành viên; backlog dùng để xem phụ thuộc liên module.
