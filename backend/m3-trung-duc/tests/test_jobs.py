@@ -128,6 +128,18 @@ class RepositoryTest(JobsTestCase):
         self.s3.seed("jobs", "jobs/demo/khong-hop-le.json", b"{}")
         self.assertEqual(db.list_jobs("demo")[0], [])
 
+    def test_truncated_scan_reports_unavailable_instead_of_hiding_new_jobs(self):
+        with mock.patch.object(self.s3, "list_objects_v2", return_value={
+                "Contents": [], "IsTruncated": True, "NextContinuationToken": "next"}) as scan:
+            status, body = self.call("GET", "/history")
+        self.assertEqual((status, body["error"]["code"]), (503, "HISTORY_UNAVAILABLE"))
+        self.assertEqual(scan.call_count, db.MAX_LIST_PAGES)
+
+    def test_scan_completed_on_last_allowed_page_is_valid(self):
+        pages = [{"Contents": [], "IsTruncated": True, "NextContinuationToken": "next"}] * (db.MAX_LIST_PAGES - 1)
+        with mock.patch.object(self.s3, "list_objects_v2", side_effect=[*pages, {"IsTruncated": False}]):
+            self.assertEqual(db.list_jobs("demo"), ([], None))
+
     def test_delete_removes_audio_even_without_audio_key(self):
         job = self.job(status="FAILED")
         self.s3.seed("audio", f"audio/demo/{job['jobId']}.mp3", b"ID3")
@@ -225,7 +237,7 @@ class HistoryHandlerTest(JobsTestCase):
                          "createdAt"} <= set(body["items"][0]))
 
     def test_history_rejects_bad_paging(self):
-        for query in ({"limit": "0"}, {"limit": "51"}, {"limit": "x"}, {"cursor": "../x"}):
+        for query in ({"limit": "0"}, {"limit": "51"}, {"limit": "x"}, {"cursor": "../x"}, {"cursor": []}, {"cursor": 123}):
             self.assertEqual(self.call("GET", "/history", **query)[0], 400)
 
     def test_delete_flow(self):

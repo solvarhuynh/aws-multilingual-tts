@@ -1,10 +1,12 @@
 """Unit test cho Lambda HTTP Router (M1)."""
 import base64
+import io
 import json
 import os
 import sys
 from pathlib import Path
 import unittest
+from unittest import mock
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "http"))
@@ -44,6 +46,37 @@ class TestHttpRouter(unittest.TestCase):
         self.assertIn("OPTIONS", res["headers"]["Access-Control-Allow-Methods"])
         self.assertEqual(len(self.dispatched_calls), 0)
 
+    def test_malformed_downstream_response_is_503(self):
+        for reply in ([], {"errorMessage": "PRIVATE"}, {"statusCode": 200, "body": None}):
+            app.set_lambda_invoker(lambda *_: reply)
+            response = app.handler({"httpMethod": "GET", "path": "/voices",
+                                    "headers": {"X-Demo-Token": "test-secret-token"}}, None)
+            self.assertEqual(response["statusCode"], 503)
+            self.assertNotIn("PRIVATE", response["body"])
+
+    def test_boto_invoker_rejects_function_error_even_with_http_200(self):
+        client = mock.Mock()
+        with mock.patch.dict(sys.modules, {"boto3": mock.Mock(client=mock.Mock(return_value=client))}):
+            for envelope in ({"StatusCode": 200, "FunctionError": "Unhandled"}, {"StatusCode": 202}):
+                client.invoke.return_value = {**envelope, "Payload": io.BytesIO(b'{"errorMessage":"PRIVATE"}')}
+                with self.assertRaises(RuntimeError):
+                    app.default_boto3_invoker("downstream", {})
+
+    def test_utf8_byte_limit_and_invalid_base64(self):
+        event = {"httpMethod": "POST", "path": "/synthesize", "headers": {"X-Demo-Token": "test-secret-token"}}
+        with mock.patch.object(app, "MAX_BODY_BYTES", 30):
+            response = app.handler({**event, "body": json.dumps({"text": "あ" * 10}, ensure_ascii=False)}, None)
+        self.assertEqual(response["statusCode"], 400)
+        self.assertEqual(app.handler({**event, "body": "!!!!", "isBase64Encoded": True}, None)["statusCode"], 400)
+
+    def test_exception_log_does_not_leak_private_context(self):
+        with mock.patch.object(app, "invoke_downstream", side_effect=RuntimeError("PRIVATE API KEY")), \
+             mock.patch("builtins.print") as printed:
+            response = app.handler({"httpMethod": "GET", "path": "/voices",
+                                    "headers": {"X-Demo-Token": "test-secret-token"}}, None)
+        self.assertEqual(response["statusCode"], 503)
+        self.assertNotIn("PRIVATE", str(printed.call_args_list))
+
     def test_missing_demo_token_returns_401(self):
         event = {
             "requestContext": {"http": {"method": "GET"}},
@@ -55,6 +88,15 @@ class TestHttpRouter(unittest.TestCase):
         body = json.loads(res["body"])
         self.assertEqual(body["error"]["code"], "UNAUTHORIZED")
         self.assertEqual(len(self.dispatched_calls), 0)
+
+    def test_unconfigured_token_blocks_business_calls_but_allows_preflight(self):
+        with mock.patch.dict(os.environ, {"DEMO_TOKEN": " "}):
+            response = app.handler({"httpMethod": "GET", "path": "/voices"}, None)
+            preflight = app.handler({"httpMethod": "OPTIONS", "path": "/voices"}, None)
+        self.assertEqual(response["statusCode"], 503)
+        self.assertEqual(json.loads(response["body"])["error"]["code"], "SERVICE_NOT_CONFIGURED")
+        self.assertEqual(preflight["statusCode"], 204)
+        self.assertEqual(self.dispatched_calls, [])
 
     def test_wrong_demo_token_returns_401(self):
         event = {

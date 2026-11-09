@@ -235,6 +235,7 @@ class AzureRegistryTest(unittest.TestCase):
                     return {"Stacks": [{"StackId": "stack-id", "StackStatus": "CREATE_COMPLETE", "Parameters": [
                         {"ParameterKey": "DemoToken", "ParameterValue": "****"},
                         {"ParameterKey": "AllowedOrigin", "ParameterValue": "https://old.example"},
+                        {"ParameterKey": "DailyCharLimit", "ParameterValue": "6000"},
                         {"ParameterKey": "TtsApiParameterName", "ParameterValue": "/old"},
                     ]}]}
                 if command == ("sts", "get-caller-identity"):
@@ -251,14 +252,26 @@ class AzureRegistryTest(unittest.TestCase):
             with mock.patch.object(setup, "STATE_PATH", state), mock.patch.object(setup.Path, "home", return_value=home), \
                     mock.patch.object(setup, "registry_matches", return_value=b"registry"), mock.patch.object(setup, "aws", side_effect=fake_aws):
                 setup.plan()
+                setup.plan(daily_char_limit=200000)
             creation = next(options["payload"] for args, options in calls if args[:2] == ("cloudformation", "create-change-set"))
             parameters = {p["ParameterKey"]: p for p in creation["Parameters"]}
             self.assertTrue(parameters["DemoToken"]["UsePreviousValue"])
             self.assertTrue(parameters["AllowedOrigin"]["UsePreviousValue"])
+            self.assertTrue(parameters["DailyCharLimit"]["UsePreviousValue"])
+            plans = [options["payload"] for args, options in calls if args[:2] == ("cloudformation", "create-change-set")]
+            updated = {p["ParameterKey"]: p for p in plans[-1]["Parameters"]}
+            self.assertEqual(updated["DailyCharLimit"], {"ParameterKey": "DailyCharLimit", "ParameterValue": "200000"})
             self.assertEqual(parameters["TtsProvider"]["ParameterValue"], "azure")
             self.assertEqual(parameters["TtsApiParameterName"]["ParameterValue"], setup.PARAMETER)
             self.assertFalse(any(args[:2] == ("cloudformation", "execute-change-set") for args, _ in calls))
             self.assertEqual(json.loads(state.read_text())["registryHash"], hashlib.sha256(b"registry").hexdigest())
+
+    def test_plan_rejects_invalid_quota_before_aws_or_packaging(self):
+        for limit in (0, -1, True, 1.5, "200000"):
+            with self.subTest(limit=limit), mock.patch.object(setup, "aws") as aws:
+                with self.assertRaises(ValueError):
+                    setup.plan(daily_char_limit=limit)
+                aws.assert_not_called()
 
     def test_new_stack_plan_and_apply_keep_token_private_and_use_create_waiter(self):
         with tempfile.TemporaryDirectory() as folder:

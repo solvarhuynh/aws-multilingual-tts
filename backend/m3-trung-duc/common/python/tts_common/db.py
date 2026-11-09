@@ -29,6 +29,10 @@ class JobBusy(Exception):
     """Job đang chạy nên chưa được xóa."""
 
 
+class JobScanLimitExceeded(Exception):
+    """Không đọc đủ danh sách nên chưa thể trả trang mới nhất chính xác."""
+
+
 @dataclass(frozen=True)
 class StoredJob:
     """Nội dung job kèm ETag của phiên bản đã đọc."""
@@ -96,9 +100,10 @@ def _list_job_ids(user_id):
             if JOB_ID_PATTERN.fullmatch(job_id):
                 job_ids.append(job_id)
         if not response.get("IsTruncated"):
-            break
+            return job_ids
         options["ContinuationToken"] = response["NextContinuationToken"]
-    return job_ids
+    # S3 lists oldest timestamp keys first. A partial scan would hide newer jobs.
+    raise JobScanLimitExceeded
 
 
 def _write(job, **changes):

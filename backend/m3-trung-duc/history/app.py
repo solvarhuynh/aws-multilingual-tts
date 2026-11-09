@@ -67,7 +67,7 @@ def _list_history(user_id, params):
     """Trả một trang lịch sử, mới nhất trước."""
     limit = _parse_limit(params)
     cursor = params.get("cursor")
-    if limit is None or (cursor and not JOB_ID_PATTERN.fullmatch(cursor)):
+    if limit is None or (cursor is not None and (not isinstance(cursor, str) or not JOB_ID_PATTERN.fullmatch(cursor))):
         return error_response(400, "INVALID_INPUT", "Tham số phân trang không hợp lệ.")
     items, next_cursor = db.list_jobs(user_id, limit, cursor)
     return json_response(200, {"items": [_history_item(job) for job in items], "nextCursor": next_cursor})
@@ -102,6 +102,8 @@ def handler(event, context):
     """Xử lý request; lỗi không lường trước trả 500 đã làm sạch."""
     try:
         return _route(event, get_user_id(event))
+    except db.JobScanLimitExceeded:
+        return error_response(503, "HISTORY_UNAVAILABLE", "Lịch sử vượt giới hạn quét. Nhờ chủ hệ thống kiểm tra lưu trữ.")
     except Exception as error:
         log_json(module="M3", operation="history", status="ERROR", errorCode=type(error).__name__)
         return error_response(500, "INTERNAL", "Hệ thống đang gặp lỗi. Vui lòng thử lại sau.")

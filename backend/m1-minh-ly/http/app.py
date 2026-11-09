@@ -102,6 +102,8 @@ def default_boto3_invoker(function_name: str, payload: dict) -> dict:
         InvocationType="RequestResponse",
         Payload=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
     )
+    if response.get("FunctionError") or response.get("StatusCode") != 200:
+        raise RuntimeError("Downstream execution failed")
     raw_payload = response["Payload"].read().decode("utf-8")
     return json.loads(raw_payload)
 
@@ -146,24 +148,23 @@ def handler(event, context):
     body_str = None
     if raw_body is not None:
 
-        raw_body_len = len(raw_body)
+        if not isinstance(raw_body, str):
+            return error_response(400, "INVALID_INPUT", "Nội dung yêu cầu không hợp lệ.")
+        raw_body_len = len(raw_body.encode("utf-8"))
         if raw_body_len > MAX_BODY_BYTES:
             log_json(event="body_too_large", size=raw_body_len, limit=MAX_BODY_BYTES)
             return error_response(400, "TEXT_TOO_LONG", "Kích thước yêu cầu vượt quá giới hạn cho phép.")
 
         if event.get("isBase64Encoded", False):
             try:
-                decoded_bytes = base64.b64decode(raw_body)
+                decoded_bytes = base64.b64decode(raw_body, validate=True)
                 if len(decoded_bytes) > MAX_BODY_BYTES:
                     return error_response(400, "TEXT_TOO_LONG", "Kích thước yêu cầu vượt quá giới hạn cho phép.")
                 body_str = decoded_bytes.decode("utf-8")
             except (ValueError, UnicodeDecodeError):
                 return error_response(400, "INVALID_INPUT", "Nội dung base64 hoặc UTF-8 không hợp lệ.")
         else:
-            if isinstance(raw_body, str):
-                body_str = raw_body
-            else:
-                body_str = str(raw_body)
+            body_str = raw_body
 
     if method == "POST" and body_str:
         try:
@@ -172,15 +173,16 @@ def handler(event, context):
             return error_response(400, "INVALID_INPUT", "Định dạng JSON của yêu cầu không hợp lệ.")
 
     current_token_secret = os.environ.get("DEMO_TOKEN", DEMO_TOKEN).strip()
-    if current_token_secret:
-        provided_token = get_header_value(headers, "x-demo-token").strip()
-        if not provided_token or provided_token != current_token_secret:
-            log_json(event="auth_failed", path=path, method=method)
-            return error_response(
-                401,
-                "UNAUTHORIZED",
-                "Yêu cầu mã truy cập demo hợp lệ (X-Demo-Token).",
-            )
+    if not current_token_secret:
+        return error_response(503, "SERVICE_NOT_CONFIGURED", "Máy chủ chưa cấu hình mã truy cập demo.")
+    provided_token = get_header_value(headers, "x-demo-token").strip()
+    if not provided_token or provided_token != current_token_secret:
+        log_json(event="auth_failed", path=path, method=method)
+        return error_response(
+            401,
+            "UNAUTHORIZED",
+            "Yêu cầu mã truy cập demo hợp lệ (X-Demo-Token).",
+        )
 
     matched_route = None
     matched_params = {}
@@ -236,11 +238,16 @@ def handler(event, context):
 
     try:
         downstream_res = invoke_downstream(target_function, internal_event)
+        if (not isinstance(downstream_res, dict) or
+                type(downstream_res.get("statusCode")) is not int or
+                not 100 <= downstream_res["statusCode"] <= 599 or
+                not isinstance(downstream_res.get("body"), str)):
+            raise ValueError("Invalid downstream response")
     except Exception as e:
         log_json(
             event="dispatch_failed",
             target=target_function,
-            error=str(e),
+            errorCode=type(e).__name__,
         )
         return error_response(
             503,
