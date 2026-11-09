@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { Button, Icon, Spinner, ToolArt } from "../components/ui";
 import { formatNumber, languageNames, shortDate } from "../lib/data";
 import type { HistoryItem, Language, Page, Stats } from "../lib/types";
@@ -26,24 +26,29 @@ export default function Dashboard({
   hasMoreHistory: boolean;
 }) {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [error, setError] = useState(false);
+  const [statsState, setStatsState] = useState<"loading" | "ready" | "unavailable" | "error">("loading");
+  const [statsRequest, setStatsRequest] = useState(0);
   useEffect(() => {
     let active = true;
+    setStatsState("loading");
     api
       .stats()
       .then((result) => {
         if (active) {
           setStats(result);
-          setError(false);
+          setStatsState("ready");
         }
       })
-      .catch(() => {
-        if (active) { setStats(null); setError(true); }
+      .catch((reason: unknown) => {
+        if (active) {
+          setStats(null);
+          setStatsState(reason instanceof ApiError && reason.status === 503 ? "unavailable" : "error");
+        }
       });
     return () => {
       active = false;
     };
-  }, [history]);
+  }, [history, statsRequest]);
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() - 6 + i);
@@ -108,12 +113,12 @@ export default function Dashboard({
         {[
           {
             title: "Bản thu đã tạo",
-            value: stats ? formatNumber(stats.totalJobs) : "—",
+            value: statsState === "ready" && stats ? formatNumber(stats.totalJobs) : "—",
             icon: "headphones",
           },
           {
             title: "Ký tự đã xử lý",
-            value: stats ? formatNumber(stats.totalChars) : "—",
+            value: statsState === "ready" && stats ? formatNumber(stats.totalChars) : "—",
             icon: "file",
           },
           {
@@ -133,7 +138,16 @@ export default function Dashboard({
           </article>
         ))}
       </div>
-      {error && <p className="dashboard-error">Chưa tải được thống kê. Bạn vẫn có thể tạo bản thu.</p>}
+      {statsState === "loading" && <p className="dashboard-note" role="status">Đang tải thống kê…</p>}
+      {statsState === "ready" && stats?.totalJobs === 0 &&
+        <p className="dashboard-note" role="status">Chưa có bản thu. Thống kê sẽ cập nhật sau khi bạn tạo giọng đọc.</p>}
+      {(statsState === "unavailable" || statsState === "error") &&
+        <div className="dashboard-error" role="alert">
+          <span>{statsState === "unavailable"
+            ? "Thống kê tạm chưa sẵn sàng. Lịch sử và tạo giọng vẫn dùng được."
+            : "Chưa tải được thống kê. Bạn vẫn có thể tạo bản thu."}</span>
+          <Button className="text-button" onClick={() => setStatsRequest((value) => value + 1)}>Thử tải lại</Button>
+        </div>}
       <div className="dashboard-bottom">
         <section className="recent-card surface">
           <div className="section-title">

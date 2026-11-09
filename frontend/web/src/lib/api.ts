@@ -1,10 +1,15 @@
 import { demoLanguages, MAX_CHARS, readStored, storeValue } from "./data";
 import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, Stats, TextCorrection } from "./types";
+import { SubmissionLedger } from '../../../shared/submissions';
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
 export const DEMO = !API_BASE;
 const HISTORY_KEY = "voxa.demo.history.v1";
 const TOKEN_KEY = "voxa.demoToken.v1";
+const submissions = new SubmissionLedger();
+submissions.configure(readStored('voxa.pendingSubmits.v1', {}), async records => {
+  if (!storeValue('voxa.pendingSubmits.v1', records)) throw new ApiError('Không lưu được mã yêu cầu. Hãy cho phép lưu trữ trước khi tạo bản thu.', 'STORAGE');
+});
 
 export function getDemoToken(): string {
   const token = readStored<unknown>(TOKEN_KEY, "");
@@ -24,6 +29,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public code = "INTERNAL",
+    public status?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -84,7 +90,7 @@ function checkedJob(value: unknown): Job {
   return value;
 }
 
-async function request<T>(path: string, init?: RequestInit, timeout = 30000): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeout = 45000): Promise<T> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeout);
   try {
@@ -107,9 +113,9 @@ async function request<T>(path: string, init?: RequestInit, timeout = 30000): Pr
       throw new ApiError("Máy chủ trả về dữ liệu không hợp lệ. Vui lòng thử lại.", "INVALID_RESPONSE");
     }
     if (!response.ok) {
-      if (response.status === 501) throw new ApiError("Máy chủ chưa hỗ trợ chức năng này. Vui lòng thử lại sau.", "NOT_IMPLEMENTED");
+      if (response.status === 501) throw new ApiError("Máy chủ chưa hỗ trợ chức năng này. Vui lòng thử lại sau.", "NOT_IMPLEMENTED", 501);
       const error = (body as { error?: { message?: string; code?: string } })?.error;
-      throw new ApiError(error?.message || `Không thể hoàn tất yêu cầu (${response.status}).`, error?.code);
+      throw new ApiError(error?.message || `Không thể hoàn tất yêu cầu (${response.status}).`, error?.code, response.status);
     }
     return body as T;
   } catch (error) {
@@ -187,14 +193,21 @@ export const api = {
       throw new ApiError("Danh sách giọng đọc chưa đúng định dạng.", "INVALID_RESPONSE");
     return data.languages;
   },
-  async synthesize(input: SynthesizeInput): Promise<Job> {
-    if (!DEMO)
-      return checkedJob(
-        await request("/synthesize", {
-          method: "POST",
-          body: JSON.stringify(input),
-        }),
-      );
+  async synthesize(input: SynthesizeInput, context = ''): Promise<Job> {
+    if (!DEMO) {
+      const digest = await bodyHash(JSON.stringify([API_BASE, getDemoToken(), context, input]));
+      if (!digest) throw new ApiError('Cần HTTPS để gửi yêu cầu an toàn.', 'HASH_UNAVAILABLE');
+      const key = await submissions.reserve(digest);
+      try {
+        const result = checkedJob(await request('/synthesize', { method: 'POST', body: JSON.stringify(input), headers: { 'Idempotency-Key': key } }));
+        await submissions.accepted(digest, result.jobId);
+        if (result.status === 'DONE' || result.status === 'FAILED') await submissions.finish(result.jobId);
+        return result;
+      } catch (error) {
+        if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'UNSUPPORTED_SPEED', 'FEATURE_NOT_ENABLED'].includes(error.code)) await submissions.reject(digest);
+        throw error;
+      }
+    }
     if (input.translateTo)
       throw new ApiError(
         "Dịch tự động cần kết nối máy chủ. Bạn có thể nghe thử ở Tạo giọng đọc.",
@@ -205,7 +218,11 @@ export const api = {
     return { jobId, status: "PENDING", audioUrl: null, cached: false };
   },
   async job(jobId: string): Promise<Job> {
-    if (!DEMO) return checkedJob(await request(`/jobs/${encodeURIComponent(jobId)}`));
+    if (!DEMO) {
+      const job = checkedJob(await request(`/jobs/${encodeURIComponent(jobId)}`));
+      if (job.status === 'DONE' || job.status === 'FAILED') await submissions.finish(job.jobId);
+      return job;
+    }
     const entry = pending.get(jobId);
     if (!entry) {
       const saved = getDemoHistory().find((item) => item.jobId === jobId);

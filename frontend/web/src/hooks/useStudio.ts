@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, DEMO } from "../lib/api";
 import { extractDocument } from "../lib/document";
-import { DEFAULT_SPEED, MAX_CHARS, readStored, samples, storeValue, validateInput } from "../lib/data";
+import { DEFAULT_SPEED, readStored, samples, storeValue, validateInput } from "../lib/data";
 import type { HistoryItem, Job, Language, SynthesizeInput, TextCorrection } from "../lib/types";
+import { MAX_DOCUMENT_CHARS, checkedDocument, splitDocument } from '../../../shared/documents';
 
-type Review = { input: SynthesizeInput; correction: TextCorrection };
+type Review = { input: SynthesizeInput; correction: TextCorrection; documentText: string; partIndex: number };
 
 export function useStudio(
   notify: (message: string, error?: boolean) => void,
@@ -12,7 +13,7 @@ export function useStudio(
 ) {
   const [text, setText] = useState(() => {
     const draft = readStored<unknown>("voxa.draft.v1", "");
-    return typeof draft === "string" ? draft.slice(0, MAX_CHARS) : "";
+    return typeof draft === "string" ? draft.slice(0, MAX_DOCUMENT_CHARS) : "";
   });
   const [languages, setLanguages] = useState<Language[]>([]);
   const [lang, setLang] = useState("vi-VN");
@@ -31,6 +32,15 @@ export function useStudio(
   const reviewRef = useRef<Review | null>(null);
   const revision = useRef(0);
   const [readingFile, setReadingFile] = useState(false);
+  const [importProgress, setImportProgress] = useState('');
+  const importController = useRef<AbortController | null>(null);
+  const parts = useMemo(() => splitDocument(text), [text]);
+  const [partIndex, setPartIndex] = useState(0);
+  const selectedPart = Math.min(partIndex, Math.max(0, parts.length - 1));
+  const [batch, setBatch] = useState<{ done: number; total: number } | null>(null);
+  const batchLock = useRef(false);
+  const stopBatch = useRef(false);
+  const completed = useRef(new Map<string, HistoryItem>());
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState("");
   const [job, setJob] = useState<Job | null>(null);
@@ -47,6 +57,8 @@ export function useStudio(
     mounted.current = true;
     return () => {
       mounted.current = false;
+      stopBatch.current = true;
+      importController.current?.abort();
     };
   }, []);
   useEffect(() => {
@@ -133,13 +145,15 @@ export function useStudio(
   useEffect(() => {
     revision.current++;
     const pending = reviewRef.current?.input;
-    if (pending && (pending.text !== text || pending.lang !== lang || pending.voice !== voice ||
+    if (pending && (reviewRef.current?.documentText !== text || pending.lang !== lang || pending.voice !== voice ||
       pending.speed !== speed || pending.translateTo !== translateTo)) cancelReview();
   }, [text, lang, voice, speed, translateTo]);
 
   async function generate() {
-    if (submitLock.current || fileLock.current || reviewRef.current) return;
-    const invalid = validateInput(text, speed);
+    if (submitLock.current || fileLock.current || reviewRef.current || batchLock.current) return;
+    try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
+    const part = parts[selectedPart] ?? '';
+    const invalid = validateInput(part, speed);
     if (invalid) {
       setError(invalid);
       editorRef.current?.focus();
@@ -153,7 +167,7 @@ export function useStudio(
       setError("Hãy chọn ngôn ngữ đích khác với ngôn ngữ gốc.");
       return;
     }
-    return runSynthesis({ text, lang, voice, speed, translateTo }, true);
+    return runSynthesis({ text: part, lang, voice, speed, translateTo }, true);
   }
 
   async function resolveReview(corrected: boolean) {
@@ -161,11 +175,15 @@ export function useStudio(
     if (!pending || submitLock.current) return;
     const selected = corrected ? pending.correction.correctedText : pending.input.text;
     cancelReview();
-    if (corrected) updateText(selected);
-    return runSynthesis({ ...pending.input, text: selected }, false);
+    if (corrected) {
+      const next = splitDocument(pending.documentText);
+      next[pending.partIndex] = selected;
+      updateText(next.join(''));
+    }
+    return runSynthesis({ ...pending.input, text: selected }, false, pending.partIndex);
   }
 
-  async function runSynthesis(input: SynthesizeInput, check: boolean) {
+  async function runSynthesis(input: SynthesizeInput, check: boolean, index = selectedPart) {
     if (submitLock.current || fileLock.current) return;
     submitLock.current = true;
     setBusy(true);
@@ -179,13 +197,13 @@ export function useStudio(
         if (!mounted.current || currentRevision !== revision.current) return;
         setChecking(false);
         if (correction?.status === "checked" && correction.hasTypos && correction.correctedText !== input.text) {
-          const pending = { input, correction };
+          const pending = { input, correction, documentText: text, partIndex: selectedPart };
           reviewRef.current = pending;
           setReview(pending);
           return;
         }
       }
-      let result = await api.synthesize(input);
+      let result = await api.synthesize(input, `part-${index}`);
       if (!mounted.current) return;
       setJob(result);
       for (let attempt = 0; result.status === "PENDING" || result.status === "PROCESSING"; attempt++) {
@@ -203,7 +221,7 @@ export function useStudio(
             : result.error?.message || "Không tạo được âm thanh. Vui lòng thử lại.",
         );
       if (!DEMO && !result.audioUrl) throw new Error("Bản thu chưa có link nghe. Vui lòng làm mới lịch sử.");
-      setCurrentAudio({
+      const recording: HistoryItem = {
         ...result,
         text: input.text,
         lang: input.translateTo || input.lang,
@@ -211,36 +229,67 @@ export function useStudio(
         speed: input.speed,
         charCount: input.text.length,
         createdAt: new Date().toISOString(),
-      });
+      };
+      setCurrentAudio(recording);
+      completed.current.set(JSON.stringify([index, input]), recording);
+      if (completed.current.size > 200) completed.current.delete(completed.current.keys().next().value!);
       notify("Bản thu đã sẵn sàng. Nhấn phát để nghe.");
       void loadHistory();
+      return true;
     } catch (error) {
       if (mounted.current) {
         setError((error as Error).message);
         setJob(null);
       }
+      return false;
     } finally {
       submitLock.current = false;
       if (mounted.current) { setBusy(false); setChecking(false); }
     }
   }
 
+  async function generateAll() {
+    if (batchLock.current || submitLock.current || fileLock.current || reviewRef.current) return;
+    try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
+    if (!voice || !language?.voices.some(item => item.id === voice)) { setError('Vui lòng chọn giọng đọc.'); return; }
+    const inputs = parts.map((part, index) => ({ index, input: { text: part, lang, voice, speed, translateTo } })).filter(({ input }) => input.text.trim());
+    if (inputs.some(({ input }) => validateInput(input.text, input.speed))) { setError('Thiết lập phần đọc không hợp lệ.'); return; }
+    batchLock.current = true; stopBatch.current = false;
+    let done = inputs.filter(({ input, index }) => completed.current.has(JSON.stringify([index, input]))).length;
+    setBatch({ done, total: inputs.length });
+    try {
+      for (const { index, input } of inputs) {
+        if (!mounted.current || stopBatch.current) break;
+        if (completed.current.has(JSON.stringify([index, input]))) continue;
+        // Imported/OCR text stays visible for review; batches use that original text.
+        if (!await runSynthesis(input, false, index)) break;
+        setBatch({ done: ++done, total: inputs.length });
+      }
+    } finally { batchLock.current = false; if (mounted.current) setBatch(null); }
+  }
+
   async function importFile(file?: File) {
-    if (!file || submitLock.current || fileLock.current) return;
+    if (!file || submitLock.current || fileLock.current || batchLock.current) return;
     fileLock.current = true;
     setReadingFile(true);
     setError("");
+    const controller = new AbortController();
+    importController.current = controller;
+    setImportProgress('Đang mở tài liệu…');
     try {
-      const content = await extractDocument(file);
+      const content = await extractDocument(file, { lang, signal: controller.signal,
+        onProgress: message => { if (mounted.current) setImportProgress(message); } });
       if (!mounted.current) return;
       updateText(content);
       setFileName(file.name);
+      setPartIndex(0);
       notify(`Đã nhập ${file.name}.`);
       editorRef.current?.focus();
     } catch (error) {
       if (mounted.current) setError((error as Error).message);
     } finally {
       fileLock.current = false;
+      importController.current = null;
       if (mounted.current) setReadingFile(false);
     }
   }
@@ -299,12 +348,20 @@ export function useStudio(
     historyError,
     loadHistory,
     currentAudio,
-    busy,
+    busy: busy || !!batch,
+    batch,
+    generateAll,
+    stopBatch: () => { stopBatch.current = true; },
+    parts,
+    partIndex: selectedPart,
+    setPartIndex,
     checking,
     review,
     cancelReview,
     resolveReview,
     readingFile,
+    importProgress,
+    cancelImport: () => importController.current?.abort(),
     fileName,
     setVoice,
     error,
