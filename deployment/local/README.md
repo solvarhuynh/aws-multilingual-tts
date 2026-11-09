@@ -47,7 +47,7 @@ Các file thật được Git ignore; chỉ `.env.example` được đưa lên G
 
 ### Gemini tùy chọn sau khi gộp M5
 
-**Azure Translator vẫn là mặc định**, dùng các key đã điền. Không cần Gemini để dịch và tạo MP3. Màn Dịch và đọc có lựa chọn **Gemini · Xem lại trước khi đọc**: dịch từng đoạn tối đa 2.000 ký tự, dừng/tiếp tục và duyệt bản dịch trước khi tạo giọng. Hai luồng dùng key riêng, không tự đổi qua lại khi lỗi.
+**Azure Translator vẫn là mặc định**, dùng các key đã điền. Không cần Gemini để dịch và tạo MP3. Từ 10/11/2026, màn Dịch và đọc trên web và app không còn lựa chọn Gemini. Các biến dưới đây chỉ dùng để thử API `/text/translate` và sửa lỗi đánh máy của M5 ở backend.
 
 Chỉ khi muốn thử Gemini, bổ sung các dòng sau vào env **backend**, không thay key Azure:
 

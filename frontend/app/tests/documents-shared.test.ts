@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkedDocument, splitDocument, wordCount, ocrLanguage } from '../../shared/documents';
-import { abortable, imageText, pdfText } from '../../shared/browser-document';
+import { abortable, imageText, joinTextItems, pdfText } from '../../shared/browser-document';
 
 test('Chia tài liệu giữ đủ nội dung, giới hạn phần và cặp UTF-16', () => {
   for (const text of ['Xin chào. '.repeat(15000), '日本語'.repeat(12000), 'a'.repeat(1999) + '🌏'.repeat(2000), 'a'.repeat(2000) + ' '.repeat(4000) + 'b']) {
@@ -105,4 +105,26 @@ test('Ảnh scan OCR có cleanup và không chấp nhận ảnh quá lớn', asy
     globalThis.Image = class extends FakeImage { naturalWidth = 50000; } as unknown as typeof Image;
     await assert.rejects(imageText('large', async () => 'text'), /40 megapixel/);
   } finally { fixture.restore(); globalThis.Image = original; }
+});
+
+// Mảnh chữ pdf.js: transform = [scaleX, skewY, skewX, scaleY, x, y], cỡ chữ 12.
+const piece = (str: string, x: number, width: number, y = 700, hasEOL = false) =>
+  ({ str, hasEOL, width, transform: [12, 0, 0, 12, x, y] });
+
+test('PDF tiếng Việt: ghép mảnh chữ có dấu nằm sát nhau, giữ khoảng trắng thật', () => {
+  const items = [piece('Hồ sơ ', 0, 36), piece('thuy', 36, 24), piece('ế', 60, 7), piece('t', 67, 4),
+    piece('minh', 75, 26), piece('d', 105, 6), piece('ự', 111, 7), piece('án', 122, 13, 700, true),
+    piece('Mẫu', 0, 22, 680)];
+  assert.equal(joinTextItems(items), 'Hồ sơ thuyết minh dự án\nMẫu');
+});
+
+test('PDF: không nhân đôi dấu cách, dựng lại dấu tách rời và giữ cách cũ khi thiếu vị trí', () => {
+  assert.equal(joinTextItems([piece('Cuộc thi ', 0, 50), piece('UTE', 80, 20)]), 'Cuộc thi UTE');
+  const decomposed = 'thuye' + String.fromCharCode(0x302, 0x301) + 't';
+  assert.notEqual(decomposed, 'thuyết');
+  assert.equal(joinTextItems([{ str: decomposed }]), 'thuyết');
+  assert.equal(joinTextItems([{ str:'thuyết' }]), 'thuyết');
+  assert.equal(joinTextItems([{ str: 'Không' }, { str: 'vị trí', hasEOL: true }, { str: 'dòng hai' }]), 'Không vị trí\ndòng hai');
+  assert.equal(joinTextItems([piece('Dòng một', 0, 50), piece('Dòng hai', 0, 50, 680)]), 'Dòng một Dòng hai');
+  assert.equal(joinTextItems([{}, piece('', 10, 0), piece('chữ', 20, 15)]), 'chữ');
 });

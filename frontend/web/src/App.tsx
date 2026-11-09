@@ -36,7 +36,7 @@ import {
   starterPresets,
   samples,
 } from "./lib/data";
-import { useStudio } from "./hooks/useStudio";
+import { DRAFT_KEYS, useEditor, useSession } from "./hooks/useStudio";
 import { useSidebarMotion } from "./hooks/useSidebarMotion";
 import { useTheme } from "./hooks/useTheme";
 import Dashboard from "./views/Dashboard";
@@ -50,8 +50,12 @@ const pages = [
   { id: "help" as Page, title: "Hướng dẫn sử dụng", icon: "help" },
 ];
 const validPages = pages.map((item) => item.id);
-const currentPage = (): Page =>
-  validPages.includes(location.hash.slice(1) as Page) ? (location.hash.slice(1) as Page) : "studio";
+// "Đọc tài liệu" đã gộp vào hai trang soạn thảo; link cũ mở Tạo giọng đọc.
+const legacyPages: Record<string, Page> = { documents: "studio" };
+const currentPage = (): Page => {
+  const hash = location.hash.slice(1);
+  return validPages.includes(hash as Page) ? (hash as Page) : legacyPages[hash] ?? "studio";
+};
 function getPreferences(): Preferences {
   const value = readStored<Partial<Preferences> | null>("voxa.preferences.v1", null);
   return {
@@ -91,9 +95,12 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToast(null), 5500);
   }, []);
   const [target, setTarget] = useState("en-US");
-  const [translationReview, setTranslationReview] = useState(false);
-  const isStudio = ["studio", "translation", "documents"].includes(page);
-  const studio = useStudio(notify, page === "translation" ? target : null, translationReview);
+  const isStudio = page === "studio" || page === "translation";
+  // Hai trang soạn thảo độc lập (nội dung, tài liệu, giọng, bản nháp); lịch sử và trình phát dùng chung.
+  const session = useSession(notify);
+  const speechEditor = useEditor(session, notify, { draftKey: DRAFT_KEYS.speech });
+  const translationEditor = useEditor(session, notify, { draftKey: DRAFT_KEYS.translation, translateTo: target });
+  const studio = { ...session, ...(page === "translation" ? translationEditor : speechEditor) };
   useEffect(() => {
     if (studio.languages.length)
       setTarget((previous) =>
@@ -479,31 +486,29 @@ export default function App() {
             {isStudio && (
               <div className="studio-layout">
                 <section className="editor-panel" aria-label="Soạn thảo văn bản">
-                  {(page === "documents" || page === "translation") && (
-                    <Button
-                      className="document-drop surface"
-                      disabled={studio.busy || studio.readingFile}
-                      onClick={() => fileRef.current?.click()}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        void studio.importFile(event.dataTransfer.files[0]);
-                      }}
-                    >
-                      <span className="document-drop-icon">
-                        {studio.readingFile ? <Spinner /> : <Icon name="upload" size={25} />}
-                      </span>
-                      <span>
-                        <strong>
-                          {studio.readingFile
-                            ? "Đang đọc tài liệu…"
-                            : studio.fileName || "Thả tài liệu hoặc chọn tệp"}
-                        </strong>
-                        <small>PDF, DOCX, TXT, Markdown, ảnh scan · 50 MB</small>
-                      </span>
-                      <Icon name="plus" size={19} />
-                    </Button>
-                  )}
+                  <Button
+                    className="document-drop surface"
+                    disabled={studio.busy || studio.readingFile}
+                    onClick={() => fileRef.current?.click()}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      void studio.importFile(event.dataTransfer.files[0]);
+                    }}
+                  >
+                    <span className="document-drop-icon">
+                      {studio.readingFile ? <Spinner /> : <Icon name="upload" size={25} />}
+                    </span>
+                    <span>
+                      <strong>
+                        {studio.readingFile
+                          ? "Đang đọc tài liệu…"
+                          : studio.fileName || "Thả tài liệu hoặc chọn tệp"}
+                      </strong>
+                      <small>PDF, DOCX, TXT, Markdown, ảnh scan · 50 MB</small>
+                    </span>
+                    <Icon name="plus" size={19} />
+                  </Button>
                   <form
                     className="composer surface"
                     onSubmit={(e) => {
@@ -544,11 +549,11 @@ export default function App() {
                         onChange={event => studio.setPartIndex(Number(event.target.value))}>
                         {studio.parts.map((part, index) => <option value={index} key={index}>Phần {index + 1}/{studio.parts.length} · {formatNumber(part.length)} ký tự</option>)}
                       </select></label>
-                      {!(page === "translation" && translationReview) && <Button type="button" disabled={studio.busy || studio.readingFile} onClick={() => void studio.generateAll()}>Tạo các phần còn lại</Button>}
+                      <Button type="button" disabled={studio.busy || studio.readingFile} onClick={() => void studio.generateAll()}>Tạo các phần còn lại</Button>
                       {studio.batch && <><span role="status">Đã xong {studio.batch.done}/{studio.batch.total} phần</span>
                         <Button type="button" onClick={studio.stopBatch}>Dừng sau phần hiện tại</Button></>}
                       <details><summary>Xem phần {studio.partIndex + 1} sẽ được đọc</summary><p className="part-preview">{studio.parts[studio.partIndex]}</p></details>
-                      <p>{page === "translation" && translationReview ? "Xem lại bản dịch trước khi tạo giọng. Phần đã dịch được giữ trong phiên này." : "Mỗi phần có bản thu riêng trong Lịch sử. Phần đã xong được giữ lại khi dừng hoặc gặp lỗi."}</p>
+                      <p>Mỗi phần có bản thu riêng trong Lịch sử. Phần đã xong được giữ lại khi dừng hoặc gặp lỗi.</p>
                     </div>}
                     {!studio.text && page === "studio" && (
                       <div className="editor-emblem">
@@ -629,28 +634,6 @@ export default function App() {
                         )}
                       </div>
                     )}
-                    {page === "translation" && studio.translationProgress && (
-                      <div className="document-tools translation-result" role="region" aria-label="Kết quả dịch tài liệu">
-                        <strong>Đã dịch {studio.translationProgress.done}/{studio.translationProgress.total} phần</strong>
-                        {studio.translating && <Button type="button" onClick={studio.stopTranslation}>Dừng sau phần hiện tại</Button>}
-                        {studio.translationDraft && <>
-                          <label htmlFor="translated-document">Bản dịch để bạn xem lại</label>
-                          <textarea id="translated-document" readOnly value={studio.translationDraft.translatedParts.join("\n\n")} />
-                          {studio.translationDraft.translatedParts.length === studio.translationDraft.sourceParts.length && <>
-                            <Button type="button" className="secondary-button" onClick={() => {
-                              const blob = new Blob([studio.translationDraft!.translatedParts.join("\n\n")], { type: "text/plain;charset=utf-8" });
-                              const url = URL.createObjectURL(blob);
-                              const link = document.createElement("a");
-                              link.href = url; link.download = "ban-dich.txt"; link.click();
-                              window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-                            }}>Tải bản dịch TXT</Button>
-                            <Button type="button" className="primary-button" onClick={() => { if (studio.applyTranslation()) navigate("studio"); }}>
-                              Dùng bản dịch để tạo giọng
-                            </Button>
-                          </>}
-                        </>}
-                      </div>
-                    )}
                     <div className="editor-status">
                       <span id="text-count" className={studio.text.length > MAX_DOCUMENT_CHARS ? "over-limit" : ""}>
                         {formatNumber(studio.text.length)}
@@ -684,18 +667,15 @@ export default function App() {
                           disabled={
                             studio.busy ||
                             studio.readingFile ||
-                            (!(page === "translation" && translationReview) && (studio.loadingVoices || !!studio.voiceError || !studio.voice)) ||
+                            studio.loadingVoices || !!studio.voiceError || !studio.voice ||
                             (page === "translation" && !studio.text.trim())
                           }
                         >
                           {studio.busy ? <Spinner /> : <Icon name="wave" size={17} />}
                           {studio.busy
-                            ? studio.translating ? "Đang dịch tài liệu…" : "Đang tạo âm thanh…"
-                            : page === "translation" && translationReview
-                              ? studio.translationDraft && studio.translationDraft.translatedParts.length < studio.translationDraft.sourceParts.length
-                                ? "Tiếp tục dịch tài liệu" : studio.parts.length > 1 ? "Dịch toàn bộ tài liệu" : "Dịch nội dung"
-                              : page === "translation" ? "Dịch và tạo giọng đọc"
-                              : studio.parts.length > 1 ? `Tạo phần ${studio.partIndex + 1}` : "Tạo giọng đọc"}
+                            ? "Đang tạo âm thanh…"
+                            : page === "translation" ? "Dịch và tạo giọng đọc"
+                            : studio.parts.length > 1 ? `Tạo phần ${studio.partIndex + 1}` : "Tạo giọng đọc"}
                         </Button>
                       </div>
                     </div>
@@ -718,11 +698,6 @@ export default function App() {
                   </div>
                   {page === "translation" && (
                     <div className="setting-field">
-                      <label htmlFor="translation-mode">Cách dịch</label>
-                      <Select id="translation-mode" label="Cách dịch" value={translationReview ? 'review' : 'speech'}
-                        onValueChange={value => setTranslationReview(value === 'review')} disabled={studio.busy || studio.readingFile}
-                        options={[{ value: 'speech', label: 'Azure · Dịch và đọc' }, { value: 'review', label: 'Gemini · Xem lại trước khi đọc' }]} />
-                      {translationReview && <small>Cần quản trị viên bật Gemini; không dùng key Azure Translator.</small>}
                       <label htmlFor="target-language">Dịch sang</label>
                       <Select id="target-language" label="Dịch sang" value={target} onValueChange={setTarget}
                         disabled={studio.busy || studio.readingFile || studio.loadingVoices}

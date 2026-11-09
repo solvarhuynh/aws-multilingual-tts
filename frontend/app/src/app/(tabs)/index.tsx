@@ -33,10 +33,9 @@ export default function Home() {
       {!(compact && fontScale > 1.5) && <View style={[styles.heroWave, { width: compact || fontScale > 1.3 ? 110 : 156, transform: [{ scale: compact ? 0.62 : 0.85 }] }]}><Wave moving={focused} /></View>}
     </Pressable>
     <View style={[styles.quick, (compact || fontScale > 1.3) && { flexDirection: 'column' }]}>
-      {[{ title: 'Dịch và đọc', icon: 'translate' as const, mode: 'translation' }, { title: 'Đọc tài liệu', icon: 'book' as const, mode: 'document' }].map(tool =>
-        <Pressable key={tool.mode} accessibilityRole="button" onPress={() => router.push({ pathname: '/compose', params: { mode: tool.mode } })}
-          style={[styles.quickItem, { backgroundColor: colors.surface, borderColor: colors.line }]}><Icon name={tool.icon} color={colors.blue} size={23} />
-          <Label size={14} weight="500" style={{ flex: 1, minWidth: 0 }}>{tool.title}</Label><Icon name="next" size={14} color={colors.secondary} /></Pressable>)}
+      <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/compose', params: { mode: 'translation' } })}
+        style={[styles.quickItem, { backgroundColor: colors.surface, borderColor: colors.line }]}><Icon name="translate" color={colors.blue} size={23} />
+        <Label size={14} weight="500" style={{ flex: 1, minWidth: 0 }}>Dịch và đọc</Label><Icon name="next" size={14} color={colors.secondary} /></Pressable>
     </View>
     {history.length > 0 ? <>
       <Section title="Gần đây" action="Xem tất cả" onPress={() => router.navigate('/library')} />

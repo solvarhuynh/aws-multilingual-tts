@@ -5,7 +5,6 @@ export const navigation: { id: Page; title: string; icon: string }[] = [
   { id: "dashboard", title: "Tổng quan", icon: "dashboard" },
   { id: "studio", title: "Tạo giọng đọc", icon: "wave" },
   { id: "translation", title: "Dịch và đọc", icon: "translate" },
-  { id: "documents", title: "Đọc tài liệu", icon: "book" },
   { id: "voices", title: "Chọn giọng đọc", icon: "mic" },
   { id: "library", title: "Bản thu đã lưu", icon: "headphones" },
 ];

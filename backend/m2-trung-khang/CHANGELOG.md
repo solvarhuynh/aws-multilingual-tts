@@ -17,6 +17,41 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 
 ## NHẬT KÝ
 
+### 2026-11-10: Sửa chữ tiếng Việt bị tách dấu khi nhập PDF
+
+- Bối cảnh: Nguyên Khang (M4) báo nhập PDF ra chữ đúng nhưng dấu bị tách, ví dụ "thuy ế t minh d ự án".
+- Nguyên nhân: lỗi không nằm ở OCR mà ở bước lấy lớp chữ của PDF có chữ. pdf.js hay tách chữ có dấu thành mảnh riêng ("thuy" | "ế" | "t"), còn `pdfText` luôn chèn dấu cách giữa mọi mảnh, nên vừa tách từ vừa nhân đôi dấu cách.
+- Đã sửa `frontend/shared/browser-document.ts` (web và app dùng chung): hàm `joinTextItems` chỉ thêm dấu cách khi hai mảnh cách nhau thật trên trang (khoảng trống lớn hơn 0,15 cỡ chữ hoặc khác dòng), không thêm khi mảnh đã có khoảng trắng; mảnh thiếu thông tin vị trí giữ cách cũ. Kết quả lớp chữ PDF và OCR (PDF scan, ảnh) đều chuẩn hóa NFC để dựng lại dấu tách rời.
+- Test: thêm 2 test trong `frontend/app/tests/documents-shared.test.ts` (mảnh có dấu nằm sát nhau, không nhân đôi dấu cách, chữ dạng NFD, thiếu vị trí, khác dòng, mảnh rỗng). App test 44/44, typecheck, lint đạt; web build, `test:ui` 90/90 đạt.
+- Chưa kiểm: mở lại đúng tệp PDF Nguyên Khang gửi trên trình duyệt; PDF có font mã hóa lạ vẫn có thể ra chữ sai vì đó là dữ liệu bên trong tệp.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Cần báo module khác: M4 thử lại với tệp PDF cũ.
+
+### 2026-11-10: Gỡ lựa chọn Gemini khỏi Dịch và đọc, sửa mũi tên ngôn ngữ
+
+- Đã làm: theo yêu cầu của Trung Khang, Dịch và đọc trên web và app chỉ dùng Azure Translator. Gỡ ô "Cách dịch" và toàn bộ giao diện xem lại bản dịch Gemini (dịch từng phần, dừng/tiếp tục, tải TXT, "Dùng bản dịch để tạo giọng") cùng trạng thái liên quan trong `useEditor` và `compose.tsx`. Không đụng backend M5: API `/text/translate`, `frontend/shared/translation.ts` và hàm `api.translate` vẫn giữ, có test riêng.
+- Mũi tên giữa "Từ" và "Sang" trên app chỉ lên vì icon `arrow` trỏ tới `arrow-up-outline` trên Android; đổi thành `arrow.right` (iOS) và `arrow-forward-outline` (Android). Icon này chỉ dùng ở chỗ đó.
+- Gỡ quy tắc CSS khoảng cách thêm hôm 09/11 vì ô "Cách dịch" không còn, `styles.css` trở lại như cũ.
+- Test: bỏ 2 test hook Gemini và test chọn Gemini trên màn dịch; thêm test màn dịch chỉ dùng Azure, có nhập tài liệu và không còn chữ Gemini. Web `tsc`, build, `node --test` 90/90; app typecheck, lint, test 42/42, `expo export` iOS và Android đạt.
+- Tài liệu: sửa `README.md`, `docs/CONVENTIONS.md`, `frontend/README.md`, `deployment/local/README.md` cho khớp. Ngoài repo: `TRUNGKHANG/huong-dan-chay-local.md` hướng dẫn chạy web local và Expo Go trên Windows.
+- Môi trường máy cá nhân: cài Android SDK dòng lệnh (`%LOCALAPPDATA%\Android\Sdk`), ảnh Android 15 x86_64, máy ảo `tts_pixel`, biến người dùng `ANDROID_HOME`. App đã mở được trên máy ảo qua Expo Go.
+- Chưa kiểm: app trên điện thoại thật; luồng tạo MP3 trên máy ảo sau khi gỡ Gemini.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Cần báo module khác: M4 xem lại phần frontend; M5 biết giao diện không còn gọi Gemini dịch, quyết định có giữ API `/text/translate` không.
+
+### 2026-11-09: Gộp Đọc tài liệu vào hai trang soạn thảo, tách trạng thái
+
+- Bối cảnh: Trung Khang thử Dịch và đọc bằng Azure Translator trên local, đạt 4/4 chiều (vi→en, vi→ja, vi→zh-TW, en→vi) và từ chối đúng nguồn trùng đích, giọng sai ngôn ngữ, sai mã. Khi thử phát hiện nhập tài liệu ở Đọc tài liệu thì Dịch và đọc cũng hiện cùng nội dung. Nguyên Khang (M4) duyệt hướng gộp và yêu cầu sửa cả app.
+- Nguyên nhân: web dùng một `useStudio` cho ba trang nên chung nội dung, tài liệu và bản nháp `voxa.draft.v1`; app dùng một `draft` trong `Studio.tsx`.
+- Web: tách `useStudio.ts` thành `useSession` (giọng, lịch sử, trình phát dùng chung) và `useEditor` (nội dung, tài liệu, ngôn ngữ, giọng, tốc độ, dịch, bản nháp riêng). `App.tsx` tạo hai editor dùng chung một session; ô nhập tài liệu hiện ở cả hai trang. Bỏ mục Đọc tài liệu khỏi menu, `Page` và thẻ Tổng quan (thay bằng Chọn giọng đọc); link cũ `#documents` mở Tạo giọng đọc. "Dùng bản dịch để tạo giọng" chuyển rõ bản dịch sang Tạo giọng đọc, Dịch và đọc giữ văn bản gốc. `useStudio` cũ giữ lại dạng gộp cho test.
+- App: bản nháp riêng `tts.app.draft.translation.v1` cho Dịch và đọc, bản nháp cũ thuộc Tạo giọng đọc; nút nhập tài liệu ở cả hai chế độ; bỏ chế độ `document` (`mode=document` cũ mở Tạo giọng đọc), bỏ thẻ ở trang chủ và tab Công cụ.
+- CSS: thêm khoảng cách trước nhãn "Dịch sang" vì dính sát ô "Cách dịch" trong cùng khung.
+- Đã chạy: web `tsc`, build, `test:ui` 92/92 (thêm test hai trang độc lập và test chuyển bản dịch); app typecheck, lint, test 42/42, `expo export` iOS và Android đạt. Backend không đổi.
+- Chưa kiểm: bấm thử app trên điện thoại; app chưa có test tự động cho bản nháp riêng vì `Studio.tsx` cần môi trường React Native. Ngôn ngữ nguồn và giọng trên app vẫn dùng chung giữa hai chế độ, chỉ nội dung tách riêng.
+- File đã đổi: `frontend/web/src/hooks/useStudio.ts`, `frontend/web/src/App.tsx`, `frontend/web/src/lib/data.ts`, `frontend/web/src/lib/types.ts`, `frontend/web/src/views/Dashboard.tsx`, `frontend/web/src/styles.css`, `frontend/web/tests/app.test.mjs`, `frontend/web/tests/studio.test.mjs`, `frontend/app/src/state/Studio.tsx`, `frontend/app/src/app/compose.tsx`, `frontend/app/src/app/(tabs)/index.tsx`, `frontend/app/src/app/(tabs)/tools.tsx`, `frontend/app/src/lib/model.ts`, `README.md`, `docs/AZURE-SPEECH.md`, `frontend/README.md`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không. Azure: resource Translator F0 do Trung Khang tạo.
+- Cần báo module khác: M4 review toàn bộ phần frontend, vì đây là code của M4.
+
 ### 2026-11-08: Thêm tiếng Trung phồn thể (Đài Loan) và tiếng Quảng Đông
 
 - Đã làm: Trung Khang yêu cầu tách các biến thể tiếng Trung. Trước đây chỉ có `zh-CN` (Phổ thông đại lục). `deployment/scripts/azure.py` thêm `azure_targets` để `configure` lấy giọng cho `zh-TW` và `zh-HK`, đặt ngay sau `cmn-CN`; registry ElevenLabs gốc không đổi. Tên hiển thị trên web và app: `cmn-CN` "Tiếng Trung giản thể" (bỏ "(Phổ thông)" vì tên dài làm thẻ giọng xuống dòng, lệch so với thẻ khác), `zh-TW` "Tiếng Trung phồn thể (Đài Loan)", `zh-HK` "Tiếng Quảng Đông (Hồng Kông)". Trạng thái: locally tested.
