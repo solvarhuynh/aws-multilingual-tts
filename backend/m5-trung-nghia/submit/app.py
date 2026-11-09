@@ -2,11 +2,14 @@
 
 Router M1 gọi hàm này cho POST /synthesize và POST /text/correct. /synthesize kiểm
 tra đầu vào theo registry, tạo job PENDING rồi gửi Lambda Event chỉ gồm mã cho
-worker M2, không gửi văn bản. /text/correct là MR chưa bật nên trả skipped và giữ
-nguyên văn bản. Module sở hữu: M5.
+worker M2, không gửi văn bản. /text/correct gọi Gemini khi được cấu hình và
+trả skipped nguyên bản khi không khả dụng. Module sở hữu: M5.
 """
 
 import json
+
+import correction
+import idempotency
 
 from tts_common import aws, config, db
 from tts_common.errors import error_response, json_response, log_json
@@ -81,7 +84,7 @@ def _pick_speed(entry, speed):
 
 def _dispatch(user_id, job_id):
     """Gửi event chỉ gồm mã cho worker; job xử lý bất đồng bộ."""
-    aws.lambda_client().invoke(
+    return aws.lambda_client().invoke(
         FunctionName=config.SYNTH_FUNCTION_NAME,
         InvocationType="Event",
         Payload=json.dumps({"userId": user_id, "jobId": job_id}).encode("utf-8"),
@@ -94,13 +97,32 @@ def _synthesize(event):
     text = _clean_text(body)
     if body.get("translateTo") is not None:
         raise InvalidRequest(400, "FEATURE_NOT_ENABLED", "Tính năng dịch chưa được bật.")
+    try:
+        request_key = idempotency.key_from_event(event)
+    except ValueError:
+        raise InvalidRequest(400, "INVALID_INPUT", "Idempotency-Key không hợp lệ.") from None
+    user_id = get_user_id(event)
+    if request_key is not None:
+        request_fingerprint = idempotency.fingerprint(body)
+        try:
+            replay = idempotency.replay_if_present(user_id, request_key, request_fingerprint)
+        except Exception as error:
+            log_json(module="M5", operation="idempotent_lookup", status="UNCERTAIN", errorCode=type(error).__name__)
+            return error_response(503, "SUBMIT_UNCERTAIN", idempotency.UNCERTAIN_MESSAGE)
+        if replay is not None:
+            return replay
     entry = _find_entry(body.get("lang"))
     voice = _pick_voice(entry, body.get("voice"))
     speed = _pick_speed(entry, body.get("speed"))
 
+    if request_key is not None:
+        return idempotency.submit_first(
+            user_id, request_key, request_fingerprint, text, body["lang"], voice, speed,
+            entry.get("provider"), entry.get("engine"), _dispatch,
+        )
+
     if not db.reserve_chars(len(text)):
         return error_response(429, "TOO_MANY_REQUESTS", "Hôm nay đã dùng hết hạn mức, vui lòng thử lại vào ngày mai.")
-    user_id = get_user_id(event)
     try:
         job = db.create_job(
             user_id, text, body["lang"], voice, speed, provider=entry.get("provider"), engine=entry.get("engine")
@@ -121,20 +143,34 @@ def _synthesize(event):
 
 
 def _correct(event):
-    """MR sửa lỗi đánh máy chưa bật: trả nguyên văn bản, giao diện dùng bản gốc."""
+    """Suggest typos only; this path never creates a TTS job or consumes TTS quota."""
     body = _parse_body(event)
     text = body.get("text")
-    if not isinstance(text, str):
+    if not isinstance(text, str) or not text.strip():
         raise InvalidRequest(400, "INVALID_INPUT", "Vui lòng nhập nội dung cần kiểm tra.")
+    if len(text) > config.MAX_CHARS:
+        raise InvalidRequest(400, "TEXT_TOO_LONG", "Nội dung kiểm tra quá dài.")
     lang = body.get("lang")
-    return json_response(200, {
+    payload = {
         "status": "skipped",
         "language": lang if isinstance(lang, str) and lang not in AUTO_LANGS else "und",
         "hasTypos": False,
         "originalText": text,
         "correctedText": text,
         "changes": [],
-    })
+    }
+    cfg = correction.settings()
+    if cfg is None or lang not in {"vi-VN", "en-US", "ja-JP"}:
+        return json_response(200, payload)
+    if len(text) > cfg["maxChars"]:
+        raise InvalidRequest(400, "TEXT_TOO_LONG", "Nội dung kiểm tra quá dài.")
+    try:
+        corrected, changes = correction.suggest(text, lang, cfg)
+    except Exception as error:
+        log_json(module="M5", operation="correct", status="SKIPPED", errorCode=type(error).__name__)
+        return json_response(200, payload)
+    payload.update(status="checked", hasTypos=bool(changes), correctedText=corrected, changes=changes)
+    return json_response(200, payload)
 
 
 def handler(event, context):

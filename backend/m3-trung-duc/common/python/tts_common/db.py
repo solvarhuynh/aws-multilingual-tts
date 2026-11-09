@@ -4,12 +4,13 @@ S3 không có transaction nên mọi cập nhật dùng CAS: chỉ ghi nếu ETa
 """
 
 import calendar
+import hashlib
 import json
 import time
 from dataclasses import dataclass
 
 from . import aws, config, storage
-from .utils import JOB_ID_PATTERN, are_valid_ids, make_job_id
+from .utils import JOB_ID_PATTERN, USER_ID_PATTERN, are_valid_ids, make_job_id
 
 
 MAX_CLAIM_ATTEMPTS = 3
@@ -176,9 +177,11 @@ def fail_job(job, message):
     return _write(job, status="FAILED", leaseUntil=None, errorMessage=message)
 
 
-def create_job(user_id, text, lang, voice, speed, translate_to=None, provider=None, engine=None):
+def create_job(user_id, text, lang, voice, speed, translate_to=None, provider=None, engine=None, job_id=None):
     """Tạo job PENDING; If-None-Match chặn ghi đè nếu trùng mã."""
-    job_id = make_job_id()
+    job_id = job_id if job_id is not None else make_job_id()
+    if not are_valid_ids(user_id, job_id):
+        raise ValueError("Mã job không hợp lệ")
     now = int(time.time())
     timestamp = _timestamp()
     data = {
@@ -219,6 +222,100 @@ def create_job(user_id, text, lang, voice, speed, translate_to=None, provider=No
     return data
 
 
+def _idempotency_key(user_id, key):
+    """Scope and hash the opaque client key; never expose the raw key in S3 paths."""
+    if not isinstance(user_id, str) or not USER_ID_PATTERN.fullmatch(user_id):
+        raise ValueError("Scope không hợp lệ")
+    if not isinstance(key, str) or not key:
+        raise ValueError("Idempotency key không hợp lệ")
+    digest = hashlib.sha256(f"{user_id}\0{key}".encode("utf-8")).hexdigest()
+    return f"idempotency/{user_id}/{digest}.json"
+
+
+def _idempotency_digest_key(user_id, digest):
+    """Resolve a listed mapping without needing the original client key."""
+    if not isinstance(user_id, str) or not USER_ID_PATTERN.fullmatch(user_id):
+        raise ValueError("Scope không hợp lệ")
+    if not isinstance(digest, str) or len(digest) != 64 or any(char not in "0123456789abcdef" for char in digest):
+        raise ValueError("Digest không hợp lệ")
+    return f"idempotency/{user_id}/{digest}.json"
+
+
+def get_idempotency(user_id, key):
+    """Read one persistent mapping with its ETag; return None when absent."""
+    client = aws.s3()
+    try:
+        response = client.get_object(Bucket=config.JOBS_BUCKET, Key=_idempotency_key(user_id, key))
+    except client.exceptions.NoSuchKey:
+        return None
+    return StoredJob(json.loads(response["Body"].read()), response["ETag"])
+
+
+def get_idempotency_by_digest(user_id, digest):
+    """Read a mapping found by S3 listing, preserving its ETag for reconciliation."""
+    client = aws.s3()
+    try:
+        response = client.get_object(Bucket=config.JOBS_BUCKET, Key=_idempotency_digest_key(user_id, digest))
+    except client.exceptions.NoSuchKey:
+        return None
+    return StoredJob(json.loads(response["Body"].read()), response["ETag"])
+
+
+def create_idempotency(user_id, key, fingerprint, job_id):
+    """Claim a key once across Lambda invocations; conflict returns existing mapping."""
+    if not are_valid_ids(user_id, job_id):
+        raise ValueError("Mã job không hợp lệ")
+    if not isinstance(fingerprint, str) or len(fingerprint) != 64 or any(char not in "0123456789abcdef" for char in fingerprint):
+        raise ValueError("Fingerprint không hợp lệ")
+    data = {"jobId": job_id, "fingerprint": fingerprint, "dispatchState": "CLAIMED"}
+    client = aws.s3()
+    try:
+        response = client.put_object(
+            Bucket=config.JOBS_BUCKET, Key=_idempotency_key(user_id, key),
+            Body=json.dumps(data).encode("utf-8"), ContentType="application/json",
+            ServerSideEncryption="AES256", IfNoneMatch="*",
+        )
+    except client.exceptions.ClientError as error:
+        if error.response["Error"]["Code"] in CONFLICT_CODES:
+            return False, get_idempotency(user_id, key)
+        raise
+    return True, StoredJob(data, response["ETag"])
+
+
+def update_idempotency(user_id, key, record, state):
+    """Advance only the ETag version owned by this submit attempt."""
+    data = {**record.data, "dispatchState": state}
+    client = aws.s3()
+    try:
+        response = client.put_object(
+            Bucket=config.JOBS_BUCKET, Key=_idempotency_key(user_id, key),
+            Body=json.dumps(data).encode("utf-8"), ContentType="application/json",
+            ServerSideEncryption="AES256", IfMatch=record.etag,
+        )
+    except client.exceptions.ClientError as error:
+        if error.response["Error"]["Code"] in CONFLICT_CODES:
+            raise JobConflict from None
+        raise
+    return StoredJob(data, response["ETag"])
+
+
+def update_idempotency_by_digest(user_id, digest, record, state):
+    """CAS repair of a listed mapping; never overwrite a newer submit state."""
+    data = {**record.data, "dispatchState": state}
+    client = aws.s3()
+    try:
+        response = client.put_object(
+            Bucket=config.JOBS_BUCKET, Key=_idempotency_digest_key(user_id, digest),
+            Body=json.dumps(data).encode("utf-8"), ContentType="application/json",
+            ServerSideEncryption="AES256", IfMatch=record.etag,
+        )
+    except client.exceptions.ClientError as error:
+        if error.response["Error"]["Code"] in CONFLICT_CODES:
+            raise JobConflict from None
+        raise
+    return StoredJob(data, response["ETag"])
+
+
 def get_job(user_id, job_id):
     """Trả job còn hiệu lực; thiếu, hết hạn hoặc đang xóa thì trả None."""
     job = _read(user_id, job_id)
@@ -239,7 +336,11 @@ def update_job(user_id, job_id, **fields):
 
 
 def fail_stale_job(user_id, job_id, message):
-    """Đánh FAILED job quá hạn và không có lease; worker đến muộn sẽ thấy trạng thái cuối."""
+    """Legacy helper; do not call from polling or recovery without proven failure.
+
+    Age and an expired lease alone cannot prove Lambda Event or provider outcome.
+    M3 should review removal of this old primitive before Sandbox deployment.
+    """
     job = _read(user_id, job_id)
     if job is None or not _is_stale(job.data, int(time.time())):
         return job.data if job else None

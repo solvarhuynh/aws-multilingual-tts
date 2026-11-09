@@ -12,9 +12,6 @@ from tts_common.utils import JOB_ID_PATTERN, are_valid_ids, get_user_id
 
 DEFAULT_LIMIT = 20
 MAX_LIMIT = 50
-STALE_MESSAGE = "Không tạo được âm thanh do xử lý quá lâu. Vui lòng thử lại."
-
-
 def _audio_url(job):
     """Chỉ job DONE mới có link nghe."""
     if job.get("status") == "DONE" and job.get("audioKey"):
@@ -47,10 +44,9 @@ def _history_item(job):
 
 
 def _get_job(user_id, job_id):
-    """Trả trạng thái job; job kẹt được đánh FAILED để giao diện không chờ mãi."""
+    """Trả trạng thái đã lưu; recovery riêng đối soát job kẹt."""
     if not are_valid_ids(user_id, job_id):
         return error_response(400, "INVALID_INPUT", "Mã bản thu không hợp lệ.")
-    db.fail_stale_job(user_id, job_id, STALE_MESSAGE)
     job = db.get_job(user_id, job_id)
     if job is None:
         return error_response(404, "NOT_FOUND", "Không tìm thấy bản thu.")
@@ -81,7 +77,6 @@ def _delete_history(user_id, job_id):
     """Xóa job đã kết thúc; ID đã mất vẫn trả thành công để gọi lại an toàn."""
     if not are_valid_ids(user_id, job_id):
         return error_response(400, "INVALID_INPUT", "Mã bản thu không hợp lệ.")
-    db.fail_stale_job(user_id, job_id, STALE_MESSAGE)
     try:
         db.delete_job(user_id, job_id)
     except (db.JobBusy, db.JobConflict):

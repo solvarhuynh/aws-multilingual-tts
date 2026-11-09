@@ -11,6 +11,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[3]
 sys.path[:0] = [
     str(ROOT / "backend/m3-trung-duc/common/python"),
+    str(ROOT / "backend/m5-trung-nghia/submit"),
     str(ROOT / "backend/m2-trung-khang/synthesize"),
     str(ROOT / "backend/m3-trung-duc/tests"),
 ]
@@ -64,6 +65,7 @@ class FlowTestCase(unittest.TestCase):
 
     def invoke(self, FunctionName, InvocationType, Payload):
         self.events.append((FunctionName, InvocationType, json.loads(Payload)))
+        return {"StatusCode": 202}
 
     def post(self, path="/synthesize", **body):
         response = submit.handler({"path": path, "body": json.dumps(body)}, None)
@@ -204,10 +206,11 @@ class SubmitTest(FlowTestCase):
         self.assertEqual(self.post("/text/correct", text=5)[0], 400)
         self.assertEqual(self.s3.objects, {})
 
-    def test_stats_not_enabled(self):
+    def test_stats_empty(self):
         response = stats.handler({}, None)
-        self.assertEqual(response["statusCode"], 501)
-        self.assertEqual(json.loads(response["body"])["error"]["code"], "FEATURE_NOT_ENABLED")
+        self.assertEqual(response["statusCode"], 200)
+        self.assertEqual(json.loads(response["body"]),
+                         {"totalJobs": 0, "totalChars": 0, "byLang": {}, "cacheHits": 0})
 
 
 class FullFlowTest(FlowTestCase):
@@ -227,11 +230,11 @@ class FullFlowTest(FlowTestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def request(self, method, path, body=None, token="bi-mat", query=None):
+    def request(self, method, path, body=None, token="bi-mat", query=None, extra_headers=None):
         response = router.handler({
             "rawPath": path,
             "requestContext": {"http": {"method": method}},
-            "headers": {"x-demo-token": token},
+            "headers": {"x-demo-token": token, **(extra_headers or {})},
             "queryStringParameters": query,
             "body": json.dumps(body) if body is not None else None,
         }, None)
@@ -276,7 +279,16 @@ class FullFlowTest(FlowTestCase):
         self.assertEqual((self.s3.objects, self.events), ({}, []))
 
     def test_stats_through_router(self):
-        self.assertEqual(self.request("GET", "/stats")[0], 501)
+        self.assertEqual(self.request("GET", "/stats")[0], 200)
+
+    def test_idempotency_header_survives_router(self):
+        body = {"text": "Xin chào", "lang": "vi-VN", "voice": MATILDA, "speed": 0.9}
+        headers = {"Idempotency-Key": "router-replay-1"}
+        first_status, first = self.request("POST", "/synthesize", body, extra_headers=headers)
+        replay_status, replay = self.request("POST", "/synthesize", body, extra_headers=headers)
+        self.assertEqual((first_status, replay_status), (202, 202))
+        self.assertEqual(first["jobId"], replay["jobId"])
+        self.assertEqual(len(self.events), 1)
 
     def test_infra_names_match_router_defaults(self):
         m2 = (ROOT / "backend/m2-trung-khang/infra/tts.yaml").read_text(encoding="utf-8")

@@ -65,6 +65,41 @@ class RepositoryTest(JobsTestCase):
             with self.assertRaises(ClientError):
                 self.job()
 
+    def test_idempotency_claim_is_hashed_and_conditional(self):
+        job_id = "1793966400000-a1b2c3d4"
+        claimed, record = db.create_idempotency("demo", "raw-secret-key", "a" * 64, job_id)
+        self.assertTrue(claimed)
+        claimed_again, existing = db.create_idempotency("demo", "raw-secret-key", "b" * 64, job_id)
+        self.assertFalse(claimed_again)
+        self.assertEqual(existing.data, record.data)
+        self.assertTrue(all("raw-secret-key" not in key for _, key in self.s3.objects))
+        self.assertEqual(self.s3.puts[0]["IfNoneMatch"], "*")
+
+    def test_idempotency_cas_and_fixed_job_id(self):
+        job_id = "1793966400000-a1b2c3d4"
+        _, record = db.create_idempotency("demo", "request-1", "a" * 64, job_id)
+        updated = db.update_idempotency("demo", "request-1", record, "RESERVED")
+        with self.assertRaises(db.JobConflict):
+            db.update_idempotency("demo", "request-1", record, "DISPATCHED")
+        self.assertEqual(db.get_idempotency("demo", "request-1").data["dispatchState"], "RESERVED")
+        self.assertNotEqual(updated.etag, record.etag)
+        job = db.create_job("demo", "Xin chào", "vi-VN", "v1", 0.9, job_id=job_id)
+        self.assertEqual(job["jobId"], job_id)
+        with self.assertRaises(ClientError):
+            db.create_job("demo", "Xin chào", "vi-VN", "v1", 0.9, job_id=job_id)
+
+    def test_recovery_can_read_and_cas_mapping_by_digest(self):
+        _, record = db.create_idempotency("demo", "request-1", "a" * 64, "1793966400000-a1b2c3d4")
+        mapping_key = next(key for bucket, key in self.s3.objects if key.startswith("idempotency/"))
+        digest = mapping_key.rsplit("/", 1)[1][:-5]
+        self.assertEqual(db.get_idempotency_by_digest("demo", digest), record)
+        updated = db.update_idempotency_by_digest("demo", digest, record, "DISPATCHED")
+        self.assertEqual(updated.data["dispatchState"], "DISPATCHED")
+        with self.assertRaises(db.JobConflict):
+            db.update_idempotency_by_digest("demo", digest, record, "RESERVED")
+        with self.assertRaises(ValueError):
+            db.get_idempotency_by_digest("demo", "../bad")
+
     def test_hidden_when_expired_or_deleting(self):
         expired = self.job(expiresAt=1)["jobId"]
         deleting = self.job(deleting=True)["jobId"]
@@ -162,12 +197,19 @@ class HistoryHandlerTest(JobsTestCase):
         job = self.job(status="FAILED", errorMessage="Lỗi đã làm sạch")
         self.assertEqual(self.call("GET", f"/jobs/{job['jobId']}", job["jobId"])[1]["error"], "Lỗi đã làm sạch")
 
-    def test_get_job_stale_returns_failed(self):
+    def test_get_job_stale_keeps_pending_for_reconciliation(self):
         job_id = "1793966400000-a1b2c3d4"
         self.seed(job_id, status="PENDING", updatedAt=OLD_TIME)
         status, body = self.call("GET", f"/jobs/{job_id}", job_id)
-        self.assertEqual((status, body["status"]), (200, "FAILED"))
-        self.assertEqual(body["error"], history.STALE_MESSAGE)
+        self.assertEqual((status, body["status"], body["error"]), (200, "PENDING", None))
+        self.assertEqual(db.get_job("demo", job_id)["status"], "PENDING")
+
+    def test_delete_stale_pending_is_busy_without_changing_job(self):
+        job_id = "1793966400000-a1b2c3d4"
+        self.seed(job_id, status="PENDING", updatedAt=OLD_TIME)
+        status, body = self.call("DELETE", f"/history/{job_id}", job_id)
+        self.assertEqual((status, body["error"]["code"]), (409, "JOB_BUSY"))
+        self.assertEqual(db.get_job("demo", job_id)["status"], "PENDING")
 
     def test_get_job_missing_and_invalid(self):
         self.assertEqual(self.call("GET", "/jobs/1793966400000-a1b2c3d4", "1793966400000-a1b2c3d4")[0], 404)
