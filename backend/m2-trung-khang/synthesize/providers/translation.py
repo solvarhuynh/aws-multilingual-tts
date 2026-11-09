@@ -14,6 +14,32 @@ from .common import OPENER, read_parameter
 LANGUAGES = {"cmn-CN": "zh-Hans", "zh-CN": "zh-Hans", "zh-TW": "zh-Hant", "zh-HK": "yue", "nb-NO": "nb", "fil-PH": "fil"}
 
 
+def http_failure(error):
+    status, code = error.code, None
+    try:
+        body = json.loads(error.read(4097))
+        value = body.get("error", {}).get("code")
+        if type(value) is int and 100000 <= value <= 599999:
+            code = value
+    except (ValueError, AttributeError, TypeError, OSError):
+        pass
+    finally:
+        error.close()
+    if status in {408, 429} or status >= 500:
+        return TransientProviderError("TRANSLATION_BUSY", f"Azure Translator đang bận hoặc giới hạn lượt gọi (HTTP {status}). Thử lại sau.")
+    if code == 403001:
+        return PermanentProviderError("TRANSLATION_QUOTA_EXCEEDED", "Azure Translator đã hết hạn mức miễn phí. Kiểm tra quota của resource trước khi thử lại.")
+    if code == 401015:
+        message = "Key hiện tại thuộc Azure Speech. Dịch văn bản cần key riêng của Azure Translator."
+    elif status in {401, 403}:
+        message = f"Azure Translator chưa xác thực được (HTTP {status}). Kiểm tra key và vùng của resource Translator."
+    elif status == 400:
+        message = "Azure Translator từ chối nội dung hoặc cặp ngôn ngữ dịch. Kiểm tra ngôn ngữ gốc và đích."
+    else:
+        message = f"Azure Translator từ chối yêu cầu (HTTP {status}). Kiểm tra cấu hình dịch."
+    return PermanentProviderError("TRANSLATION_REJECTED", message)
+
+
 def language_code(locale):
     if not isinstance(locale, str) or not re.fullmatch(r"[a-z]{2,3}-[A-Z]{2}", locale):
         raise PermanentProviderError("LANG_NOT_SUPPORTED", "Ngôn ngữ dịch không hợp lệ.")
@@ -43,12 +69,7 @@ def translate(text, source, target, timeout=15, key=None, opener=OPENER):
             raise ValueError
         return translated
     except urllib.error.HTTPError as error:
-        status = error.code
-        error.close()
-        if status in {408, 429} or status >= 500:
-            raise TransientProviderError("TRANSLATION_BUSY", "Dịch vụ dịch đang bận hoặc hết hạn mức. Vui lòng thử lại sau.") from None
-        message = "Azure Translator từ chối key hoặc vùng cấu hình." if status in {401, 403} else "Dịch vụ chưa hỗ trợ cặp ngôn ngữ này."
-        raise PermanentProviderError("TRANSLATION_REJECTED", message) from None
+        raise http_failure(error) from None
     except (urllib.error.URLError, TimeoutError, OSError):
         raise TransientProviderError("TRANSLATION_UNREACHABLE", "Chưa kết nối được dịch vụ dịch. Vui lòng thử lại sau.") from None
     except (ValueError, KeyError, IndexError, TypeError, StopIteration):

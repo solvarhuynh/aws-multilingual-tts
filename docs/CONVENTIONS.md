@@ -143,6 +143,8 @@ Request gồm `text` không rỗng tối đa 2.000 ký tự UTF-16, `sourceLang`
 
 Chế độ **Gemini · Xem lại trước khi đọc** chia tài liệu thành đoạn tối đa 2.000 ký tự UTF-16, gửi tối đa 600 ký tự ngữ cảnh nguồn. Logic chung trong `frontend/shared/translation.ts` bỏ phản hồi của nguồn/phiên cũ, giữ checkpoint trong phiên để tiếp tục sau lỗi. Khi duyệt, frontend gửi bản dịch tới `/synthesize` bằng ngôn ngữ đích và `translateTo:null`. Chế độ mặc định **Azure · Dịch và đọc** vẫn dùng `/synthesize` với `translateTo` theo hợp đồng Azure phía trên; không gọi Gemini hoặc fallback. Tệp gốc/OCR xử lý trên thiết bị. Bản dịch chưa có manifest bền vững sau reload; mỗi phần Gemini dùng một API call trong quota riêng.
 
+Lỗi Gemini giữ `503 TRANSLATION_UNAVAILABLE`, thông báo phân biệt xác thực, model, quota, timeout, kết nối và dịch vụ bận. Log chỉ có mã phân loại `GEMINI_*` và HTTP status nếu có; không ghi raw exception/body. Typo lỗi vẫn `200 skipped`. Azure worker giữ `TRANSLATION_REJECTED` cho key/vùng hoặc request bị từ chối; riêng Azure `403001` hết quota trả job FAILED với `TRANSLATION_QUOTA_EXCEEDED`, không tự retry như lỗi tạm thời. Key resource regional cần header đúng vùng, chỉ resource Global mới được bỏ header vùng.
+
 ### GET /voices
 
 Giữ envelope languages với lang/provider/engine/voices. Voice item gồm id, gender và name; giao diện hiển thị name. Chỉ publish registry Azure lấy từ resource/vùng đã cấu hình và đã kiểm ngôn ngữ. `backend/m2-trung-khang/config/voices.azure.json` là registry Azure; `backend/m2-trung-khang/config/voices.json`/adapter ElevenLabs còn cho tương thích và test cũ, không dùng làm danh mục mặc định. Chưa có danh mục thật → 503 VOICES_UNAVAILABLE, không danh sách bịa.

@@ -41,6 +41,32 @@ class TranslationTest(unittest.TestCase):
         for lang in [None, [], 'auto', 'en-US&to=xx']:
             with self.assertRaises(PermanentProviderError): translation.language_code(lang)
 
+    def test_global_resource_omits_region_but_regional_resource_requires_its_region(self):
+        opener = self.response([{'translations': [{'text': 'Hello', 'to': 'en'}]}])
+        with mock.patch.dict(os.environ, {'AZURE_TRANSLATOR_REGION': 'global'}):
+            translation.translate('Xin chào', 'vi-VN', 'en-US', key='fake', opener=opener)
+        self.assertIsNone(opener.open.call_args.args[0].get_header('Ocp-apim-subscription-region'))
+        opener = self.response([{'translations': [{'text': 'Hello', 'to': 'en'}]}])
+        translation.translate('Xin chào', 'vi-VN', 'en-US', key='fake', opener=opener)
+        self.assertEqual(opener.open.call_args.args[0].get_header('Ocp-apim-subscription-region'), 'eastasia')
+
+    def test_auth_wrong_service_and_exhausted_quota_have_actionable_errors(self):
+        for status, provider_code, code, message in [
+            (401, 401001, 'TRANSLATION_REJECTED', 'key và vùng'),
+            (401, 401015, 'TRANSLATION_REJECTED', 'Speech'),
+            (403, 403001, 'TRANSLATION_QUOTA_EXCEEDED', 'hết hạn mức'),
+        ]:
+            body = io.BytesIO(json.dumps({'error': {'code': provider_code, 'message': 'PRIVATE KEY TEXT'}}).encode())
+            error = urllib.error.HTTPError('https://fixed.test', status, 'PRIVATE KEY', {}, body)
+            opener = mock.Mock(open=mock.Mock(side_effect=error))
+            with self.subTest(status=status, code=provider_code), self.assertRaises(PermanentProviderError) as raised:
+                translation.translate('x', 'vi-VN', 'en-US', key='fake', opener=opener)
+            self.assertEqual(raised.exception.code, code)
+            self.assertIn(message, raised.exception.message)
+            self.assertNotIn('PRIVATE', raised.exception.message)
+            self.assertTrue(body.closed)
+            opener.open.assert_called_once()
+
     def test_unconfigured_makes_no_call(self):
         opener = mock.Mock()
         with mock.patch.dict(os.environ, {'TRANSLATOR_API_PARAMETER_NAME': ''}):

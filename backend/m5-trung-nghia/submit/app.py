@@ -178,7 +178,9 @@ def _correct(event):
     try:
         corrected, changes = correction.suggest(text, lang, cfg)
     except Exception as error:
-        log_json(module="M5", operation="correct", status="SKIPPED", errorCode=type(error).__name__)
+        failure = correction.provider_failure(error)
+        log_json(module="M5", operation="correct", status="SKIPPED", errorCode=failure["code"],
+                 **({"providerStatus": failure["httpStatus"]} if "httpStatus" in failure else {}))
         return json_response(200, payload)
     payload.update(status="checked", hasTypos=bool(changes), correctedText=corrected, changes=changes)
     return json_response(200, payload)
@@ -199,8 +201,10 @@ def _translate(event):
     try:
         translated = translation.translate(text, source, target, context, cfg)
     except Exception as error:
-        log_json(module="M5", operation="translate", status="UNAVAILABLE", errorCode=type(error).__name__)
-        return error_response(503, "TRANSLATION_UNAVAILABLE", "Chưa dịch được đoạn này. Vui lòng thử lại.")
+        failure = correction.provider_failure(error)
+        log_json(module="M5", operation="translate", status="UNAVAILABLE", errorCode=failure["code"],
+                 **({"providerStatus": failure["httpStatus"]} if "httpStatus" in failure else {}))
+        return error_response(503, "TRANSLATION_UNAVAILABLE", failure["message"])
     return json_response(200, {"sourceLang": source, "targetLang": target, "translatedText": translated})
 
 

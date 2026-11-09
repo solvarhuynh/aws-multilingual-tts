@@ -62,6 +62,11 @@ Mã model phải là ID Gemini thực được key hỗ trợ; không dùng nguy
 
 ### Lỗi HTTPS, DNS và kết nối
 
+- **`auth_failed` cho `/voices` hoặc `/history`:** mã trong Cài đặt chưa trùng `DEMO_TOKEN` của API đang chạy. Mã được lưu riêng theo địa chỉ web; `localhost` và `127.0.0.1` có vùng lưu trữ khác nhau. `dispatching_downstream` cho cùng route chứng minh lượt đó đã qua xác thực.
+- **Azure `TRANSLATION_REJECTED`, HTTP 401:** kiểm tra **Location** của chính resource **Translator** và key ở **Keys and Endpoint**. Ví dụ **East Asia → `AZURE_TRANSLATOR_REGION=eastasia`**; để `global` với key regional sẽ thiếu header vùng. Chỉ dùng `global` khi resource thực sự ở Global. Không lấy vùng AWS hoặc đoán theo resource Speech. Sau khi sửa env cần Ctrl+C rồi chạy lại `npm run dev`; tiến trình cũ không tự đọc lại key/vùng.
+- **Gemini `GEMINI_TIMEOUT`/`GEMINI_BUSY`:** model phản hồi quá chậm hoặc dịch vụ trả 5xx. Backend giữ timeout hữu hạn và không tự gọi lại hay đổi provider/model. Có thể dùng lựa chọn Azure hoặc chờ rồi tiếp tục phần đang lỗi. `GEMINI_AUTH`, `GEMINI_MODEL`, `GEMINI_QUOTA` lần lượt yêu cầu kiểm key/quyền, model và hạn mức. API vẫn dùng `503 TRANSLATION_UNAVAILABLE` với thông báo cụ thể; không đưa raw lỗi provider vào UI/log.
+- **Typo `SKIPPED`:** kiểm tra chính tả không hoàn tất nên dùng nguyên bản; đây không phải trạng thái FAILED của job TTS. Tắt `GEMINI_TYPO_ENABLED` nếu muốn thử Azure riêng, giữ cờ dịch Gemini độc lập.
+
 Python cài từ python.org trên macOS có thể chưa có CA. Runtime tự dùng Certifi trong tiến trình Python local khi thiếu CA; Speech, Translator và Gemini dùng cùng cơ chế HTTPS. Không sửa file env của bạn hoặc trust store hệ điều hành. Cài lại dependency nếu môi trường chưa có gói mới:
 
 ```bash
@@ -99,7 +104,7 @@ AZURE_TRANSLATOR_REGION=global
 DEMO_TOKEN=local-demo
 ```
 
-Đây chỉ là ví dụ tên biến, không phải key dùng được. Speech/Translator dùng **hai resource/key riêng**, vùng đúng như **Keys and Endpoint** của từng resource. Chưa có Translator thì để `AZURE_TRANSLATOR_KEY=` trống; Tạo giọng đọc vẫn dùng được, Dịch và đọc báo chưa cấu hình. Không cần AWS credentials, SSM parameter hay URL CloudFront cho bước local.
+Đây chỉ là ví dụ tên biến, không phải key dùng được. Speech/Translator dùng **hai resource/key riêng**, vùng đúng như **Keys and Endpoint** của từng resource. Dòng `global` phía trên chỉ dành cho Translator ở Global; Translator ở East Asia phải dùng `eastasia`, theo [quy định header vùng của Microsoft](https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/authentication). Chưa có Translator thì để `AZURE_TRANSLATOR_KEY=` trống; Tạo giọng đọc vẫn dùng được, Dịch và đọc báo chưa cấu hình. Không cần AWS credentials, SSM parameter hay URL CloudFront cho bước local.
 
 ## 2. Lấy catalog giọng rồi mở API
 

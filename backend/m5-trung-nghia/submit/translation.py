@@ -58,7 +58,7 @@ def _provider(text, source, target, context, cfg, key):
 def translate(text, source, target, context, cfg, *, local_key=None):
     key = local_key if local_key is not None else correction._read_key(cfg["name"])
     if local_key is None and not correction._reserve_call(cfg["dailyCalls"], prefix="translation-usage"):
-        raise RuntimeError("Translation daily limit reached")
+        raise correction.CallLimitReached("Translation daily limit reached")
     response = _provider(text, source, target, context, cfg, key)
     if not isinstance(response, dict) or set(response) != {"translatedText"}:
         raise ValueError("Invalid translation response")

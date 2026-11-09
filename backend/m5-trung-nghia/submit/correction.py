@@ -4,6 +4,7 @@ import json
 import os
 import re
 import time
+import urllib.error
 import urllib.request
 
 from tts_common import aws, config
@@ -33,6 +34,34 @@ _cached_at = 0.0
 
 class UnsafeSuggestion(ValueError):
     """The provider response cannot be safely offered to the user."""
+
+
+class CallLimitReached(RuntimeError):
+    pass
+
+
+def provider_failure(error):
+    status = error.code if isinstance(error, urllib.error.HTTPError) else None
+    if status is not None:
+        error.close()
+    reason = error.reason if isinstance(error, urllib.error.URLError) else error
+    if status in {401, 403}:
+        code, message = "GEMINI_AUTH", "Gemini chưa xác thực được. Kiểm tra API key và quyền của dự án Google."
+    elif status == 404:
+        code, message = "GEMINI_MODEL", "Model Gemini đã chọn chưa dùng được với key này. Kiểm tra model trong cấu hình backend."
+    elif status == 429:
+        code, message = "GEMINI_QUOTA", "Gemini đã giới hạn lượt gọi hoặc hết quota. Kiểm tra hạn mức rồi thử lại sau."
+    elif status in {408, 504} or isinstance(reason, TimeoutError):
+        code, message = "GEMINI_TIMEOUT", "Gemini phản hồi quá chậm. Bản gốc và phần đã dịch vẫn được giữ; thử lại sau hoặc chọn Azure."
+    elif status is not None and status >= 500:
+        code, message = "GEMINI_BUSY", "Gemini đang tạm thời không phục vụ được. Thử lại sau hoặc chọn Azure."
+    elif isinstance(error, CallLimitReached):
+        code, message = "GEMINI_DAILY_LIMIT", "Đã hết lượt gọi Gemini hôm nay trong bản demo."
+    elif isinstance(error, urllib.error.URLError):
+        code, message = "GEMINI_CONNECTION", "Không kết nối được Gemini. Kiểm tra mạng, DNS và chứng chỉ HTTPS."
+    else:
+        code, message = "GEMINI_UNAVAILABLE", "Gemini chưa trả được bản dịch hợp lệ. Bản gốc và phần đã dịch vẫn được giữ."
+    return {"code": code, "message": message, **({"httpStatus": status} if status is not None else {})}
 
 
 def _positive_int(name, default, ceiling):
@@ -207,7 +236,7 @@ def suggest(text, lang, cfg):
     """One bounded Gemini call per request; caller turns any failure into skipped."""
     key = _read_key(cfg["name"])
     if not _reserve_call(cfg["dailyCalls"]):
-        raise UnsafeSuggestion("Daily correction limit reached")
+        raise CallLimitReached("Daily correction limit reached")
     result = _provider(text, lang, cfg, key)
     changes = validate(text, result, cfg["maxChanges"])
     return result["correctedText"], changes

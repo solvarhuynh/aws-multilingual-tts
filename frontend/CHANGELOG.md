@@ -6,6 +6,18 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 **Người phụ trách:** Nguyên Khang
 **Danh sách việc:** [README](README.md)
 
+## 2026-11-09 — Bàn giao bản sửa lỗi dịch cho các nhánh
+
+- Người dùng yêu cầu commit/push bản sửa lỗi Azure/Gemini lên main và các nhánh M1–M5. Phạm vi gồm 10 file source/test/tài liệu của đợt chẩn đoán phía dưới; giữ nguyên env thật, key, tiến trình dev và ba stash.
+- Đối chiếu 220 kiểm thử local đã đạt với source hiện hành; kiểm diff/ignore và bí mật trước commit. Fetch và kiểm quan hệ tổ tiên trước khi push, chỉ cập nhật fast-forward, không force-push. Kết quả remote cùng mã commit được xác nhận trong bàn giao sau thao tác; không chạy lại provider hoặc deploy AWS.
+
+## 2026-11-09 — Chẩn đoán lỗi dịch local và làm rõ thông báo provider
+
+- Log người dùng xác nhận các lượt `/voices` và `/history` cuối đã qua xác thực. Phép kiểm riêng Azure Translator với câu mẫu trả 401/401001 khi env đang để `global`; ảnh resource xác nhận Location East Asia. Giữ nguyên env người dùng, thử override vùng trong bộ nhớ: HTTP 200. Luồng router → submit → worker → Azure Translator → Azure Speech → S3 Moto trả 202 rồi DONE ở attempt 1, MP3 hợp lệ 32.832 byte. Đây là thử provider thật từ máy local, không phải Sandbox, chưa nghe/đánh giá chất lượng mọi giọng.
+- Gemini metadata của model đã chọn trả 200; các POST mẫu ghi nhận 503 hoặc timeout 30 giây. Thử model khác cũng trả 503 với thông báo quá tải. Chưa có bản dịch Gemini thành công trong lượt này; không đổi model/env, tự fallback, tăng quota hoặc kéo dài timeout để che lỗi. Không dùng tài liệu của người dùng cho phép thử.
+- Sửa thông báo backend dùng chung web/app: phân biệt Gemini auth/model/quota/timeout/network/5xx và quota demo; giữ public `TRANSLATION_UNAVAILABLE` và typo `skipped`. Azure nhận diện nhầm key Speech, key/vùng sai, HTTP bị từ chối và quota 403001; quota hết không retry. Chỉ đọc mã lỗi Azure trong body có giới hạn, đóng response, không chuyển raw body/key/văn bản ra UI/log.
+- **220 kiểm thử offline PASS:** M1 31, M2 89, M5 90, launcher/TLS 10. Thêm regression cho header vùng, phân biệt auth/quota và làm sạch lỗi provider. Không sửa CSS/chuyển động, frontend bundle, SAM, tiến trình dev đang chạy hoặc env thật; không deploy AWS, commit/push trong lượt này. Người dùng cần đặt `AZURE_TRANSLATOR_REGION=eastasia`, Ctrl+C rồi `npm run dev` để phiên hiện tại đọc lại cấu hình/code. Cách xử lý trong `deployment/local/README.md`.
+
 ## 2026-11-09 — Bàn giao source và đồng bộ các nhánh
 
 - Người dùng yêu cầu push bản hiện có lên toàn bộ nhánh trước khi tiếp tục xử lý lỗi web. Phạm vi gồm source M4 và các phần tích hợp M1/M2/M3/M5, OCR 50 MiB, TTS 10.000 ký tự, Azure/Gemini và công cụ local; không deploy AWS hoặc gọi provider trong đợt bàn giao này.

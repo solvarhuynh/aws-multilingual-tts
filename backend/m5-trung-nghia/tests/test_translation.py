@@ -4,6 +4,7 @@ import io
 import json
 import os
 import unittest
+import urllib.error
 from unittest import mock
 
 from test_submit import FlowTestCase, submit, router
@@ -92,6 +93,32 @@ class TranslationTest(FlowTestCase):
         self.assertEqual(content["currentPassage"], self.BODY["text"])
         self.assertEqual(payload["response_format"]["schema"]["required"], ["translatedText"])
         self.assertEqual(opened.call_args.kwargs["timeout"], 20)
+
+    def test_provider_failures_explain_next_step_without_leaking_provider_data(self):
+        cases = [(401, 'GEMINI_AUTH', 'API key'), (403, 'GEMINI_AUTH', 'quyền'),
+                 (404, 'GEMINI_MODEL', 'Model'), (429, 'GEMINI_QUOTA', 'quota'),
+                 (503, 'GEMINI_BUSY', 'tạm thời'), (504, 'GEMINI_TIMEOUT', 'chậm')]
+        for status, code, message in cases:
+            stream = io.BytesIO(b'PRIVATE PROVIDER BODY')
+            error = urllib.error.HTTPError('https://private.invalid/?key=PRIVATE', status, 'PRIVATE', {}, stream)
+            with self.subTest(status=status), mock.patch.dict(os.environ, self.ENV), \
+                 mock.patch.object(correction, '_read_key', return_value='fake-key'), \
+                 mock.patch.object(correction, '_reserve_call', return_value=True), \
+                 mock.patch.object(translation, '_provider', side_effect=error), \
+                 mock.patch('builtins.print') as printed:
+                http, body = self.route(self.BODY)
+            self.assertEqual((http, body['error']['code']), (503, 'TRANSLATION_UNAVAILABLE'))
+            self.assertIn(message, body['error']['message'])
+            logs = str(printed.call_args_list)
+            self.assertIn(code, logs)
+            self.assertNotIn('PRIVATE', logs + json.dumps(body))
+            self.assertTrue(stream.closed)
+            self.assertEqual(self.events, [])
+        for error in [TimeoutError('PRIVATE'), urllib.error.URLError(TimeoutError('PRIVATE'))]:
+            failure = correction.provider_failure(error)
+            self.assertEqual(failure['code'], 'GEMINI_TIMEOUT')
+            self.assertNotIn('PRIVATE', str(failure))
+        self.assertEqual(correction.provider_failure(correction.CallLimitReached())['code'], 'GEMINI_DAILY_LIMIT')
 
 
 if __name__ == "__main__":
