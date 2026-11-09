@@ -124,7 +124,7 @@ Giữ bảy public paths:
 - Giữ `JOBS_BUCKET`, `JOBS_PREFIX`, `AUDIO_BUCKET`, `SYNTH_FUNCTION_NAME`, `TTS_API_PARAMETER_NAME`; root SAM truyền từ Parameters/Outputs. Kiểm giá trị thực sau mỗi lab.
 - S3 conditional write bằng ETag/CAS, lease và retry có giới hạn. Không hứa exactly-once provider billing; crash giữa create/invoke hoặc provider/store cần reconciliation của owner.
 - Chọn ngôn ngữ rõ từ registry đã xác minh; không dịch ngầm hoặc bỏ qua speed không hỗ trợ. Giới hạn trong catalog/runtime là nguồn chuẩn cho frontend.
-- Gemini typo chỉ sau MVP: chỉ sửa lỗi đánh máy, người dùng duyệt, provider lỗi dùng nguyên bản, offsets UTF-16; `/text/correct` không tạo job/MP3. Stats chưa bật phải trả trạng thái unavailable, không số 0 giả.
+- Gemini typo có code/test local nhưng mặc định tắt, chỉ sửa lỗi đánh máy, người dùng duyệt, provider lỗi dùng nguyên bản, offsets UTF-16; `/text/correct` không tạo job/MP3. Stats có code quét S3 có giới hạn: bucket rỗng trả 0, quét không đủ trả 503 thay vì số thiếu. Chưa gọi Gemini hoặc xác minh Stats trên Sandbox thật.
 - API CloudFront không cache; giữ method/path/query/body và header cần thiết, không forward viewer Host. Không áp SPA fallback lên JSON lỗi API.
 
 ## 7. Quy tắc code và tổ chức file

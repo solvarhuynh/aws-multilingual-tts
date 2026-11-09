@@ -52,8 +52,12 @@ Root SAM đã nối Parameters/Outputs cho các Lambda. Tên parameter là cấu
 | GEMINI_API_PARAMETER_NAME | Reference secret MR nếu được duyệt, M5 | Submit |
 | DEMO_TOKEN | Token demo truyền vào router qua root SAM parameter `DemoToken`, M1 | Router |
 | GEMINI_MODEL | Model đã chọn sau kiểm chứng, M5/M1 | Submit MR |
-| GEMINI_TIMEOUT_SECONDS | Timeout hữu hạn; 8 giây là giá trị đề xuất cũ cần kiểm | Submit MR |
-| TYPO_CHECK_MAX_CHARS | Giới hạn typo; 5000 là đề xuất cũ cần kiểm quota | Submit MR |
+| GEMINI_TIMEOUT_SECONDS | Mặc định 6 giây, tối đa 8 giây; cần kiểm với model thật | Submit M5 |
+| TYPO_CHECK_MAX_CHARS | Mặc định 1000 ký tự, tối đa cấu hình 5000 | Submit M5 |
+| GEMINI_TYPO_ENABLED | Mặc định false; chỉ bật sau khi có key/model và nghiệm thu Sandbox | Submit M5 |
+| TYPO_MAX_CHANGES | Tối đa 5 thay đổi/lần theo cấu hình M5 | Submit M5 |
+| TYPO_DAILY_CALL_LIMIT | Tối đa 100 lần gọi Gemini/ngày, counter S3 riêng `typo-usage/` | Submit M5 |
+| STATS_SCAN_MAX_JOBS | Mặc định 200 object job/scope/lần; vượt cap trả 503 | Stats M5 |
 | MAX_CHARS | 2000, đề xuất từ đo thật: 2.000 ký tự chạy 6,8 giây, tốn khoảng 1.000 credit; chờ nhóm duyệt | Submit |
 | CHUNK_SIZE | Chỉ chốt nếu provider cần chia đoạn và M2 có ghép MP3 hợp lệ | Worker |
 | PRESIGN_TTL_SECONDS | TTL ngắn do M3/M1 chốt, không quá credential/session còn lại | Common |
@@ -61,7 +65,7 @@ Root SAM đã nối Parameters/Outputs cho các Lambda. Tên parameter là cấu
 | VITE_API_BASE_URL | URL HTTP/CloudFront công khai, M4 | Web |
 | EXPO_PUBLIC_API_BASE_URL | URL API công khai, M4 | App |
 
-`JOBS_BUCKET`, `JOBS_PREFIX`, `AUDIO_BUCKET`, `SYNTH_FUNCTION_NAME`, `TTS_API_PARAMETER_NAME` và `DEMO_TOKEN` đã được nối trong stack hiện tại. `GEMINI_*` là MR chưa bật. `JOBS_TABLE`, `QUEUE_URL`, `EXTERNAL_TTS_SECRET_NAME`, `GEMINI_API_SECRET_NAME` và `SYNC_MAX_CHARS` còn trong config cũ để tương thích; không dùng làm bằng chứng DynamoDB/SQS đang chạy.
+`JOBS_BUCKET`, `JOBS_PREFIX`, `AUDIO_BUCKET`, `SYNTH_FUNCTION_NAME`, `TTS_API_PARAMETER_NAME` và `DEMO_TOKEN` đã được nối trong stack hiện tại. Root truyền một `JobsPrefix` cho M3/M2/M5 và cho phép chỉnh `DailyCharLimit`, `StatsScanMaxJobs`, `TypoDailyCallLimit`. `GEMINI_*` đã có code/wiring local nhưng `GeminiTypoEnabled=false` mặc định; chưa gọi API thật hoặc deploy. `JOBS_TABLE`, `QUEUE_URL`, `EXTERNAL_TTS_SECRET_NAME`, `GEMINI_API_SECRET_NAME` và `SYNC_MAX_CHARS` còn trong config cũ để tương thích; không dùng làm bằng chứng DynamoDB/SQS đang chạy.
 
 ## 4. API bảy route
 
@@ -75,7 +79,7 @@ Mọi route auth như mục 2; OPTIONS là preflight. Response JSON và headers 
 | GET /jobs/{id} | M3 | ID path | 200 job/status/progress/audioUrl/error | 404 missing/expired |
 | GET /history | M3 | limit?, cursor? | 200 items/nextCursor | 400 cursor sai |
 | DELETE /history/{id} | M3 | ID path | 200 deleted:true | 409 job đang chạy |
-| GET /stats | M5, MR | Không | 200 totalJobs/totalChars/byLang/cacheHits | 501 chưa bật; 503 scan cap |
+| GET /stats | M5, MR | Không | 200 totalJobs/totalChars/byLang/cacheHits | 503 scan cap/S3 lỗi |
 
 ### POST /synthesize
 
@@ -95,7 +99,9 @@ Tất cả job mới dùng async, kể cả câu ngắn. Khi Invoke Event accept
 
 Đây là HTTP 202, không chứng minh provider đã chạy. HTTP 200 DONE chỉ cho kết quả hoàn tất có sẵn/replay hoặc sync optimization được duyệt sau benchmark. Không giữ ngưỡng sync 2500 ký tự. Replay job chưa xong trả 202 với state hiện hữu; terminal FAILED replay trả 200 trạng thái FAILED, không tự tạo job/gọi provider lại. Response lỗi nghiệp vụ HTTP 4xx/5xx luôn dùng error shape chung. cached phản ánh audio được tái sử dụng, không mặc nhiên true chỉ vì replay. Cache cross-user chưa bật.
 
-`Idempotency-Key` là hợp đồng đề xuất **chưa có đủ trong submit hiện tại**: client tạo ngẫu nhiên, giữ nguyên khi retry cùng input; cùng key khác input trả 409 IDEMPOTENCY_CONFLICT. Không có key thì không bảo đảm deduplicate POST độc lập. M5 hiện gửi IDs-only khi dispatch; invoke từ chối trả sanitized 503 DISPATCH_FAILED, cập nhật FAILED nếu common còn ghi được. Crash giữa create/invoke cần reconciliation, không có giao dịch atomic.
+`Idempotency-Key` đã có code và test local ở M5: client tạo ngẫu nhiên, giữ nguyên khi retry cùng input; cùng key khác input trả 409 IDEMPOTENCY_CONFLICT. Key được hash theo scope trước khi làm S3 object key; mapping chỉ chứa fingerprint, jobId và dispatchState. Claim `IfNoneMatch: *` diễn ra trước reserve quota/job; chỉ người thắng claim mới được Invoke Event. Replay sau `DISPATCHED` trả cùng jobId và trạng thái job, không reserve/Invoke thêm. Khi không có header, giữ luồng submit cũ và không bảo đảm deduplicate POST độc lập.
+
+Sau reserve/job write hoặc Invoke mà không biết chắc kết quả, keyed request trả `503 SUBMIT_UNCERTAIN`, giữ mapping và quota đã reserve; replay không tự dispatch/refund để tránh gọi provider hoặc trừ/hoàn quota sai. Nếu worker đã tiến sang PROCESSING/DONE/FAILED thì replay có thể đọc trạng thái từ M3. Những mapping còn CLAIMED/RESERVED/JOB_CREATED/DISPATCHING cần người vận hành đối soát sau crash; S3 job creation và Lambda Event không có transaction chung. Code này chưa được xác minh trên Sandbox.
 
 ### POST /text/correct — lịch sử quyết định được giữ
 
@@ -111,7 +117,7 @@ Khi bấm Chuyển giọng, M4 gọi đúng một lần, không checkbox và kh�
 
 start bao gồm và end không bao gồm, tính theo UTF-16 code units trong correctedText (chuỗi đã sửa), không Python code point; cần test emoji/ký tự ngoài BMP. Chỉ lỗi đánh máy rõ ràng; không ngữ pháp/văn phong/ý nghĩa, không tự sửa tên riêng/số/URL/email/thuật ngữ. Output cần kiểm schema, offsets và giới hạn số thay đổi.
 
-Chưa bật MR, thiếu key, timeout/provider lỗi, không chắc, quá giới hạn hoặc language không hỗ trợ → skipped, nguyên text, changes rỗng. lang auto/thiếu và chưa nhận diện đáng tin cậy → language "und", không giả vi-VN. Không dùng Comprehend baseline; thư viện local nhẹ chỉ MR sau đánh giá confidence.
+Mặc định tắt, thiếu key, timeout/provider lỗi, kết quả không chắc hoặc language không hỗ trợ → skipped, nguyên text, changes rỗng. Văn bản quá giới hạn trả 400 TEXT_TOO_LONG. lang auto/thiếu và chưa nhận diện đáng tin cậy → language "und", không giả vi-VN. Không dùng Comprehend baseline. Khi bật, backend kiểm JSON, thay đổi từng từ và UTF-16 offsets trước khi trả. Bản code mới chỉ được kiểm local bằng mock.
 
 ~~~json
 {"status":"skipped","language":"und","hasTypos":false,"originalText":"Xin chào","correctedText":"Xin chào","changes":[]}
@@ -141,7 +147,7 @@ Chỉ terminal jobs; PENDING/PROCESSING trả 409 JOB_BUSY. CAS tombstone, xóa 
 
 ### GET /stats — MR
 
-Giữ totalJobs/totalChars/byLang/cacheHits cho scope demo. Quét S3 JSON có giới hạn objects/time, lọc expired/deleting; không claim query/index hoặc thống kê realtime ở quy mô lớn. Chưa bật trả 501 FEATURE_NOT_ENABLED; vượt cap trả 503 STATS_UNAVAILABLE, không trả 0 giả. cacheHits chỉ 0 khi đã kiểm rằng cache chưa dùng trong dataset đó.
+Giữ totalJobs/totalChars/byLang/cacheHits cho scope demo. Code M5 quét S3 JSON có giới hạn object/trang, dùng M3 `get_job` để lọc expired/deleting; không claim query/index hoặc thống kê realtime ở quy mô lớn. Bucket rỗng trả số 0; vượt cap hoặc không thể đọc đủ trả 503 STATS_UNAVAILABLE, không trả số liệu thiếu. `cacheHits=0` vì cache hiện chưa triển khai trong luồng job; chưa kiểm hiệu năng trên bucket Sandbox thật.
 
 ### Mã lỗi
 
@@ -157,9 +163,10 @@ Giữ totalJobs/totalChars/byLang/cacheHits cho scope demo. Quét S3 JSON có gi
 | 404 | NOT_FOUND | Route/job thiếu hoặc expired |
 | 405 | METHOD_NOT_ALLOWED | Method không khớp route |
 | 409 | IDEMPOTENCY_CONFLICT | Cùng key khác input |
+| 503 | SUBMIT_UNCERTAIN | Keyed submit có bước ghi/Invoke chưa xác định; không tự phát lại |
 | 409 | JOB_BUSY | Không xóa job đang chạy |
 | 429 | TOO_MANY_REQUESTS | Chạm giới hạn demo/cost guard |
-| 501 | FEATURE_NOT_ENABLED | Stats MR chưa bật |
+| 501 | FEATURE_NOT_ENABLED | Dành cho tính năng chưa bật trong các phiên bản cũ |
 | 502 | PROVIDER_ERROR | Lỗi provider trong đường HTTP nếu có; async ghi FAILED |
 | 503 | DISPATCH_FAILED | Async invoke chưa accepted |
 | 503 | VOICES_UNAVAILABLE | Registry chưa kiểm/chưa sẵn |
@@ -198,9 +205,11 @@ Không text/key trong event. Lambda có hàng đợi nội bộ/retry, **không 
 
 **M2 sở hữu một EventInvokeConfig duy nhất trong backend/m2-trung-khang/infra/tts.yaml.** M5 bàn giao policy retry/event age/destination; số cụ thể cần đo timeout/lease/provider credits, chưa đặt theo SQS. M1 hỗ trợ kiểm quyền; không duplicate resource cùng function/qualifier.
 
-Idempotency mapping riêng idempotency/demo/<digest>.json do M3 quản lý, tạo conditional trước job, chứa jobId/fingerprint/dispatchState. Crash giữa objects/invoke có thể làm orphan/duplicate dispatch; M5 reconciliation phối hợp common.
+Idempotency mapping riêng `idempotency/<scope>/<digest>.json` do common M3 quản lý, tạo conditional trước job, chứa jobId/fingerprint/dispatchState. Digest là SHA-256 của scope và key; text/key thô không nằm trong mapping. Crash giữa quota/mapping/job/Invoke có thể để lại trạng thái cần đối soát, không tự phát Event lần hai khi trạng thái chưa rõ. M3 cần review các primitive mới trước khi tích hợp/deploy.
 
 Worker DONE/active lease không gọi provider lại. Lease phải dài hơn timeout + margin; duplicate thấy active lease có thể return success để tránh concurrency, nhưng **không coi duplicate ACK là bảo đảm hoàn tất**: nếu worker gốc timeout thì stale inspector/manual recovery phải phát hiện. Runtime retry trước lease hết có thể bị skip; sau hết retry vẫn có stale job, không nhất thiết có on-failure record. Đây là residual risk cần test Gate 3.
+
+M5 recovery CLI (`backend/m5-trung-nghia/recovery/reconcile.py`) quét hai prefix jobs/idempotency có giới hạn và mặc định dry-run. `--apply` chỉ CAS mapping thành `DISPATCHED` khi job đã DONE/FAILED và `attempt > 0` chứng minh worker từng claim; công cụ đọc lại job/mapping trước ghi. PENDING quá ngưỡng, PROCESSING hết lease, mapping thiếu job/quota đã reserve và dispatch không chắc chắn phải đối soát thủ công. Ngưỡng tuổi chỉ báo kiểm tra, không chứng minh Event thất lạc hoặc provider chưa tính phí. M3 history đã bỏ tự chuyển job cũ thành FAILED khi GET/DELETE; helper `fail_stale_job` cũ còn tồn tại để M3 xem xét trước deploy, không được gọi trong đường recovery mới. Không tự dispatch, tổng hợp lại, refund hay xóa job trong các trạng thái chưa rõ.
 
 Lỗi business vĩnh viễn → ghi FAILED và return success (Lambda không retry/failure destination). Lỗi transient → CAS release nếu còn quyền rồi raise; runtime timeout có thể không release, cần stale recovery. Sau audio write nhưng trước DONE: kiểm audio/config fingerprint, reconcile state, không tổng hợp lại ngầm. Không hứa exactly-once provider billing.
 

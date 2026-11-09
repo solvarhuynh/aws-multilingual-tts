@@ -1,6 +1,6 @@
 # M5 — Trung Nghĩa: Submit, điều phối async, ngôn ngữ và kiểm thử
 
-**Cập nhật 2026-11-08.** Submit và test M5 đã có code trên main qua commit tích hợp của M2; M5 cần review, nhận bàn giao và hoàn thiện idempotency/recovery/telemetry. Stats và Gemini typo chưa bật. Task chỉ tick khi owner kiểm kết quả theo acceptance.
+**Cập nhật 2026-11-08.** Submit và test M5 đã có code trên main qua commit tích hợp của M2; M5 cần review và nhận bàn giao. Gemini typo, stats, `Idempotency-Key`, recovery và đường tích hợp M1→M5→M3/M2 đã có code/test local trong working tree; chưa kiểm chứng Sandbox hoặc deploy. Gemini vẫn tắt mặc định. Task chỉ tick khi owner kiểm kết quả theo acceptance.
 
 **Cần chốt với giảng viên:** đề yêu cầu API Gateway/Polly/DynamoDB, còn bản Sandbox đang dùng dịch vụ thay thế. Xem [đối chiếu yêu cầu](../../AGENTS.md#3-yêu-cầu-đề-bài-và-trạng-thái-phải-diễn-đạt-đúng); không tự đổi hạ tầng khi chưa có môi trường/quyền và phân công mới.
 
@@ -10,10 +10,11 @@ Nhận common/schema/CAS từ M3, registry/worker/limits từ M2, auth context/r
 
 | File/thư mục trong module | Làm việc gì |
 |---|---|
-| `submit/` | POST /synthesize: validation, PENDING và Invoke Event; /text/correct hiện skipped khi chưa bật MR. |
-| `stats/` | GET /stats: chưa bật mặc định, trả unavailable rõ ràng. |
+| `submit/` | POST /synthesize: validation, PENDING, keyed idempotency và Invoke Event; /text/correct dùng `correction.py` khi bật Gemini, lỗi trả skipped nguyên bản. |
+| `stats/` | GET /stats: quét job M3 trong scope demo có giới hạn, vượt cap trả 503. |
+| `recovery/` | CLI nội bộ quét job và idempotency mapping có giới hạn; mặc định chỉ báo cáo, `--apply` chỉ sửa mapping terminal có bằng chứng worker đã claim. |
 | `infra/submit.yaml` | Submit/stats Lambda, bucket/worker/Layer references và giới hạn runtime. |
-| `tests/test_submit.py` | Contract và luồng mock router → submit → worker → history; không gọi AWS/provider. |
+| `tests/` | Contract và luồng mock router → submit → worker → history; correction, stats, validation không gọi AWS/provider thật. |
 
 Đọc [AGENTS.md](../../AGENTS.md), [kiến trúc](../../docs/ARCHITECTURE.md) và [API/dữ liệu](../../docs/CONVENTIONS.md) trước khi sửa. Quyền AWS, secret và gate triển khai được quy định một lần ở AGENTS; không tự thêm dịch vụ ngoài baseline.
 
@@ -44,19 +45,29 @@ Thực hiện theo gate trong AGENTS. Các kiểm thử AWS/provider, deploy và
 
 - **Phụ trách:** M5 Trung Nghĩa. **Giai đoạn:** Gate 1.
 - **Cần có trước:** SB-M3-01/03, SB-M2-03, Invoke runtime T2-05. **Mã nguồn:** backend/m5-trung-nghia/submit/app.py, backend/m5-trung-nghia/infra/submit.yaml, tests/.
-- **Cách làm:** Create PENDING qua common, mapping Idempotency-Key, Invoke Event IDs-only, 202 khi accepted; invoke lỗi update FAILED nếu được; replay không tạo job mới. **CLI/test khi được duyệt:** Event mocks accepted/refused/crash gap/replay/conflict; T2-05.
+- **Cách làm:** Create PENDING qua common, mapping Idempotency-Key, Invoke Event IDs-only, 202 khi accepted; keyed Invoke không xác định trả 503 và giữ job để đối soát, replay không tạo job mới. Luồng không key giữ xử lý lỗi cũ. **CLI/test khi được duyệt:** Event mocks accepted/refused/crash gap/replay/conflict; T2-05.
 - **Đầu ra:** Async-all MVP không threshold 2500 giả, payload không text/key. **Bằng chứng:** 202 response, IDs event/log, state transitions. Tách local mock với sandbox verified.
 - **Rủi ro / khôi phục:** No transaction create/invoke→dispatchState/recovery; exactly-once không hứa.
-- **Nghiệm thu:** Accepted→202, rejected→sanitized 503, replay same key bounded. **Làm local được không:** Có mocks. **Trạng thái:** Submit/dispatch đã có code; idempotency/replay/recovery còn mở
+- **Nghiệm thu:** Accepted→202, rejected→sanitized 503, replay same key bounded. **Làm local được không:** Có mocks. **Trạng thái:** Keyed idempotency coded + locally tested; crash recovery cần đối soát thủ công, chưa sandbox verified
+
+**Keyed submit:** Header `Idempotency-Key` được chuyển qua router M1; giá trị được hash theo scope thành `idempotency/<scope>/<digest>.json` trong jobs bucket. M3 common claim bằng `IfNoneMatch: *`, dùng ETag/CAS để chuyển `CLAIMED → RESERVED → JOB_CREATED → DISPATCHING → DISPATCHED`; quota bị từ chối là `QUOTA_REJECTED`. Chỉ claim winner reserve quota/tạo job/gọi worker. Replay cùng payload trả jobId cũ, khác payload trả 409. `DISPATCHING` hoặc `DISPATCH_UNCERTAIN` khi job còn PENDING trả `503 SUBMIT_UNCERTAIN`; sau khi worker đã tiến trạng thái, replay đọc job cũ. Không tự gọi Event lần hai khi kết quả Invoke chưa rõ, không hứa exactly-once. M3 cần review primitive mapping và tham số `job_id` mới trong common.
+
+**Đối soát local/được giao vận hành:** `python backend/m5-trung-nghia/recovery/reconcile.py --max-objects 200 --max-pages 20` (cần `JOBS_BUCKET` và `JOBS_PREFIX` trong môi trường được phép). Mặc định dry-run; chỉ khi được giao thao tác tài nguyên mới dùng `--apply`. Output JSON từng dòng chỉ có jobId, trạng thái, lý do, quyết định và kết quả; không in text/key. Quét cả `jobs/<scope>/` và `idempotency/<scope>/`; nếu vượt giới hạn thì dừng, không sửa một phần. Ngưỡng `--review-after-seconds` mặc định 900 chỉ đánh dấu để kiểm tra. Job `PENDING` lâu, `PROCESSING` hết lease, mapping thiếu job/quota đã reserve và Event không chắc chắn đều cần người vận hành đối soát; công cụ không gọi lại Lambda/Azure, refund quota hoặc đổi job sang FAILED. Job terminal có `attempt > 0` và mapping chưa `DISPATCHED` được sửa mapping bằng ETag CAS sau khi đọc lại. Polling M3 không tự đánh FAILED chỉ vì job cũ. M3 cần review thay đổi history và common trước khi deploy.
+
+**Đường deploy đang dùng:** `deployment/template.yaml` gọi `infra/submit.yaml` và truyền cùng `JobsPrefix` cho M3, M2, M5; Submit/Stats đều dùng jobs bucket và common Layer do M3 xuất. Root cho chỉnh `DailyCharLimit`, `StatsScanMaxJobs`, `TypoDailyCallLimit`; Gemini vẫn tắt mặc định và chỉ nhận **tên** SSM parameter/model. M1 router chuyển nguyên headers, cho phép `Idempotency-Key` trong CORS; M4 CloudFront dùng origin policy chuyển viewer headers. Timeout router 40 giây và CloudFront origin read 45 giây để chờ Stats tối đa 30 giây; M1/M4 review các thay đổi hạ tầng này. Không có Lambda, route hoặc lịch chạy recovery công khai.
+
+CLI recovery chạy thủ công từ repo trong Lab IDE/CloudShell được phép, cùng `JOBS_BUCKET`, `JOBS_PREFIX` và vùng `us-east-1` của stack; nếu Python môi trường thiếu boto3 thì dùng `recovery/requirements.txt`. Không chạy CLI bằng credentials xuất ra máy ngoài Lab. `--apply` là thao tác ghi S3 và chỉ dùng khi được giao rõ.
+
+**Smoke test cho phiên demo đã được nhóm duyệt:** (1) xác nhận Azure registry đã được `deployment/scripts/azure.py configure` tạo cho đúng vùng và Layer, root stack đã triển khai với Gemini tắt; (2) gọi `/text/correct` và kiểm `skipped` giữ nguyên text, rồi chỉ khi Gemini/key được duyệt mới kiểm `checked` hoặc fallback; (3) gửi một request `/synthesize` với `Idempotency-Key` ngẫu nhiên rồi gửi lại đúng key/payload, xác nhận cùng jobId và một job/worker Event; (4) gửi cùng key với text khác để kiểm 409; (5) poll `/jobs/{id}` và đọc `/stats` để đối chiếu job, gọi recovery dry-run khi có quyền đọc S3. Các bước gọi TTS/Gemini thật cần giao việc và giới hạn chi phí riêng; không dùng `--apply` cho smoke test.
 
 ### SB-M5-03 — Recovery policy, credit guard và telemetry
 
 - **Phụ trách:** M5 Trung Nghĩa. **Giai đoạn:** Gate 3.
 - **Cần có trước:** M2 timeout/provider measurements, M3 CAS helpers, M1 alarm actions. **Mã nguồn:** backend/m5-trung-nghia/submit/, backend/m5-trung-nghia/infra/submit.yaml, tests/; worker config gửi M2 backend/m2-trung-khang/infra/tts.yaml.
-- **Cách làm:** M5 đề xuất retry/event-age cho M2 config duy nhất; stale inspector/manual recovery; counters CAS M3 trước dispatch, log jobId/duration/attempt/outcome qua EMF nếu được. **CLI/test khi được duyệt:** Transient/permanent/timeout/stale/limit fixtures; T2-05/08.
+- **Cách làm:** M5 đề xuất retry/event-age cho M2 config duy nhất; CLI đối soát thủ công đã code và test local, còn vận hành Sandbox chờ giao việc; counters CAS M3 trước dispatch, log jobId/duration/attempt/outcome qua EMF nếu được. **CLI/test khi được duyệt:** Transient/permanent/timeout/stale/limit fixtures; T2-05/08.
 - **Đầu ra:** Business metric schema + recovery decision tree + no unsafe replay. **Bằng chứng:** CloudWatch Logs/Metrics, budget counter, destination delivery failure nếu có. Tách local mock với sandbox verified.
 - **Rủi ro / khôi phục:** Counter không transaction→reserve trước dispatch, refund bounded; unknown provider billing→operator review.
-- **Nghiệm thu:** No unlimited retries; logs không key/text; caps trước provider-backed public demo. **Làm local được không:** Có design/mock. **Trạng thái:** Quota cơ bản đã có; recovery/metric nghiệp vụ chưa nghiệm thu
+- **Nghiệm thu:** No unlimited retries; logs không key/text; caps trước provider-backed public demo. **Làm local được không:** Có design/mock. **Trạng thái:** Recovery CLI coded + locally tested; quota cơ bản đã có; metric nghiệp vụ và Sandbox recovery chưa nghiệm thu
 
 ### SB-M5-04 — Backend testing matrix và bàn giao E2E
 
@@ -74,7 +85,14 @@ Thực hiện theo gate trong AGENTS. Các kiểm thử AWS/provider, deploy và
 - **Cách làm:** Sau MP3 MVP, bảo vệ key/timeout; typo checked/skipped và UTF-16 offsets, user review; stats quét giới hạn, feature unavailable rõ nếu chưa bật. **CLI/test khi được duyệt:** Mock Gemini failures/schema/UTF-16/no job; stats empty/paging/scan cap.
 - **Đầu ra:** Typos only/fail-open original, stats đúng dữ liệu không số giả. **Bằng chứng:** Correction API responses và stats/scan evidence, không key value. Tách local mock với sandbox verified.
 - **Rủi ro / khôi phục:** MR thiếu secret→skipped; stats cap→503, không quét vô hạn.
-- **Nghiệm thu:** User chọn trước synthesize; no grammar rewrite; no job trong correct; stats status honest. **Làm local được không:** Có mocks; Gemini thật cần approval. **Trạng thái:** DEFERRED sau MP3 MVP; Gemini và stats chưa bật
+- **Nghiệm thu:** User chọn trước synthesize; no grammar rewrite; no job trong correct; stats status honest. **Làm local được không:** Có mocks; Gemini thật cần approval. **Trạng thái:** Coded + locally tested, Gemini tắt mặc định; chưa sandbox verified hoặc deployed
+
+### Bật Gemini trong Sandbox sau khi được giao triển khai
+
+1. Tạo SSM SecureString chứa API key trong `us-east-1` bằng môi trường Lab được phép; chỉ đưa **tên** parameter vào root SAM `GeminiApiParameterName`. Không đưa value vào template, Git hoặc frontend.
+2. Chọn model Gemini hỗ trợ Interactions API và structured JSON, rồi đặt `GeminiModel`. Đặt `GeminiTypoEnabled=true` sau khi đã xác minh `LabRole` đọc được parameter, HTTPS egress và quota thật.
+3. Mặc định: tối đa 1.000 ký tự/lần, 5 thay đổi/lần, 6 giây/call, 100 call/ngày trong counter S3 riêng `typo-usage/`. TTS quota `usage/` không bị dùng bởi `/text/correct`. Có thể điều chỉnh trong template M5; mọi request Gemini đặt `store=false`.
+4. `/stats` quét tối đa 200 object job trong scope demo; vượt trần, listing không đủ hoặc S3 lỗi trả `503 STATS_UNAVAILABLE`. `cacheHits=0` vì luồng hiện tại chưa có cache. M1 cần chuyển tên SSM/model qua root SAM (đã cập nhật local), M3 cần xác nhận prefix `typo-usage/` cùng quyền S3; chưa có xác minh Sandbox.
 
 ## Kiểm tra local
 
@@ -88,6 +106,6 @@ Suite dùng mocks, không cần AWS credentials hoặc provider key. Khi sửa i
 
 ## Việc tiếp theo và nghiệm thu
 
-Review SB-M5-01/02 trên code đã tích hợp; hoàn tất idempotency/replay/recovery/quota/telemetry theo acceptance. Gemini/stats chỉ bật sau MP3 MVP và có test/secret/quota riêng.
+Review SB-M5-01/02 trên code đã tích hợp; hoàn tất idempotency/replay/recovery/quota/telemetry theo acceptance. Gemini chỉ bật sau MP3 MVP và khi secret/quota/Sandbox được kiểm thực tế; stats cần xác minh hiệu năng trên bucket thật.
 
 Khi được giao thao tác lab, theo [hướng dẫn Azure](../../docs/AZURE-SPEECH.md); không tự chạy script chỉ vì có trong README. Bàn giao cần ghi commit/source, cấu hình không nhạy cảm, lệnh đã chạy, kết quả, phần chưa kiểm và dependency còn chờ. Lưu nội dung đó vào CHANGELOG của mình, giữ nguyên lịch sử thành viên khác. Dùng [khung báo cáo](../../docs/REPORT.md) khi tổng hợp đồ án.

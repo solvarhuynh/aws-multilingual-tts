@@ -51,8 +51,8 @@ Repository được tổ chức theo trách nhiệm của năm thành viên. Fro
 | Giao diện | Tiếng Việt, sáng/tối/theo hệ thống, giảm chuyển động và tăng tương phản; thiết kế kính trên web và app. |
 | Nghe thử không có backend | Dùng giọng có sẵn trên thiết bị. Chế độ này không tạo tệp MP3 trên AWS. |
 | Dịch tự động | Có giao diện; backend chưa bật chức năng dịch. |
-| Sửa lỗi đánh máy bằng Gemini | Endpoint hiện có cơ chế giữ nguyên văn bản khi chưa bật; tích hợp Gemini là phần sau MVP. |
-| Thống kê đầy đủ | Chưa bật mặc định; không dùng dữ liệu minh họa để xác nhận tính năng cloud đã hoàn thành. |
+| Sửa lỗi đánh máy bằng Gemini | M5 đã có code và test mock; mặc định tắt, chưa gọi Gemini thật hoặc deploy. |
+| Thống kê đầy đủ | M5 đã có code quét job S3 có giới hạn; chưa xác minh trên bucket Sandbox thật. |
 
 Code, kiểm thử local và demo trong một phiên là các mức bằng chứng khác nhau. Khả năng tạo mới toàn bộ stack, dựng lại sau reset và hoạt động trên thiết bị thật cần được kiểm riêng. Trạng thái và tiêu chí nghiệm thu của từng phần nằm trong README/CHANGELOG của thành viên.
 
@@ -144,7 +144,7 @@ Phiên bản cài đặt được khóa tại `package-lock.json` của từng f
 │   │   └── CHANGELOG.md
 │   └── m5-trung-nghia/
 │       ├── submit/                     # Validation và điều phối async
-│       ├── stats/                      # Thống kê, chưa bật mặc định
+│       ├── stats/                      # Thống kê từ S3, quét có giới hạn
 │       ├── infra/
 │       ├── tests/
 │       ├── README.md
@@ -256,8 +256,8 @@ Các đường dẫn được giữ thống nhất giữa web, app và router. R
 | GET | `/jobs/{id}` | Polling trạng thái, URL có hạn khi `DONE` | M3 |
 | GET | `/history` | Lịch sử với `limit`/`cursor` | M3 |
 | DELETE | `/history/{id}` | Xóa bản thu đã kết thúc; job bận trả `409` | M3 |
-| POST | `/text/correct` | Sửa lỗi đánh máy; hiện giữ nguyên khi chưa bật MR | M5 |
-| GET | `/stats` | Thống kê; mặc định chưa bật | M5 |
+| POST | `/text/correct` | Gemini đề xuất lỗi đánh máy khi bật, lỗi trả nguyên văn bản | M5 |
+| GET | `/stats` | Thống kê job trong S3; vượt giới hạn trả 503 | M5 |
 
 Trạng thái job: `PENDING → PROCESSING → DONE | FAILED`. Lỗi dùng cùng cấu trúc:
 
