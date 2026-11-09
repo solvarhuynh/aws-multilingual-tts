@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { createHash } from 'node:crypto';
-import { api, checkedJob, request, setDemoToken } from '../src/lib/api';
+import { api, checkedJob, configureSubmissionStore, request, setDemoToken } from '../src/lib/api';
 const original = globalThis.fetch;
+configureSubmissionStore({}, async () => {});
 after(() => { globalThis.fetch = original; });
 test('Gửi token và hash đúng của body', async () => {
   let headers: Record<string, string> = {};
@@ -48,4 +49,31 @@ test('Lỗi máy chủ và dữ liệu sai không trở thành thành công', as
   globalThis.fetch = async () => new Response(JSON.stringify({ languages: [null] }));
   await assert.rejects(api.voices(), /chưa hợp lệ/);
   assert.throws(() => checkedJob({ jobId: 'x', status: 'DONE', audioUrl: 'file:///secret' }), /chưa đúng/);
+});
+
+test('Replay sau mất kết nối và SUBMIT_UNCERTAIN dùng cùng key, khác phần dùng key riêng', async () => {
+  configureSubmissionStore({}, async () => {});
+  const keys: string[] = [];
+  let count = 0;
+  const input = { text: 'Idempotent content', lang: 'vi-VN', voice: 'Linh', speed: 1, translateTo: null };
+  globalThis.fetch = async (_, init) => {
+    keys.push((init!.headers as Record<string, string>)['Idempotency-Key']);
+    if (++count === 1) throw new TypeError('network');
+    if (count === 2) return new Response(JSON.stringify({ error: { code: 'SUBMIT_UNCERTAIN', message: 'Kiểm tra lịch sử' } }), { status: 503 });
+    return new Response(JSON.stringify({ jobId: 'same-job', status: 'PENDING', audioUrl: null }), { status: 202 });
+  };
+  await assert.rejects(api.synthesize(input, 'part-1'));
+  await assert.rejects(api.synthesize(input, 'part-1'));
+  assert.equal((await api.synthesize(input, 'part-1')).jobId, 'same-job');
+  assert.equal(keys[0], keys[1]); assert.equal(keys[1], keys[2]);
+  await api.synthesize(input, 'part-2'); assert.notEqual(keys[2], keys[3]);
+});
+
+test('Storage hỏng ngăn submit trước khi gửi mạng', async () => {
+  configureSubmissionStore({}, async () => { throw new Error('storage'); });
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return new Response('{}'); };
+  await assert.rejects(api.synthesize({ text: 'one', lang: 'vi-VN', voice: 'Linh', speed: 1, translateTo: null }), /storage/);
+  assert.equal(calls, 0);
+  configureSubmissionStore({}, async () => {});
 });

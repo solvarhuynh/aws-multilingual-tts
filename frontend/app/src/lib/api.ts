@@ -1,5 +1,12 @@
 import { MAX_CHARS, type Correction, type Input, type Job, type Language, type Recording, isRecording } from './model';
 import { sha256Hex } from './sha256';
+import { SubmissionLedger } from '../../../shared/submissions';
+const submissions = new SubmissionLedger();
+submissions.configure({}, async () => { throw new Error('Chưa đọc được mã yêu cầu đã lưu. Hãy mở lại ứng dụng trước khi tạo bản thu.'); });
+export const configureSubmissionStore = submissions.configure.bind(submissions);
+export class ApiError extends Error {
+  constructor(message: string, public code: string) { super(message); this.name = 'ApiError'; }
+}
 
 export const API_BASE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
 export const DEMO = !API_BASE;
@@ -7,7 +14,7 @@ let demoToken = '';
 export const setDemoToken = (token: string) => { demoToken = token.trim(); };
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  const timer = setTimeout(() => controller.abort(), 45000);
   try {
     const response = await fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal,
       headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
@@ -17,7 +24,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let body;
     try { body = await response.json(); }
     catch { throw new Error('Máy chủ trả về dữ liệu không hợp lệ.'); }
-    if (!response.ok) throw new Error(body?.error?.message || `Không hoàn tất được yêu cầu (${response.status}).`);
+    if (!response.ok) throw new ApiError(body?.error?.message || `Không hoàn tất được yêu cầu (${response.status}).`, body?.error?.code ?? 'INTERNAL');
     return body as T;
   } catch (error) {
     if (controller.signal.aborted) throw new Error('Kết nối quá lâu. Bạn hãy thử lại.');
@@ -44,8 +51,24 @@ export const api = {
       data.correctedText.length > MAX_CHARS || typeof data.hasTypos !== 'boolean') return null;
     return data.hasTypos && data.correctedText !== text ? data : null;
   },
-  async synthesize(input: Input) { return checkedJob(await request<Job>('/synthesize', { method: 'POST', body: JSON.stringify(input) })); },
-  async job(id: string) { return checkedJob(await request<Job>(`/jobs/${encodeURIComponent(id)}`)); },
+  async synthesize(input: Input, context = '') {
+    const digest = sha256Hex(JSON.stringify([API_BASE, demoToken, context, input]));
+    const key = await submissions.reserve(digest);
+    try {
+      const result = checkedJob(await request<Job>('/synthesize', { method: 'POST', body: JSON.stringify(input), headers: { 'Idempotency-Key': key } }));
+      await submissions.accepted(digest, result.jobId);
+      if (result.status === 'DONE' || result.status === 'FAILED') await submissions.finish(result.jobId);
+      return result;
+    } catch (error) {
+      if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'UNSUPPORTED_SPEED', 'FEATURE_NOT_ENABLED'].includes(error.code)) await submissions.reject(digest);
+      throw error;
+    }
+  },
+  async job(id: string) {
+    const job = checkedJob(await request<Job>(`/jobs/${encodeURIComponent(id)}`));
+    if (job.status === 'DONE' || job.status === 'FAILED') await submissions.finish(job.jobId);
+    return job;
+  },
   async history(cursor?: string) {
     const data = await request<{ items: Recording[]; nextCursor: string | null }>(`/history?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
     if (!Array.isArray(data?.items) || !data.items.every(isRecording) || !(data.nextCursor === null || typeof data.nextCursor === 'string'))

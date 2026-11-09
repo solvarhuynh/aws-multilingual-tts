@@ -2,10 +2,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { AccessibilityInfo, Appearance, AppState, useColorScheme } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { api, DEMO, setDemoToken } from '../lib/api';
+import { api, configureSubmissionStore, DEMO, setDemoToken } from '../lib/api';
 import { DEFAULT_SPEED, demoLanguages, isRecording, type Language, type Preferences, type Recording } from '../lib/model';
 
-const KEYS = { preferences: 'tts.app.preferences.v1', recordings: 'tts.app.recordings.v1', draft: 'tts.app.draft.v1' };
+const KEYS = { preferences: 'tts.app.preferences.v1', recordings: 'tts.app.recordings.v1', draft: 'tts.app.draft.v1', submissions: 'tts.app.submissions.v1' };
 const defaults: Preferences = { theme: 'system', reducedMotion: false, haptics: true, favorites: [], demoToken: '' };
 const light = {
   bg: '#F7F8FA', surface: '#FFFFFF', raised: '#EFF2F6', text: '#19232D', secondary: '#66717D',
@@ -56,7 +56,7 @@ function useStudioState() {
   useEffect(() => {
     mounted.current = true;
     let alive = true;
-    Promise.all([read(KEYS.preferences), read(KEYS.recordings), read(KEYS.draft)]).then(([p, items, text]) => {
+    Promise.all([read(KEYS.preferences), read(KEYS.recordings), read(KEYS.draft), read(KEYS.submissions)]).then(([p, items, text, pending]) => {
       if (!alive) return;
       if (p && typeof p === 'object') {
         const value = p as Partial<Preferences>;
@@ -70,6 +70,7 @@ function useStudioState() {
       }
       if (DEMO && Array.isArray(items)) { const valid = items.filter(isRecording); historyRef.current = valid; setHistory(valid); }
       if (typeof text === 'string') setDraft(text);
+      configureSubmissionStore(pending, async records => { await AsyncStorage.setItem(KEYS.submissions, JSON.stringify(records)); });
     }).catch(() => { if (alive) setNotice('Chưa đọc được dữ liệu lưu trên máy.'); })
       .finally(() => { if (alive) setReady(true); });
     AccessibilityInfo.isReduceMotionEnabled().then(v => { if (alive) setSystemReduce(v); }).catch(() => {});

@@ -1,12 +1,9 @@
 import { unzipSync, strFromU8 } from 'fflate';
-import { MAX_CHARS, number } from './model';
+import { checkedDocument, MAX_FILE_BYTES } from '../../../shared/documents';
+export { MAX_FILE_BYTES } from '../../../shared/documents';
 
-export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 export function checkedText(text: string) {
-  const result = text.replace(/\u0000/g, '').trim();
-  if (!result) throw new Error('Tài liệu không có văn bản đọc được. Nếu là bản scan, hãy dùng tài liệu có lớp chữ.');
-  if (result.length > MAX_CHARS) throw new Error(`Tài liệu vượt ${number(MAX_CHARS)} ký tự. Hãy chọn phần nội dung ngắn hơn.`);
-  return result;
+  return checkedDocument(text);
 }
 export function base64Bytes(text: string) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -29,8 +26,8 @@ function xmlText(xml: string) {
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
 }
 export function extractDocument(bytes: Uint8Array, name: string) {
-  if (bytes.length > MAX_FILE_BYTES) throw new Error('Tệp tối đa 10 MB.');
-  if (/\.txt$/i.test(name)) return checkedText(strFromU8(bytes).replace(/^\uFEFF/, ''));
+  if (bytes.length > MAX_FILE_BYTES) throw new Error('Tệp tối đa 20 MB.');
+  if (/\.(txt|md)$/i.test(name)) return checkedText(strFromU8(bytes).replace(/^\uFEFF/, ''));
   if (!/\.docx$/i.test(name)) throw new Error('Hãy chọn tệp PDF, DOCX hoặc TXT.');
   let xml: Uint8Array | undefined;
   try {
