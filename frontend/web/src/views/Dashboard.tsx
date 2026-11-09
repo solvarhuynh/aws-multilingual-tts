@@ -92,10 +92,10 @@ export default function Dashboard({
               icon: "translate",
             },
             {
-              id: "documents" as const,
-              title: "Đọc tài liệu",
-              description: "Nhập nội dung từ PDF, Word hoặc TXT",
-              icon: "book",
+              id: "voices" as const,
+              title: "Chọn giọng đọc",
+              description: "Nghe thử và chọn giọng phù hợp",
+              icon: "mic",
             },
           ].map((tool) => (
             <Button className="companion-tool" key={tool.id} onClick={() => navigate(tool.id)}>

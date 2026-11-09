@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { api, configureSubmissionStore, DEMO, setDemoToken } from '../lib/api';
 import { DEFAULT_SPEED, demoLanguages, isRecording, type Language, type Preferences, type Recording } from '../lib/model';
 
-const KEYS = { preferences: 'tts.app.preferences.v1', recordings: 'tts.app.recordings.v1', draft: 'tts.app.draft.v1', submissions: 'tts.app.submissions.v1' };
+const KEYS = { preferences: 'tts.app.preferences.v1', recordings: 'tts.app.recordings.v1', draft: 'tts.app.draft.v1', translationDraft: 'tts.app.draft.translation.v1', submissions: 'tts.app.submissions.v1' };
 const defaults: Preferences = { theme: 'system', reducedMotion: false, haptics: true, favorites: [], demoToken: '' };
 const light = {
   bg: '#F7F8FA', surface: '#FFFFFF', raised: '#EFF2F6', text: '#19232D', secondary: '#66717D',
@@ -30,7 +30,9 @@ function useStudioState() {
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<Recording[]>([]);
   const [languages, setLanguages] = useState<Language[]>(DEMO ? demoLanguages : []);
+  // Tạo giọng đọc và Dịch và đọc giữ bản nháp riêng; bản nháp cũ trước khi tách thuộc về Tạo giọng đọc.
   const [draft, setDraft] = useState('');
+  const [translationDraft, setTranslationDraft] = useState('');
   const [{ lang, voice }, setSelection] = useState({ lang: 'vi-VN', voice: 'Linh' });
   const [loadingVoices, setLoadingVoices] = useState(!DEMO);
   const [voiceError, setVoiceError] = useState('');
@@ -56,7 +58,7 @@ function useStudioState() {
   useEffect(() => {
     mounted.current = true;
     let alive = true;
-    Promise.all([read(KEYS.preferences), read(KEYS.recordings), read(KEYS.draft), read(KEYS.submissions)]).then(([p, items, text, pending]) => {
+    Promise.all([read(KEYS.preferences), read(KEYS.recordings), read(KEYS.draft), read(KEYS.translationDraft), read(KEYS.submissions)]).then(([p, items, text, translationText, pending]) => {
       if (!alive) return;
       if (p && typeof p === 'object') {
         const value = p as Partial<Preferences>;
@@ -70,6 +72,7 @@ function useStudioState() {
       }
       if (DEMO && Array.isArray(items)) { const valid = items.filter(isRecording); historyRef.current = valid; setHistory(valid); }
       if (typeof text === 'string') setDraft(text);
+      if (typeof translationText === 'string') setTranslationDraft(translationText);
       configureSubmissionStore(pending, async records => { await AsyncStorage.setItem(KEYS.submissions, JSON.stringify(records)); });
     }).catch(() => { if (alive) setNotice('Chưa đọc được dữ liệu lưu trên máy.'); })
       .finally(() => { if (alive) setReady(true); });
@@ -85,6 +88,11 @@ function useStudioState() {
     const timer = setTimeout(() => { void persist(KEYS.draft, draft); }, 400);
     return () => clearTimeout(timer);
   }, [ready, draft, persist]);
+  useEffect(() => {
+    if (!ready) return;
+    const timer = setTimeout(() => { void persist(KEYS.translationDraft, translationDraft); }, 400);
+    return () => clearTimeout(timer);
+  }, [ready, translationDraft, persist]);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(''), 6000);
@@ -146,7 +154,7 @@ function useStudioState() {
   const haptic = () => {
     if (preferences.haptics) void Haptics.selectionAsync().catch(() => {});
   };
-  return { colors, isDark, preferences, updatePreferences, reducedMotion, active, ready, history, languages, draft, setDraft,
+  return { colors, isDark, preferences, updatePreferences, reducedMotion, active, ready, history, languages, draft, setDraft, translationDraft, setTranslationDraft,
     lang, voice, speed, setSpeed, selectVoice, loadingVoices, voiceError, reloadVoices, saveRecording, removeRecording, refresh, refreshing, cursor,
     notice, setNotice, haptic };
 }

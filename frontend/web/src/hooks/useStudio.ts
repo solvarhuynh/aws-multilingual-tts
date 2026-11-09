@@ -4,23 +4,22 @@ import { extractDocument } from "../lib/document";
 import { DEFAULT_SPEED, readStored, samples, storeValue, validateInput } from "../lib/data";
 import type { HistoryItem, Job, Language, SynthesizeInput, TextCorrection } from "../lib/types";
 import { MAX_DOCUMENT_CHARS, checkedDocument, splitDocument } from '../../../shared/documents';
-import { translateDocument as translateParts, type TranslationDraft } from '../../../shared/translation';
 
 type Review = { input: SynthesizeInput; correction: TextCorrection; documentText: string; partIndex: number; partLimit?: number };
+type Notify = (message: string, error?: boolean) => void;
+type EditorOptions = { draftKey?: string; translateTo?: string | null };
+export type Session = ReturnType<typeof useSession>;
 
-export function useStudio(
-  notify: (message: string, error?: boolean) => void,
-  translateTo: string | null = null,
-  translationReview = false,
-) {
-  const [text, setText] = useState(() => {
-    const draft = readStored<unknown>("voxa.draft.v1", "");
-    return typeof draft === "string" ? draft.slice(0, MAX_DOCUMENT_CHARS) : "";
-  });
+// Mỗi trang soạn thảo giữ bản nháp riêng; bản nháp cũ trước khi tách thuộc về Tạo giọng đọc.
+export const DRAFT_KEYS = { speech: "voxa.draft.v1", translation: "voxa.draft.translation.v1" } as const;
+
+function preferredLanguage(languages: Language[]) {
+  return languages.find((l) => l.lang === "vi-VN" && l.voices.length) || languages.find((l) => l.voices.length);
+}
+
+/** Dữ liệu dùng chung mọi trang: danh sách giọng, lịch sử và bản thu đang mở. */
+export function useSession(notify: Notify) {
   const [languages, setLanguages] = useState<Language[]>([]);
-  const [lang, setLang] = useState("vi-VN");
-  const [voice, setVoice] = useState("");
-  const [speed, setSpeed] = useState(DEFAULT_SPEED);
   const [loadingVoices, setLoadingVoices] = useState(true);
   const [voiceError, setVoiceError] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -28,53 +27,17 @@ export function useStudio(
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [historyError, setHistoryError] = useState("");
   const [currentAudio, setCurrentAudio] = useState<HistoryItem | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [review, setReview] = useState<Review | null>(null);
-  const [translationDraft, setTranslationDraft] = useState<TranslationDraft | null>(null);
-  const [translating, setTranslating] = useState(false);
-  const [translationProgress, setTranslationProgress] = useState<{ done: number; total: number } | null>(null);
-  const translationLock = useRef(false);
-  const stopTranslation = useRef(false);
-  const reviewRef = useRef<Review | null>(null);
-  const revision = useRef(0);
-  const [readingFile, setReadingFile] = useState(false);
-  const [importProgress, setImportProgress] = useState('');
-  const importController = useRef<AbortController | null>(null);
-  const partLimit = languages.find(item => item.lang === (translateTo || lang))?.maxChars;
-  const parts = useMemo(() => splitDocument(text, partLimit), [text, partLimit]);
-  const [partIndex, setPartIndex] = useState(0);
-  const selectedPart = Math.min(partIndex, Math.max(0, parts.length - 1));
-  const [batch, setBatch] = useState<{ done: number; total: number } | null>(null);
-  const batchLock = useRef(false);
-  const stopBatch = useRef(false);
+  // Các phần đã tạo trong lượt đọc nhiều phần; xóa bản thu thì bỏ khỏi đây để tạo lại được.
   const completed = useRef(new Map<string, HistoryItem>());
-  const [fileName, setFileName] = useState("");
-  const [error, setError] = useState("");
-  const [job, setJob] = useState<Job | null>(null);
-  const [draftSaved, setDraftSaved] = useState(false);
   const mounted = useRef(true);
-  const submitLock = useRef(false);
-  const fileLock = useRef(false);
   const historyRequest = useRef(0);
   const voiceRequest = useRef(0);
   const recordingRequest = useRef(0);
-  const editorRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     mounted.current = true;
-    return () => {
-      mounted.current = false;
-      stopBatch.current = true;
-      stopTranslation.current = true;
-      importController.current?.abort();
-    };
+    return () => { mounted.current = false; };
   }, []);
-  useEffect(() => {
-    setDraftSaved(false);
-    const timer = window.setTimeout(() => setDraftSaved(storeValue("voxa.draft.v1", text)), 500);
-    return () => window.clearTimeout(timer);
-  }, [text]);
 
   const loadVoices = useCallback(async () => {
     const requestId = ++voiceRequest.current;
@@ -84,15 +47,7 @@ export function useStudio(
       const result = await api.voices();
       if (!mounted.current || requestId !== voiceRequest.current) return;
       setLanguages(result);
-      const initial =
-        result.find((l) => l.lang === "vi-VN" && l.voices.length) || result.find((l) => l.voices.length);
-      if (!initial) {
-        setVoiceError("Chưa có giọng đọc khả dụng.");
-        return;
-      }
-      setLang((previous) =>
-        result.some((l) => l.lang === previous && l.voices.length) ? previous : initial.lang,
-      );
+      if (!preferredLanguage(result)) setVoiceError("Chưa có giọng đọc khả dụng.");
     } catch (error) {
       if (mounted.current && requestId === voiceRequest.current) setVoiceError((error as Error).message);
     } finally {
@@ -124,6 +79,120 @@ export function useStudio(
     void loadVoices();
     void loadHistory();
   }, [loadVoices, loadHistory]);
+
+  const showRecording = useCallback((recording: HistoryItem) => {
+    setCurrentAudio(recording);
+    void loadHistory();
+  }, [loadHistory]);
+
+  async function openRecording(item: HistoryItem) {
+    const requestId = ++recordingRequest.current;
+    if (item.status === "FAILED") {
+      notify("Bản thu bị lỗi. Vui lòng tạo lại.", true);
+      return;
+    }
+    try {
+      const fresh = DEMO ? item : { ...item, ...(await api.job(item.jobId)) };
+      if (!mounted.current || requestId !== recordingRequest.current) return;
+      if (fresh.status !== "DONE") {
+        notify("Bản thu đang được xử lý. Vui lòng thử lại sau.");
+        void loadHistory();
+        return;
+      }
+      if (!DEMO && !fresh.audioUrl) throw new Error("Bản thu chưa có link nghe. Vui lòng thử lại.");
+      setCurrentAudio(fresh);
+      return fresh;
+    } catch (error) {
+      if (mounted.current && requestId === recordingRequest.current) notify((error as Error).message, true);
+    }
+  }
+
+  async function deleteRecording(item: HistoryItem) {
+    await api.remove(item.jobId);
+    for (const [key, value] of completed.current) if (value.jobId === item.jobId) completed.current.delete(key);
+    recordingRequest.current++;
+    historyRequest.current++;
+    setLoadingHistory(false);
+    setHistory((old) => old.filter((i) => i.jobId !== item.jobId));
+    setCurrentAudio((old) => (old?.jobId === item.jobId ? null : old));
+    notify("Đã xóa bản thu.");
+  }
+
+  return {
+    languages,
+    loadingVoices,
+    voiceError,
+    loadVoices,
+    history,
+    nextCursor,
+    loadingHistory,
+    historyError,
+    loadHistory,
+    currentAudio,
+    completed,
+    showRecording,
+    openRecording,
+    deleteRecording,
+  };
+}
+
+/** Một trang soạn thảo độc lập: nội dung, tài liệu đã nhập, giọng, dịch và bản nháp riêng. */
+export function useEditor(
+  session: Session,
+  notify: Notify,
+  { draftKey = DRAFT_KEYS.speech, translateTo = null }: EditorOptions = {},
+) {
+  const { languages, completed, showRecording } = session;
+  const [text, setText] = useState(() => {
+    const draft = readStored<unknown>(draftKey, "");
+    return typeof draft === "string" ? draft.slice(0, MAX_DOCUMENT_CHARS) : "";
+  });
+  const [lang, setLang] = useState("vi-VN");
+  const [voice, setVoice] = useState("");
+  const [speed, setSpeed] = useState(DEFAULT_SPEED);
+  const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [review, setReview] = useState<Review | null>(null);
+  const reviewRef = useRef<Review | null>(null);
+  const revision = useRef(0);
+  const [readingFile, setReadingFile] = useState(false);
+  const [importProgress, setImportProgress] = useState('');
+  const importController = useRef<AbortController | null>(null);
+  const partLimit = languages.find(item => item.lang === (translateTo || lang))?.maxChars;
+  const parts = useMemo(() => splitDocument(text, partLimit), [text, partLimit]);
+  const [partIndex, setPartIndex] = useState(0);
+  const selectedPart = Math.min(partIndex, Math.max(0, parts.length - 1));
+  const [batch, setBatch] = useState<{ done: number; total: number } | null>(null);
+  const batchLock = useRef(false);
+  const stopBatch = useRef(false);
+  const [fileName, setFileName] = useState("");
+  const [error, setError] = useState("");
+  const [job, setJob] = useState<Job | null>(null);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const mounted = useRef(true);
+  const submitLock = useRef(false);
+  const fileLock = useRef(false);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const completionKey = (index: number, input: SynthesizeInput) => JSON.stringify([draftKey, index, input]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      stopBatch.current = true;
+      importController.current?.abort();
+    };
+  }, []);
+  useEffect(() => {
+    setDraftSaved(false);
+    const timer = window.setTimeout(() => setDraftSaved(storeValue(draftKey, text)), 500);
+    return () => window.clearTimeout(timer);
+  }, [draftKey, text]);
+  useEffect(() => {
+    const initial = preferredLanguage(languages);
+    if (initial) setLang((previous) => (languages.some((l) => l.lang === previous && l.voices.length) ? previous : initial.lang));
+  }, [languages]);
+
   const language = languages.find((l) => l.lang === (translateTo || lang));
   useEffect(() => {
     setVoice((previous) =>
@@ -135,8 +204,6 @@ export function useStudio(
     revision.current++;
     cancelReview();
     setText(value);
-    setTranslationDraft(null);
-    setTranslationProgress(null);
     setError("");
   }
   function useSample() {
@@ -158,56 +225,10 @@ export function useStudio(
     const pending = reviewRef.current?.input;
     if (pending && (reviewRef.current?.documentText !== text || pending.lang !== lang || pending.voice !== voice ||
       pending.speed !== speed || pending.translateTo !== translateTo || reviewRef.current?.partLimit !== partLimit)) cancelReview();
-  }, [text, lang, voice, speed, translateTo, partLimit, translationReview]);
-
-  useEffect(() => {
-    setTranslationDraft(previous => previous &&
-      (previous.source !== text || previous.sourceLang !== lang || previous.targetLang !== translateTo) ? null : previous);
-    setTranslationProgress(null);
-  }, [text, lang, translateTo]);
-
-  async function translateDocument() {
-    if (!translateTo || translationLock.current || submitLock.current || fileLock.current || batchLock.current) return;
-    try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
-    if (lang === translateTo) { setError("Hãy chọn ngôn ngữ đích khác ngôn ngữ gốc."); return; }
-    const requestRevision = revision.current;
-    translationLock.current = true;
-    stopTranslation.current = false;
-    setTranslating(true);
-    setError("");
-    try {
-      let latest = translationDraft;
-      for await (const draft of translateParts(text, lang, translateTo, api.translate, translationDraft,
-        () => !mounted.current || requestRevision !== revision.current)) {
-        latest = draft;
-        setTranslationDraft(draft);
-        setTranslationProgress({ done: draft.translatedParts.length, total: draft.sourceParts.length });
-        if (stopTranslation.current) break;
-      }
-      if (mounted.current && requestRevision === revision.current && latest && latest.translatedParts.length === latest.sourceParts.length)
-        notify("Đã dịch xong. Xem lại bản dịch trước khi tạo giọng.");
-    } catch (reason) {
-      if (mounted.current && requestRevision === revision.current) setError((reason as Error).message);
-    } finally {
-      translationLock.current = false;
-      if (mounted.current) setTranslating(false);
-    }
-  }
-
-  function applyTranslation() {
-    if (!translationDraft || translationDraft.translatedParts.length !== translationDraft.sourceParts.length || translating) return false;
-    const translated = translationDraft.translatedParts.join("\n\n");
-    try { checkedDocument(translated); } catch (reason) { setError((reason as Error).message); return false; }
-    updateText(translated);
-    setLang(translationDraft.targetLang);
-    setPartIndex(0);
-    setTranslationDraft(null);
-    return true;
-  }
+  }, [text, lang, voice, speed, translateTo, partLimit]);
 
   async function generate() {
-    if (translateTo && translationReview) return translateDocument();
-    if (submitLock.current || fileLock.current || reviewRef.current || batchLock.current || translationLock.current) return;
+    if (submitLock.current || fileLock.current || reviewRef.current || batchLock.current) return;
     try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
     const part = parts[selectedPart] ?? '';
     const invalid = validateInput(part, speed);
@@ -291,11 +312,10 @@ export function useStudio(
         charCount: (result.translated ? result.text! : input.text).length,
         createdAt: new Date().toISOString(),
       };
-      setCurrentAudio(recording);
-      completed.current.set(JSON.stringify([index, input]), recording);
+      completed.current.set(completionKey(index, input), recording);
       if (completed.current.size > 200) completed.current.delete(completed.current.keys().next().value!);
+      showRecording(recording);
       notify("Bản thu đã sẵn sàng. Nhấn phát để nghe.");
-      void loadHistory();
       return true;
     } catch (error) {
       if (mounted.current) {
@@ -310,7 +330,7 @@ export function useStudio(
   }
 
   async function generateAll() {
-    if (batchLock.current || submitLock.current || fileLock.current || reviewRef.current || translationLock.current) return;
+    if (batchLock.current || submitLock.current || fileLock.current || reviewRef.current) return;
     try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
     if (translateTo && language?.translationEnabled === false) { setError("Chưa kết nối Azure Translator. Nhờ quản trị viên cấu hình dịch vụ dịch."); return; }
     if (translateTo === lang) { setError('Hãy chọn ngôn ngữ đích khác với ngôn ngữ gốc.'); return; }
@@ -318,12 +338,12 @@ export function useStudio(
     const inputs = parts.map((part, index) => ({ index, input: { text: part, lang, voice, speed, translateTo } })).filter(({ input }) => input.text.trim());
     if (inputs.some(({ input }) => validateInput(input.text, input.speed))) { setError('Thiết lập phần đọc không hợp lệ.'); return; }
     batchLock.current = true; stopBatch.current = false;
-    let done = inputs.filter(({ input, index }) => completed.current.has(JSON.stringify([index, input]))).length;
+    let done = inputs.filter(({ input, index }) => completed.current.has(completionKey(index, input))).length;
     setBatch({ done, total: inputs.length });
     try {
       for (const { index, input } of inputs) {
         if (!mounted.current || stopBatch.current) break;
-        if (completed.current.has(JSON.stringify([index, input]))) continue;
+        if (completed.current.has(completionKey(index, input))) continue;
         // Imported/OCR text stays visible for review; batches use that original text.
         if (!await runSynthesis(input, false, index)) break;
         setBatch({ done: ++done, total: inputs.length });
@@ -332,7 +352,7 @@ export function useStudio(
   }
 
   async function importFile(file?: File) {
-    if (!file || submitLock.current || fileLock.current || batchLock.current || translationLock.current) return;
+    if (!file || submitLock.current || fileLock.current || batchLock.current) return;
     fileLock.current = true;
     setReadingFile(true);
     setError("");
@@ -357,45 +377,11 @@ export function useStudio(
     }
   }
 
-  async function openRecording(item: HistoryItem) {
-    const requestId = ++recordingRequest.current;
-    if (item.status === "FAILED") {
-      notify("Bản thu bị lỗi. Vui lòng tạo lại.", true);
-      return;
-    }
-    try {
-      const fresh = DEMO ? item : { ...item, ...(await api.job(item.jobId)) };
-      if (!mounted.current || requestId !== recordingRequest.current) return;
-      if (fresh.status !== "DONE") {
-        notify("Bản thu đang được xử lý. Vui lòng thử lại sau.");
-        void loadHistory();
-        return;
-      }
-      if (!DEMO && !fresh.audioUrl) throw new Error("Bản thu chưa có link nghe. Vui lòng thử lại.");
-      setCurrentAudio(fresh);
-      return fresh;
-    } catch (error) {
-      if (mounted.current && requestId === recordingRequest.current) notify((error as Error).message, true);
-    }
-  }
-
-  async function deleteRecording(item: HistoryItem) {
-    await api.remove(item.jobId);
-    for (const [key, value] of completed.current) if (value.jobId === item.jobId) completed.current.delete(key);
-    recordingRequest.current++;
-    historyRequest.current++;
-    setLoadingHistory(false);
-    setHistory((old) => old.filter((i) => i.jobId !== item.jobId));
-    setCurrentAudio((old) => (old?.jobId === item.jobId ? null : old));
-    notify("Đã xóa bản thu.");
-  }
-
   return {
     text,
     updateText,
     useSample,
     editorRef,
-    languages,
     language,
     lang,
     setLang,
@@ -403,16 +389,7 @@ export function useStudio(
     chooseVoice,
     speed,
     setSpeed,
-    loadingVoices,
-    voiceError,
-    loadVoices,
-    history,
-    nextCursor,
-    loadingHistory,
-    historyError,
-    loadHistory,
-    currentAudio,
-    busy: busy || !!batch || translating,
+    busy: busy || !!batch,
     batch,
     generateAll,
     stopBatch: () => { stopBatch.current = true; },
@@ -432,14 +409,13 @@ export function useStudio(
     job,
     draftSaved,
     generate,
-    translateDocument,
-    translationDraft,
-    translationProgress,
-    translating,
-    stopTranslation: () => { stopTranslation.current = true; },
-    applyTranslation,
     importFile,
-    openRecording,
-    deleteRecording,
   };
+}
+
+/** Một phiên với một trang soạn thảo, dùng cho test và màn hình chỉ có một editor. */
+export function useStudio(notify: Notify, translateTo: string | null = null) {
+  const session = useSession(notify);
+  const editor = useEditor(session, notify, { translateTo });
+  return { ...session, ...editor };
 }

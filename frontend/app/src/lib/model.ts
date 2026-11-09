@@ -1,6 +1,6 @@
 import { MAX_PART_CHARS as MAX_CHARS } from "../../../shared/documents";
 export type ThemeMode = 'system' | 'light' | 'dark';
-export type EditorMode = 'speech' | 'translation' | 'document';
+export type EditorMode = 'speech' | 'translation';
 export interface Voice { id: string; gender: string; name?: string }
 export interface Language { lang: string; provider: string; engine: string | null; voices: Voice[]; maxChars?: number; translationEnabled?: boolean }
 export interface Input { text: string; lang: string; voice: string; speed: number; translateTo: string | null }

@@ -7,7 +7,6 @@ import { useStudio } from '../../state/Studio';
 const tools: { title: string; icon: IconName; mode: string; color: string }[] = [
   { title: 'Tạo giọng đọc', icon: 'wave', mode: 'speech', color: '#0072BC' },
   { title: 'Dịch và đọc', icon: 'translate', mode: 'translation', color: '#88709B' },
-  { title: 'Đọc tài liệu', icon: 'book', mode: 'document', color: '#458E88' },
 ];
 export default function Tools() {
   const { colors } = useStudio();

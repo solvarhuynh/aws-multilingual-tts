@@ -107,7 +107,7 @@ npm run dev
 
 Web cần Node ≥20.19. `npm run build` tạo dist; `npm run test:ui` chạy kiểm thử local. Upload từ CloudShell bằng `bash deployment/scripts/sandbox.sh web` ở gốc repo, script tự lấy domain/bucket từ Outputs; không cần quy trình ZIP hosting riêng.
 
-Vite đọc `VITE_API_BASE_URL` lúc khởi động dev server và lúc build. Đổi env cần mở lại dev server/build. Bảy API cũ được giữ nguyên; M5 bổ sung `/text/translate` cho Gemini tùy chọn. **Dịch và đọc** mặc định Azure Translator → Azure Speech; chế độ **Gemini · Xem lại trước khi đọc** chỉ gọi khi người dùng chọn và backend đã bật. Không fallback giữa hai dịch vụ. Cấu hình local chung cho web/app: [local README](../deployment/local/README.md#gemini-tùy-chọn-sau-khi-gộp-m5).
+Vite đọc `VITE_API_BASE_URL` lúc khởi động dev server và lúc build. Đổi env cần mở lại dev server/build. Bảy API cũ được giữ nguyên; M5 bổ sung `/text/translate` cho Gemini ở backend. **Dịch và đọc** trên web và app chỉ dùng Azure Translator → Azure Speech; lựa chọn Gemini đã gỡ khỏi giao diện ngày 10/11/2026. Cấu hình local chung cho web/app: [local README](../deployment/local/README.md#gemini-tùy-chọn-sau-khi-gộp-m5).
 
 ### App iOS/Android
 
@@ -142,7 +142,7 @@ PDF/DOCX/TXT/Markdown và ảnh đọc cục bộ; `npm ci` sinh bundle PDF/OCR 
 
 ### Nhập tài liệu, scan và tạo nhiều bản thu
 
-1. Mở **Đọc tài liệu**, chọn TXT/MD/DOCX/PDF hoặc ảnh JPG/PNG/WebP từ máy/thư viện ảnh. Tối đa **50 MiB** (UI ghi 50 MB), **200.000 ký tự UTF-16** và **50.000 từ tách bằng khoảng trắng**. PDF tối đa 200 trang; không quá 30 trang cần nhận dạng chữ/lần. Ảnh không quá 40 megapixel, được giảm kích thước trước OCR.
+1. Mở **Tạo giọng đọc** hoặc **Dịch và đọc**, bấm **Nhập tệp**, chọn TXT/MD/DOCX/PDF hoặc ảnh JPG/PNG/WebP từ máy/thư viện ảnh. Tối đa **50 MiB** (UI ghi 50 MB), **200.000 ký tự UTF-16** và **50.000 từ tách bằng khoảng trắng**. PDF tối đa 200 trang; không quá 30 trang cần nhận dạng chữ/lần. Ảnh không quá 40 megapixel, được giảm kích thước trước OCR.
 2. PDF có chữ dùng PDF.js; trang không có chữ và ảnh dùng Tesseract.js 7. Chọn ngôn ngữ trước khi nhập: vi → Việt+Anh, ja → Nhật+Anh, cmn/zh-CN → Trung giản thể+Anh, zh-TW/zh-HK → Trung phồn thể+Anh, ko → Hàn+Anh; các ngôn ngữ khác hiện dùng OCR Anh. Xem tiến độ hoặc **Hủy nhập** khi cần. Trang scan không nhận dạng ra chữ làm lần nhập thất bại rõ ràng để tránh thiếu trang âm thầm.
 3. Kiểm tra chữ trong trình soạn thảo, chọn phần cần đọc; mỗi phần tối đa 10.000 ký tự. **Tạo phần N** dùng luồng Gemini review hiện có khi được bật. **Tạo các phần còn lại** đọc tuần tự nội dung đã nhập, bỏ bước Gemini cho từng phần; mỗi phần có bản thu/MP3 riêng trong Lịch sử/Bản thu. Không ghép thành một MP3 dài.
 4. Có thể dừng sau phần hiện tại. Lỗi mạng, job FAILED hoặc hết quota dừng hàng đợi. Trong cùng phiên màn hình, bấm lại chỉ tạo phần chưa thành công. Sau reload/đóng màn hình, đối chiếu Lịch sử trước khi tạo lại cả tài liệu; danh sách phần đã xong chưa được lưu thành manifest tài liệu bền vững.

@@ -18,7 +18,7 @@ const icons = {
   download: ['arrow.down.to.line', 'download-outline'], share: ['square.and.arrow.up', 'share-outline'],
   trash: ['trash', 'trash-outline'], more: ['ellipsis', 'ellipsis-horizontal'], mic: ['mic.fill', 'mic'],
   sun: ['sun.max.fill', 'sunny'], moon: ['moon.fill', 'moon'], phone: ['iphone', 'phone-portrait-outline'],
-  help: ['questionmark.circle', 'help-circle-outline'], arrow: ['arrow.up.right', 'arrow-up-outline'],
+  help: ['questionmark.circle', 'help-circle-outline'], arrow: ['arrow.right', 'arrow-forward-outline'],
   previous: ['backward.end.fill', 'play-skip-back'], forward: ['forward.end.fill', 'play-skip-forward'],
   repeat: ['repeat', 'repeat'], clock: ['clock', 'time-outline'], copy: ['doc.on.doc', 'copy-outline'],
   megaphone: ['megaphone.fill', 'megaphone'], globe: ['globe', 'globe-outline'], stop: ['stop.fill', 'stop'],

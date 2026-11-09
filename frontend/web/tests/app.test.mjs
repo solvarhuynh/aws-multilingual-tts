@@ -25,13 +25,14 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
   }
   try {
     await act(async () => { env.root.render(React.createElement(App)); await settle(); });
-    await suite.test("tám màn hình render và giữ tên sản phẩm trên tab", async () => {
+    await suite.test("bảy màn hình render và giữ tên sản phẩm trên tab", async () => {
       for (const [route, title] of [["dashboard", "Tổng quan"], ["studio", "Tạo giọng đọc"], ["translation", "Dịch và đọc"],
-        ["documents", "Đọc tài liệu"], ["voices", "Chọn giọng đọc"], ["library", "Bản thu đã lưu"]]) {
+        ["voices", "Chọn giọng đọc"], ["library", "Bản thu đã lưu"]]) {
         await click(env.mount.querySelector(`.sidebar a[href="#${route}"]`));
         assert.equal(env.mount.querySelector("h1").textContent, title);
         assert.match(document.title, /TTS Studio/);
       }
+      assert.equal(env.mount.querySelector('.sidebar a[href="#documents"]'), null);
       await click(env.mount.querySelector('[aria-label="Cài đặt"]'));
       assert.equal(env.mount.querySelector("h1").textContent, "Cài đặt");
       await click(env.mount.querySelector('[aria-label="Hướng dẫn"]'));
@@ -106,31 +107,27 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       }
       await click(env.mount.querySelector('[aria-label="Hướng dẫn"]'));
     });
-    await suite.test("màn dịch cho chọn tài liệu, xem bản dịch và chỉ tạo giọng sau khi chọn", async () => {
+    await suite.test("màn dịch dùng Azure, có nhập tài liệu và không còn lựa chọn Gemini", async () => {
       await click(env.mount.querySelector('.sidebar a[href="#translation"]'));
       assert.ok(env.mount.querySelector('.document-drop'));
-      await click(env.mount.querySelector('#translation-mode'));
-      await click([...document.querySelectorAll('[role="option"]')].find(item => item.textContent.includes('Gemini')));
+      assert.equal(env.mount.querySelector('#translation-mode'), null);
+      assert.doesNotMatch(env.mount.textContent, /Gemini/);
       const originalTranslate = api.translate, originalSynthesize = api.synthesize;
-      const calls = [];
-      api.translate = async (...args) => { calls.push(args); return { sourceLang: args[1], targetLang: args[2], translatedText: 'Hello, this is a document.' }; };
-      api.synthesize = async () => { throw new Error('Không được tạo job khi chỉ dịch'); };
+      const submitted = [];
+      api.translate = async () => { throw new Error('Không được gọi Gemini'); };
+      api.synthesize = async (input) => { submitted.push(input); return { ...recording('azure'), translated: true, text: 'Hello.', sourceLang: 'vi-VN', lang: 'en-US' }; };
       try {
         const form = env.mount.querySelector('.composer');
         const editor = form.querySelector('textarea');
         await act(() => {
-          Object.getOwnPropertyDescriptor(env.win.HTMLTextAreaElement.prototype, 'value').set.call(editor, 'Xin chào, đây là tài liệu.');
+          Object.getOwnPropertyDescriptor(env.win.HTMLTextAreaElement.prototype, 'value').set.call(editor, 'Xin chào.');
           editor.dispatchEvent(new env.win.Event('input', { bubbles: true }));
         });
+        assert.match(form.querySelector('button[type="submit"]').textContent, /Dịch và tạo giọng đọc/);
         await click(form.querySelector('button[type="submit"]'));
-        assert.equal(calls.length, 1);
-        assert.equal(calls[0][1], 'vi-VN');
-        assert.equal(calls[0][2], 'en-US');
-        assert.equal(env.mount.querySelector('#translated-document').value, 'Hello, this is a document.');
-        const useTranslation = [...env.mount.querySelectorAll('.translation-result button')].find(button => button.textContent.includes('Dùng bản dịch'));
-        await click(useTranslation);
-        assert.equal(env.mount.querySelector('h1').textContent, 'Tạo giọng đọc');
-        assert.equal(env.mount.querySelector('.composer textarea').value, 'Hello, this is a document.');
+        assert.equal(submitted.length, 1);
+        assert.equal(submitted[0].translateTo, 'en-US');
+        assert.equal(submitted[0].text, 'Xin chào.');
       } finally { api.translate = originalTranslate; api.synthesize = originalSynthesize; }
     });
     await suite.test("sidebar thu gọn được và lưu lựa chọn", async () => {
@@ -164,15 +161,15 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       await click(env.mount.querySelector('.sidebar a[href="#library"]'));
       const search = env.mount.querySelector('.header-search input');
       await act(() => search.focus());
-      await type(search, "doc tai");
+      await type(search, "dich va");
       const options = env.mount.querySelectorAll('.header-search-menu [role="option"]');
       assert.equal(options.length, 1);
-      assert.match(options[0].textContent, /Đọc tài liệu/);
+      assert.match(options[0].textContent, /Dịch và đọc/);
       assert.equal(env.mount.querySelectorAll('.record-row').length, 1);
       assert.equal(env.mount.querySelector('.page-header kbd'), null);
       assert.equal(env.mount.querySelector('.page-header [aria-keyshortcuts]'), null);
       await click(options[0]);
-      assert.equal(env.mount.querySelector('h1').textContent, "Đọc tài liệu");
+      assert.equal(env.mount.querySelector('h1').textContent, "Dịch và đọc");
       assert.equal(env.mount.querySelector('.header-search-menu'), null);
       assert.equal(search.value, "");
     });

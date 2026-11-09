@@ -1,5 +1,5 @@
 export type Page =
-  "dashboard" | "studio" | "translation" | "documents" | "voices" | "library" | "settings" | "help";
+  "dashboard" | "studio" | "translation" | "voices" | "library" | "settings" | "help";
 export type JobStatus = "PENDING" | "PROCESSING" | "DONE" | "FAILED";
 export interface Voice {
   id: string;

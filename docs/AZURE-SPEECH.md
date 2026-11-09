@@ -767,7 +767,7 @@ Theo [giới hạn Speech](https://learn.microsoft.com/en-us/azure/ai-services/s
 
 ### 5. Nghiệm thu scan và tài liệu
 
-- **Đọc tài liệu** → nhập TXT/DOCX/PDF có chữ, ảnh JPG/PNG/WebP, PDF scan và PDF gồm cả trang chữ/trang ảnh. Kiểm đầu/giữa/cuối và số trang, sửa chữ OCR trước khi tạo giọng.
+- **Tạo giọng đọc** hoặc **Dịch và đọc** → **Nhập tệp**: TXT/DOCX/PDF có chữ, ảnh JPG/PNG/WebP, PDF scan và PDF gồm cả trang chữ/trang ảnh. Kiểm đầu/giữa/cuối và số trang, sửa chữ OCR trước khi tạo giọng.
 - **Chụp tài liệu**: điện thoại mở camera qua file picker nếu trình duyệt hỗ trợ; desktop chọn ảnh. Đặt đúng ngôn ngữ trước OCR. Web có model Việt/Anh/Nhật/Hàn/Trung giản thể/phồn thể; các ngôn ngữ khác hiện dùng OCR Anh, không tự tuyên bố nhận dạng tốt mọi script.
 - Giới hạn tệp: **50 × 1024 × 1024 byte**; nội dung sau nhập **200.000 đơn vị UTF-16, 50.000 từ**; PDF **200 trang, tối đa 30 trang scan**; ảnh tối đa 40 megapixel, được giảm kích thước trước OCR.
 - Thử tệp vượt 50 MB, PDF khóa mật khẩu, ảnh không có chữ và hủy khi OCR đang chạy. Phải báo rõ, không xóa bản nháp hoặc nhập thiếu trang như thành công. Kiểm lại trên điện thoại thật vì tốc độ và bộ nhớ khác máy tính.
