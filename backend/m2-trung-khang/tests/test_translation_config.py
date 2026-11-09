@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -26,7 +27,8 @@ class TranslationConfigTest(unittest.TestCase):
                 self.assertNotIn('private-test-key',state.read_text()+output.getvalue())
                 self.assertEqual(aws.call_args.kwargs['payload']['Value'],'private-test-key')
                 self.assertEqual(aws.call_args.kwargs['payload']['Type'],'SecureString')
-                self.assertEqual(state.stat().st_mode & 0o777,0o600)
+                if os.name != "nt":  # Windows không có quyền file kiểu POSIX.
+                    self.assertEqual(state.stat().st_mode & 0o777,0o600)
 
     def test_unconfigured_does_not_enable_feature(self):
         with tempfile.TemporaryDirectory() as folder, mock.patch.object(setup,'TRANSLATOR_STATE',Path(folder)/'missing'):
