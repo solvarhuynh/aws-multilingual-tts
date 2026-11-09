@@ -85,6 +85,8 @@ Azure `eastasia` và AWS `us-east-1` là hai vùng của hai nhà cung cấp kh�
 
 **Giới hạn ứng dụng hiện tại:** 2.000 ký tự/yêu cầu, tốc độ mặc định 0,9×, dải 0,7–1,2×; mặc định 6.000 ký tự/ngày cho scope demo dùng chung. Quota Azure tính riêng. Dịch tự động, Gemini sửa lỗi đánh máy và thống kê đầy đủ chưa được bật bởi việc chuyển Azure.
 
+Frontend đã có nhập tệp 20 MiB và chia tài liệu dài thành nhiều bản thu (code/test local). Giới hạn nhập không tự tăng quota server. Khi được giao chuẩn bị phiên demo tài liệu dài, dùng `python3 deployment/scripts/azure.py plan --daily-char-limit N`, thay `N` bằng số ký tự/ngày đã thống nhất với chủ resource/quota Azure; review changeset rồi mới `apply`. Không truyền flag thì CREATE giữ mặc định 6.000 và UPDATE giữ giá trị cũ. Đợt sửa này chưa chạy plan/apply thật.
+
 <a id="azure"></a>
 
 ## 3. Tạo Azure Speech Free F0

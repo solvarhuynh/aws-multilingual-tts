@@ -66,6 +66,10 @@ Default static behavior → S3 REST origin private; /synthesize, /text/*, /voice
 
 Lambda OAC cần AWS_IAM Function URL, SourceArn và hai invoke permissions theo [nguồn S1/S7](../backend/m1-minh-ly/reference/SANDBOX-PERMISSIONS.md). POST/PUT cần body SHA-256 header theo cấu hình origin. API dùng `X-Demo-Token` cho demo scope chung; CORS không phải xác thực. Quyền Function URL/OAC cần kiểm lại trong phiên lab.
 
+## Nhập tài liệu dài và OCR
+
+Nhập tệp/OCR là bước trước API, chạy cục bộ trên web/WebView bằng PDF.js/Tesseract.js. Ảnh hoặc trang PDF không có chữ được OCR theo ngôn ngữ người dùng chọn; tải core/gói ngôn ngữ cần mạng. Giới hạn 20 MiB, 200.000 ký tự UTF-16, 50.000 từ; PDF 200 trang và tối đa 30 trang OCR. Frontend chia tài liệu thành các phần tối đa 2.000 ký tự và gửi tuần tự qua luồng hiện tại; mỗi phần có job/MP3 riêng. Không thêm service AWS, API upload hay đường gọi Azure trực tiếp từ client. Chi tiết dùng/giới hạn ở [README frontend](../frontend/README.md#nhập-tài-liệu-scan-và-tạo-nhiều-bản-thu).
+
 ## Typo/language sau MVP
 
 Workflow đã thống nhất được giữ: bấm Chuyển giọng → POST /text/correct một lần → nếu có typo suggestion thì người dùng chọn → POST /synthesize đúng một lần. Không key/timeout/không chắc thì skipped original, không tạo job trong correct. Gemini ngoài AWS là MR, chỉ typo, không grammar/style.

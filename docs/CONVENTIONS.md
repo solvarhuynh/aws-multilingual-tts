@@ -27,7 +27,7 @@ Baseline chỉ có dịch vụ allowlisted và các capability có điều kiệ
 
 Router parse requestContext.http.method/rawPath/queryStringParameters/headers/body/isBase64Encoded. Giới hạn byte trước decode, kiểm base64/UTF-8/JSON, phân biệt 404 route và 405 method. Router xác lập internal context rồi chuyển nghiệp vụ; không tin userId, bucket, function ARN hoặc scope client gửi.
 
-**Hiện trạng demo:** backend dùng scope chung `demo` và kiểm `X-Demo-Token` khi `DEMO_TOKEN` được cấu hình. Web đang lưu token trong `localStorage`, app Expo lưu trong `AsyncStorage`; đây là cách dùng cho demo giới hạn, cần kiểm lại cách phát/thu hồi token trước khi mở công khai. Không thêm endpoint cấp token. Mọi người có token thấy cùng lịch sử mẫu; đây không phải xác thực/độc lập dữ liệu nhiều người dùng.
+**Hiện trạng demo:** backend dùng scope chung `demo` và yêu cầu `X-Demo-Token`. Nếu server thiếu `DEMO_TOKEN`, router trả `503 SERVICE_NOT_CONFIGURED`, không gọi Lambda nghiệp vụ; OPTIONS vẫn là preflight. Web đang lưu token trong `localStorage`, app Expo lưu trong `AsyncStorage`; đây là cách dùng cho demo giới hạn, cần kiểm lại cách phát/thu hồi token trước khi mở công khai. Không thêm endpoint cấp token. Mọi người có token thấy cùng lịch sử mẫu; đây không phải xác thực/độc lập dữ liệu nhiều người dùng.
 
 Cần một cơ chế bảo vệ token ở backend và API keys được trường cho phép. Cơ chế đã duyệt cho API key provider là SSM SecureString: đã thử đạt với LabRole và giảng viên đồng ý. Không gửi keys qua chat.
 
@@ -67,6 +67,14 @@ Root SAM đã nối Parameters/Outputs cho các Lambda. Tên parameter là cấu
 
 `JOBS_BUCKET`, `JOBS_PREFIX`, `AUDIO_BUCKET`, `SYNTH_FUNCTION_NAME`, `TTS_API_PARAMETER_NAME` và `DEMO_TOKEN` đã được nối trong stack hiện tại. Root truyền một `JobsPrefix` cho M3/M2/M5 và cho phép chỉnh `DailyCharLimit`, `StatsScanMaxJobs`, `TypoDailyCallLimit`. `GEMINI_*` đã có code/wiring local nhưng `GeminiTypoEnabled=false` mặc định; chưa gọi API thật hoặc deploy. `JOBS_TABLE`, `QUEUE_URL`, `EXTERNAL_TTS_SECRET_NAME`, `GEMINI_API_SECRET_NAME` và `SYNC_MAX_CHARS` còn trong config cũ để tương thích; không dùng làm bằng chứng DynamoDB/SQS đang chạy.
 
+### Giới hạn nhập tài liệu ở frontend
+
+Tệp tối đa 20 MiB, văn bản tối đa 200.000 đơn vị UTF-16 và 50.000 từ đếm theo khoảng trắng. Nhật/Trung không có khoảng trắng vẫn bị chặn bởi giới hạn ký tự. PDF tối đa 200 trang, không quá 30 trang cần OCR/lần nhập. Tesseract.js chạy trên browser/WebView, tải core/gói ngôn ngữ qua mạng; tệp gốc không tải lên backend để OCR. Lỗi đọc/OCR hoặc vượt cap không được trả nội dung thiếu như thành công.
+
+Frontend chia văn bản thành nhiều phần tối đa 2.000 đơn vị UTF-16, giữ đủ nội dung và không cắt cặp surrogate; mỗi phần dùng POST `/synthesize` riêng, tạo job/MP3 riêng. Không nới `MAX_CHARS` của worker hoặc gửi tệp 20 MiB qua router. Tạo hàng loạt dùng nội dung gốc đã hiển thị để người dùng duyệt, tuần tự từng phần; Gemini review chỉ trong thao tác tạo phần riêng. Hàng đợi dừng khi lỗi/quota. Thành công trong phiên màn hình được bỏ qua khi tiếp tục; chưa có manifest tài liệu bền vững sau reload.
+
+`DailyCharLimit` mặc định vẫn 6.000 ký tự/ngày cho scope demo, độc lập giới hạn tài liệu. Công cụ deploy có `plan --daily-char-limit N` để đưa quota đã thống nhất vào changeset; không tự apply hoặc tăng quota Azure. Các giới hạn này khác quota theo tháng/tốc độ của Azure.
+
 ## 4. API bảy route
 
 Mọi route auth như mục 2; OPTIONS là preflight. Response JSON và headers HTTP/CORS do adapter thống nhất.
@@ -77,7 +85,7 @@ Mọi route auth như mục 2; OPTIONS là preflight. Response JSON và headers 
 | POST /synthesize | M5 | text, lang, voice?, speed?, translateTo?; Idempotency-Key? | 202 job mới; 200 DONE replay có kết quả | 400/409/429/503 |
 | GET /voices | M2 | Không | 200 languages | 503 chưa có registry thật |
 | GET /jobs/{id} | M3 | ID path | 200 job/status/progress/audioUrl/error | 404 missing/expired |
-| GET /history | M3 | limit?, cursor? | 200 items/nextCursor | 400 cursor sai |
+| GET /history | M3 | limit?, cursor? | 200 items/nextCursor | 400 cursor sai; 503 quét không đủ |
 | DELETE /history/{id} | M3 | ID path | 200 deleted:true | 409 job đang chạy |
 | GET /stats | M5, MR | Không | 200 totalJobs/totalChars/byLang/cacheHits | 503 scan cap/S3 lỗi |
 
@@ -99,9 +107,9 @@ Tất cả job mới dùng async, kể cả câu ngắn. Khi Invoke Event accept
 
 Đây là HTTP 202, không chứng minh provider đã chạy. HTTP 200 DONE chỉ cho kết quả hoàn tất có sẵn/replay hoặc sync optimization được duyệt sau benchmark. Không giữ ngưỡng sync 2500 ký tự. Replay job chưa xong trả 202 với state hiện hữu; terminal FAILED replay trả 200 trạng thái FAILED, không tự tạo job/gọi provider lại. Response lỗi nghiệp vụ HTTP 4xx/5xx luôn dùng error shape chung. cached phản ánh audio được tái sử dụng, không mặc nhiên true chỉ vì replay. Cache cross-user chưa bật.
 
-`Idempotency-Key` đã có code và test local ở M5: client tạo ngẫu nhiên, giữ nguyên khi retry cùng input; cùng key khác input trả 409 IDEMPOTENCY_CONFLICT. Key được hash theo scope trước khi làm S3 object key; mapping chỉ chứa fingerprint, jobId và dispatchState. Claim `IfNoneMatch: *` diễn ra trước reserve quota/job; chỉ người thắng claim mới được Invoke Event. Replay sau `DISPATCHED` trả cùng jobId và trạng thái job, không reserve/Invoke thêm. Khi không có header, giữ luồng submit cũ và không bảo đảm deduplicate POST độc lập.
+`Idempotency-Key` đã có code và test local ở M5: client tạo ngẫu nhiên, giữ nguyên khi retry cùng input; cùng key khác input trả 409 IDEMPOTENCY_CONFLICT. Key được hash theo scope trước khi làm S3 object key; mapping chỉ chứa fingerprint, jobId và dispatchState. Claim `IfNoneMatch: *` diễn ra trước reserve quota/job; chỉ người thắng claim mới được Invoke Event. Replay sau `DISPATCHED` trả cùng jobId và trạng thái job, không reserve/Invoke thêm. Web/app lưu key chờ và hash payload/cấu hình trước khi gửi; phần khác nhau dùng context khác để không gộp hai phần có cùng chữ. Khi không có header vẫn nhận submit độc lập, không bảo đảm deduplicate.
 
-Sau reserve/job write hoặc Invoke mà không biết chắc kết quả, keyed request trả `503 SUBMIT_UNCERTAIN`, giữ mapping và quota đã reserve; replay không tự dispatch/refund để tránh gọi provider hoặc trừ/hoàn quota sai. Nếu worker đã tiến sang PROCESSING/DONE/FAILED thì replay có thể đọc trạng thái từ M3. Những mapping còn CLAIMED/RESERVED/JOB_CREATED/DISPATCHING cần người vận hành đối soát sau crash; S3 job creation và Lambda Event không có transaction chung. Code này chưa được xác minh trên Sandbox.
+Sau reserve/job write hoặc Invoke mà không biết chắc kết quả, keyed request trả `503 SUBMIT_UNCERTAIN`, giữ mapping và quota đã reserve; replay không tự dispatch/refund để tránh gọi provider hoặc trừ/hoàn quota sai. Luồng không key cũng giữ job/quota và trả SUBMIT_UNCERTAIN khi create-job hoặc Event response không chắc kết quả, không đánh FAILED hay refund bằng phỏng đoán; cần đối chiếu Lịch sử trước request độc lập mới. Nếu worker đã tiến sang PROCESSING/DONE/FAILED thì replay có key có thể đọc trạng thái từ M3. Những mapping còn CLAIMED/RESERVED/JOB_CREATED/DISPATCHING cần người vận hành đối soát sau crash; S3 job creation và Lambda Event không có transaction chung. Code này chưa được xác minh trên Sandbox.
 
 ### POST /text/correct — lịch sử quyết định được giữ
 
@@ -163,7 +171,9 @@ Giữ totalJobs/totalChars/byLang/cacheHits cho scope demo. Code M5 quét S3 JSO
 | 404 | NOT_FOUND | Route/job thiếu hoặc expired |
 | 405 | METHOD_NOT_ALLOWED | Method không khớp route |
 | 409 | IDEMPOTENCY_CONFLICT | Cùng key khác input |
-| 503 | SUBMIT_UNCERTAIN | Keyed submit có bước ghi/Invoke chưa xác định; không tự phát lại |
+| 503 | SUBMIT_UNCERTAIN | Submit có bước ghi/Invoke chưa xác định; không tự phát lại |
+| 503 | HISTORY_UNAVAILABLE | S3 listing còn trang sau cap; không trả lịch sử thiếu như đầy đủ |
+| 503 | SERVICE_NOT_CONFIGURED | Router thiếu DEMO_TOKEN; không gọi Lambda nghiệp vụ |
 | 409 | JOB_BUSY | Không xóa job đang chạy |
 | 429 | TOO_MANY_REQUESTS | Chạm giới hạn demo/cost guard |
 | 501 | FEATURE_NOT_ENABLED | Dành cho tính năng chưa bật trong các phiên bản cũ |

@@ -45,7 +45,8 @@ Repository được tổ chức theo trách nhiệm của năm thành viên. Fro
 |---|---|
 | Chuyển văn bản thành MP3 | Có backend async và giao diện web/app. Một stack/web hiện có đã được chuyển sang Azure và ghi nhận demo ngày 08/11/2026. |
 | Chọn ngôn ngữ, giọng và tốc độ | Lấy từ `/voices`; danh mục Azure được xác minh theo resource/vùng khi chạy `configure`. |
-| Đọc tài liệu | Frontend đọc PDF, DOCX và TXT cục bộ, đưa nội dung vào trình soạn thảo. |
+| Đọc tài liệu và OCR | PDF, DOCX, TXT, Markdown và ảnh JPG/PNG/WebP; tối đa 20 MB, 200.000 ký tự và 50.000 từ. OCR tại thiết bị cho ảnh/PDF scan, đã thử local trên Chrome. |
+| Tài liệu dài | Chia thành các bản thu tối đa 2.000 ký tự; chọn từng phần hoặc tạo tuần tự, dừng khi gặp lỗi/quota. Chưa kiểm chứng trên Sandbox/điện thoại thật. |
 | Phát và tải âm thanh | MP3 dùng URL có hạn; player web lấy thời gian từ tệp, hỗ trợ tạm dừng, tua, lặp lại và điều chỉnh âm lượng. |
 | Lịch sử bản thu | Có danh sách, phân trang, phát lại và xóa bản thu đã kết thúc. Dữ liệu hiện dùng chung cho scope demo. |
 | Giao diện | Tiếng Việt, sáng/tối/theo hệ thống, giảm chuyển động và tăng tương phản; thiết kế kính trên web và app. |
@@ -75,6 +76,8 @@ Nhóm trưởng phối hợp giảng viên chốt môi trường hoặc chấp t
 
 ```mermaid
 flowchart LR
+    DOC[Tài liệu / ảnh] --> IMPORT[Đọc chữ / OCR tại thiết bị]
+    IMPORT --> CLIENT
     CLIENT[Web / App] --> CF[CloudFront]
     CF --> WEB[S3 web]
     CF --> ROUTER[Lambda HTTP router · M1]
@@ -95,6 +98,8 @@ flowchart LR
 2. Router kiểm request, mã demo và chuyển tới submit. Submit tạo job `PENDING`, gọi worker bằng Lambda Event và trả HTTP `202`.
 3. Worker nhận job, chuyển `PROCESSING`, đọc key từ SSM SecureString, gọi Azure, lưu MP3 vào S3 và cập nhật `DONE` hoặc `FAILED`.
 4. Frontend polling `/jobs/{id}`. Khi hoàn tất, backend cấp URL đọc có hạn để phát hoặc tải; mở lại bản thu sẽ lấy URL mới.
+
+Tài liệu dài được chia ở frontend thành nhiều request theo API này; mỗi phần có job và MP3 riêng. Tệp gốc không tải lên AWS để OCR. Bộ nhận dạng cần mạng để tải mã lõi/dữ liệu ngôn ngữ; người dùng kiểm tra và sửa chữ trước khi tạo giọng. PDF tối đa 200 trang, trong đó không quá 30 trang cần OCR/lần nhập. Chọn **Tạo các phần còn lại · bản gốc** để tạo lần lượt; phần đã thành công được bỏ qua trong phiên màn hình hiện tại. Tải lại trang/mở lại màn hình cần đối chiếu Lịch sử trước khi chạy cả tài liệu lần nữa.
 
 S3 web, jobs và audio là ba bucket riêng. Metadata không lưu presigned URL. S3 conditional write/lease giúp kiểm soát cập nhật đồng thời, nhưng không tạo giao dịch nhiều object hoặc bảo đảm provider chỉ bị tính phí đúng một lần.
 
@@ -150,6 +155,7 @@ Phiên bản cài đặt được khóa tại `package-lock.json` của từng f
 │       ├── README.md
 │       └── CHANGELOG.md
 ├── frontend/                           # M4 — Nguyên Khang
+│   ├── shared/                         # Giới hạn, chia phần, OCR và mã submit dùng chung
 │   ├── web/                            # React/Vite: src, public, tests
 │   ├── app/                            # Expo: src, assets, scripts, tests
 │   ├── infra/hosting.yaml              # S3 web, CloudFront và OAC
@@ -360,7 +366,7 @@ Rà thêm `Location`, `CodeUri`, `ContentUri` sau khi di chuyển file. Giữ lo
 
 - `deployment/config/settings.json` là thông số chung không nhạy cảm; cấu hình runtime thực nằm trong template/Parameters/Outputs và biến môi trường Lambda.
 - Registry nguồn ở `backend/m2-trung-khang/config/`; bản trong `backend/m3-trung-duc/common/python/tts_common/` phục vụ đóng gói Layer. `configure` giữ hai bản Azure đồng bộ. Registry Azure trong Git ban đầu chưa có catalog thật.
-- Giới hạn hiện tại: 2.000 ký tự/job, tốc độ mặc định 0,9× trong dải 0,7–1,2×, 6.000 ký tự/ngày cho scope demo chung. Quota Azure được tính riêng; thay đổi giới hạn cần phối hợp M2/M5/M4.
+- Giới hạn hiện tại: nhập tệp tối đa 20 MB, 200.000 ký tự và 50.000 từ; mỗi job vẫn tối đa 2.000 ký tự, tốc độ mặc định 0,9× trong dải 0,7–1,2×. Quota server mặc định 6.000 ký tự/ngày cho scope demo chung, độc lập với giới hạn nhập tệp. Khi được giao triển khai tài liệu dài, dùng `deployment/scripts/azure.py plan --daily-char-limit N` với hạn mức đã thống nhất, review changeset rồi mới apply; quota Azure tính riêng. Xem [hướng dẫn frontend](frontend/README.md#nhập-tài-liệu-scan-và-tạo-nhiều-bản-thu).
 - Chỉ đưa API base công khai vào `VITE_*`/`EXPO_PUBLIC_*`. Key provider không nằm trong bundle, repository, log hoặc screenshot.
 - Token demo nhập lúc chạy; web hiện lưu localStorage, app dùng AsyncStorage. Đây là cơ chế demo giới hạn, không phải hệ thống tài khoản tách dữ liệu theo người. Xóa mã trên thiết bị mượn sau sử dụng.
 - Không commit AWS credentials, `.env*`, token, key, văn bản riêng tư hoặc presigned URL đầy đủ. Cache/dependency/build output được ignore; giấy phép, lockfile và tests phải được giữ.

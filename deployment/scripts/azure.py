@@ -212,7 +212,9 @@ def demo_token():
     return value
 
 
-def plan():
+def plan(daily_char_limit=None):
+    if daily_char_limit is not None and (type(daily_char_limit) is not int or daily_char_limit < 1):
+        raise ValueError("Hạn mức ký tự/ngày phải là số nguyên dương")
     state = read_state()
     registry = registry_matches(state)
     stack = current_stack()
@@ -228,6 +230,8 @@ def plan():
     aws("cloudformation", "package", "--template-file", str(ROOT / "deployment/template.yaml"),
         "--s3-bucket", bucket, "--output-template-file", str(packaged), parse_json=False)
     overrides = {"TtsProvider": "azure", "AzureSpeechRegion": state["region"], "TtsApiParameterName": PARAMETER}
+    if daily_char_limit is not None:
+        overrides["DailyCharLimit"] = str(daily_char_limit)
     # UsePreviousValue giữ DemoToken/CORS/Env hiện có, không đọc hay in token.
     parameters = ([{"ParameterKey": p["ParameterKey"], "UsePreviousValue": True}
                    for p in stack.get("Parameters", []) if p["ParameterKey"] not in overrides] if stack else
@@ -296,12 +300,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("action", choices=("configure", "plan", "apply", "status"))
     parser.add_argument("--region", default="eastasia", help="Vùng Azure; AWS luôn us-east-1")
+    parser.add_argument("--daily-char-limit", type=int, help="Chỉ dùng với plan; ghi đè quota TTS/ngày trong changeset, không tự apply")
     args = parser.parse_args()
+    if args.daily_char_limit is not None and args.action != "plan":
+        parser.error("--daily-char-limit chỉ dùng với plan")
     try:
         if args.action == "configure":
             configure(args.region)
+        elif args.action == "plan":
+            plan(args.daily_char_limit)
         else:
-            {"plan": plan, "apply": apply, "status": status}[args.action]()
+            {"apply": apply, "status": status}[args.action]()
     except urllib.error.HTTPError as error:
         print(f"FAIL Azure HTTP {error.code}; kiểm tra key/vùng/quyền.", file=sys.stderr)
         raise SystemExit(1)
