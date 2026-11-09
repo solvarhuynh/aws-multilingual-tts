@@ -24,19 +24,27 @@ Parameters:
     Type: String
   MaxChars:
     Type: Number
-    Default: 2000
+    Default: 10000
     MinValue: 1
   DefaultSpeed:
     Type: Number
     Default: 0.9
   DailyCharLimit:
     Type: Number
-    Default: 6000
+    Default: 30000
     MinValue: 1
   TtsProvider:
     Type: String
     Default: azure
     AllowedValues: [elevenlabs, azure]
+  TranslatorApiParameterName:
+    Type: String
+    Default: ''
+    Description: SSM SecureString name for Azure Translator; leave empty to disable translation
+  AzureTranslatorRegion:
+    Type: String
+    Default: global
+    AllowedPattern: '[a-z][a-z0-9]{1,39}'
   AzureSpeechRegion:
     Type: String
     Default: eastasia
@@ -117,6 +125,8 @@ Resources:
           DAILY_CHAR_LIMIT: !Ref DailyCharLimit
           TTS_PROVIDER: !Ref TtsProvider
           AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
+          TRANSLATOR_API_PARAMETER_NAME: !Ref TranslatorApiParameterName
+          AZURE_TRANSLATOR_REGION: !Ref AzureTranslatorRegion
           GEMINI_TYPO_ENABLED: !Ref GeminiTypoEnabled
           GEMINI_API_PARAMETER_NAME: !Ref GeminiApiParameterName
           GEMINI_MODEL: !Ref GeminiModel

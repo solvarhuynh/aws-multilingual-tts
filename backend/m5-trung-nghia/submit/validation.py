@@ -23,6 +23,7 @@ def validate_synthesize_request(
     supported_languages: Collection[str],
     verified_voices: Mapping[str, Collection[str]] | None = None,
     max_chars: int | None = None,
+    translation_enabled: bool = False,
     speed_range: tuple[float, float] | None = None,
 ) -> dict[str, object]:
     """Return validated public fields without changing the original text.
@@ -55,11 +56,21 @@ def validate_synthesize_request(
 
     validated: dict[str, object] = {"text": text, "lang": lang}
 
+    target = body.get("translateTo")
+    voice_lang = lang
+    if target is not None:
+        if not translation_enabled:
+            raise ValidationError("FEATURE_NOT_ENABLED", "Tính năng dịch chưa được bật.")
+        if not isinstance(target, str) or target not in supported_languages:
+            raise ValidationError("LANG_NOT_SUPPORTED", "Ngôn ngữ đích chưa được hỗ trợ.")
+        if target == lang:
+            raise ValidationError("INVALID_INPUT", "Hãy chọn ngôn ngữ đích khác ngôn ngữ gốc.")
+        voice_lang = target
     if "voice" in body:
         voice = body["voice"]
         if not isinstance(voice, str) or not voice.strip():
             raise ValidationError("INVALID_INPUT", "Giọng đọc không hợp lệ.")
-        if verified_voices is None or voice not in verified_voices.get(lang, ()):
+        if verified_voices is None or voice not in verified_voices.get(voice_lang, ()):
             raise ValidationError("LANG_NOT_SUPPORTED", "Giọng đọc chưa được xác minh cho ngôn ngữ này.")
         validated["voice"] = voice
 
@@ -82,8 +93,6 @@ def validate_synthesize_request(
         validated["speed"] = speed
 
     if "translateTo" in body:
-        if body["translateTo"] is not None:
-            raise ValidationError("FEATURE_NOT_ENABLED", "Tính năng dịch chưa được bật.")
-        validated["translateTo"] = None
+        validated["translateTo"] = target
 
     return validated

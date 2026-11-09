@@ -127,9 +127,9 @@ test("Nhập tài liệu: nội dung và giới hạn", async (suite) => {
     await suite.test("giữ tiếng Việt, bỏ BOM và khoảng trắng ngoài", async () => {
       assert.equal(await extractDocument(file("THONGBAO.TXT", "\uFEFF  Nội dung tiếng Việt.\nDòng hai.  ")), "Nội dung tiếng Việt.\nDòng hai.");
     });
-    await suite.test("từ chối loại không hỗ trợ và tệp vượt 20 MB", async () => {
+    await suite.test("từ chối loại không hỗ trợ và tệp vượt 50 MB", async () => {
       await assert.rejects(extractDocument(file("x.exe", "abc")), /Hỗ trợ/);
-      await assert.rejects(extractDocument(file("x.pdf", "", 21 * 1024 * 1024)), /20 MB/);
+      await assert.rejects(extractDocument(file("x.pdf", "", 51 * 1024 * 1024)), /50 MB/);
     });
     await suite.test("từ chối rỗng, dữ liệu nhị phân và quá giới hạn tài liệu", async () => {
       for (const [text, message] of [["   ", /không có chữ/], ["abc\0def", /không phải văn bản/], ["a".repeat(200001), /200\.000/], ['a '.repeat(50001), /50\.000/]])

@@ -7,6 +7,7 @@ trả skipped nguyên bản khi không khả dụng. Module sở hữu: M5.
 """
 
 import json
+import os
 
 import correction
 import translation
@@ -96,8 +97,6 @@ def _synthesize(event):
     """Kiểm tra đầu vào, tạo job rồi gửi cho worker."""
     body = _parse_body(event)
     text = _clean_text(body)
-    if body.get("translateTo") is not None:
-        raise InvalidRequest(400, "FEATURE_NOT_ENABLED", "Tính năng dịch chưa được bật.")
     try:
         request_key = idempotency.key_from_event(event)
     except ValueError:
@@ -113,20 +112,28 @@ def _synthesize(event):
         if replay is not None:
             return replay
     entry = _find_entry(body.get("lang"))
+    target = body.get("translateTo")
+    if target is not None:
+        entry = _find_entry(target)
+        if target == body["lang"]:
+            raise InvalidRequest(400, "INVALID_INPUT", "Hãy chọn ngôn ngữ đích khác ngôn ngữ gốc.")
+        if not os.environ.get("TRANSLATOR_API_PARAMETER_NAME"):
+            raise InvalidRequest(503, "TRANSLATION_NOT_CONFIGURED", "Chưa kết nối dịch vụ dịch. Nhờ quản trị viên cấu hình Azure Translator.")
     voice = _pick_voice(entry, body.get("voice"))
     speed = _pick_speed(entry, body.get("speed"))
 
     if request_key is not None:
         return idempotency.submit_first(
             user_id, request_key, request_fingerprint, text, body["lang"], voice, speed,
-            entry.get("provider"), entry.get("engine"), _dispatch,
+            entry.get("provider"), entry.get("engine"), _dispatch, translate_to=target,
         )
 
     if not db.reserve_chars(len(text)):
         return error_response(429, "TOO_MANY_REQUESTS", "Hôm nay đã dùng hết hạn mức, vui lòng thử lại vào ngày mai.")
     try:
         job = db.create_job(
-            user_id, text, body["lang"], voice, speed, provider=entry.get("provider"), engine=entry.get("engine")
+            user_id, text, body["lang"], voice, speed, translate_to=target,
+            provider=entry.get("provider"), engine=entry.get("engine")
         )
     except Exception as error:
         # S3 can persist the job before a connection error hides the response.

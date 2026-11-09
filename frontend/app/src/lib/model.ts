@@ -1,9 +1,11 @@
+import { MAX_PART_CHARS as MAX_CHARS } from "../../../shared/documents";
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type EditorMode = 'speech' | 'translation' | 'document';
 export interface Voice { id: string; gender: string; name?: string }
-export interface Language { lang: string; provider: string; engine: string | null; voices: Voice[] }
+export interface Language { lang: string; provider: string; engine: string | null; voices: Voice[]; maxChars?: number; translationEnabled?: boolean }
 export interface Input { text: string; lang: string; voice: string; speed: number; translateTo: string | null }
 export interface Job {
+  text?: string; lang?: string; translated?: boolean; sourceLang?: string | null;
   jobId: string;
   status: 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
   audioUrl: string | null;
@@ -16,7 +18,7 @@ export interface Recording extends Job {
 }
 export interface Correction { originalText: string; correctedText: string; hasTypos: boolean }
 export interface Preferences { theme: ThemeMode; reducedMotion: boolean; haptics: boolean; favorites: string[]; demoToken: string }
-export const MAX_CHARS = 2000;
+export { MAX_PART_CHARS as MAX_CHARS } from "../../../shared/documents";
 export const MIN_SPEED = 0.7;
 export const MAX_SPEED = 1.2;
 export const DEFAULT_SPEED = 0.9;

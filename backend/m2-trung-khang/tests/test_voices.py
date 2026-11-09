@@ -37,10 +37,10 @@ class VoicesTest(unittest.TestCase):
     def test_valid_registry_hides_internal_fields(self):
         response = self.call(json.dumps(VALID))
         self.assertEqual(response["statusCode"], 200)
-        self.assertEqual(json.loads(response["body"]), {"languages": [{
+        self.assertEqual(json.loads(response["body"])["languages"], [{
             "lang": "vi-VN", "provider": "elevenlabs", "engine": None,
             "voices": [{"id": "abc", "gender": "F", "name": "Linh"}],
-        }]})
+        }])
 
     def test_empty_registry_returns_503(self):
         response = self.call(json.dumps({"_note": "x", "vi-VN": {"provider": "pending", "voices": []}}))

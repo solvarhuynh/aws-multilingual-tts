@@ -32,6 +32,12 @@ def read_api_key() -> str:
     if _cached_key and _cached_name == name and time.monotonic() - _cached_at < 60:
         return _cached_key
 
+    key = read_parameter(name)
+    _cached_key, _cached_name, _cached_at = key.strip(), name, time.monotonic()
+    return _cached_key
+
+
+def read_parameter(name, service="TTS"):
     import boto3
     from botocore.exceptions import BotoCoreError, ClientError
 
@@ -39,15 +45,14 @@ def read_api_key() -> str:
         response = boto3.client("ssm").get_parameter(Name=name, WithDecryption=True)
     except ClientError as error:
         if error.response["Error"]["Code"] in {"ThrottlingException", "InternalServerError"}:
-            raise TransientProviderError("TTS_KEY_UNAVAILABLE", "Tạm thời chưa đọc được cấu hình giọng đọc.") from None
-        raise PermanentProviderError("TTS_NOT_CONFIGURED", "Dịch vụ giọng đọc chưa được cấu hình.") from None
+            raise TransientProviderError(f"{service}_KEY_UNAVAILABLE", "Tạm thời chưa đọc được cấu hình dịch vụ.") from None
+        raise PermanentProviderError(f"{service}_NOT_CONFIGURED", "Dịch vụ chưa được cấu hình.") from None
     except BotoCoreError:
-        raise TransientProviderError("TTS_KEY_UNAVAILABLE", "Tạm thời chưa đọc được cấu hình giọng đọc.") from None
+        raise TransientProviderError(f"{service}_KEY_UNAVAILABLE", "Tạm thời chưa đọc được cấu hình dịch vụ.") from None
     key = response.get("Parameter", {}).get("Value")
     if not isinstance(key, str) or not key.strip():
-        raise PermanentProviderError("TTS_NOT_CONFIGURED", "Dịch vụ giọng đọc chưa được cấu hình.")
-    _cached_key, _cached_name, _cached_at = key.strip(), name, time.monotonic()
-    return _cached_key
+        raise PermanentProviderError(f"{service}_NOT_CONFIGURED", "Dịch vụ chưa được cấu hình.")
+    return key.strip()
 
 
 def is_mp3(data: bytes) -> bool:

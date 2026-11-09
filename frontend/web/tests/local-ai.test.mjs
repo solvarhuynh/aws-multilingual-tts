@@ -5,10 +5,12 @@ import { environment } from "./environment.mjs";
 test("Chỉ bật bridge local khi cấu hình rõ; TTS và Stats vẫn ở mock mode", async () => {
   const env = await environment({ demo: true, localAi: "http://127.0.0.1:8765" });
   try {
-    const { api, DEMO } = await env.load("lib/api.ts");
+    const { api, DEMO, saveDemoToken } = await env.load("lib/api.ts");
+    saveDemoToken('only-for-main-api');
     const sent = [];
     globalThis.fetch = async (url, init) => {
       sent.push(url);
+      assert.equal(init.headers['X-Demo-Token'], undefined, 'Không gửi mã API chính sang bridge riêng');
       const body = JSON.parse(init.body);
       const data = url.endsWith("/text/correct")
         ? { status: "checked", language: body.lang, hasTypos: true, originalText: body.text,

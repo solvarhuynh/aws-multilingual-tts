@@ -18,6 +18,7 @@ import { api, DEMO } from '../lib/api';
 import { base64Bytes, checkedText, extractDocument, MAX_FILE_BYTES } from '../lib/document';
 import { DEFAULT_SPEED, duration, languageNames, MAX_CHARS, MAX_SPEED, MIN_SPEED, number, samples, time, validate, type Correction, type Input, type Recording } from '../lib/model';
 import { checkedDocument, MAX_DOCUMENT_CHARS, splitDocument, wordCount } from '../../../shared/documents';
+import { translateDocument as translateParts, type TranslationDraft } from '../../../shared/translation';
 
 export default function Compose() {
   const keyboard = useKeyboardState();
@@ -31,6 +32,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const { gutter, compact, usableHeight } = useLayout();
   const [sheet, setSheet] = useState<'voices' | 'settings' | 'source' | 'target' | null>(null);
   const [target, setTarget] = useState('en-US');
+  const [translationReview, setTranslationReview] = useState(false);
   const [targetVoice, setTargetVoice] = useState('Joanna');
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
@@ -40,19 +42,20 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const [pdfData, setPdfData] = useState<string | null>(null);
   const [fileKind, setFileKind] = useState('pdf');
   const [importStage, setImportStage] = useState('');
-  const parts = useMemo(() => splitDocument(draft), [draft]);
+  const partLimit = languages.find(item => item.lang === (mode === 'translation' ? target : lang))?.maxChars ?? MAX_CHARS;
+  const parts = useMemo(() => splitDocument(draft, partLimit), [draft, partLimit]);
   const [partIndex, setPartIndex] = useState(0);
   const selectedPart = Math.min(partIndex, Math.max(0, parts.length - 1));
   const [batchProgress, setBatchProgress] = useState('');
   const stopBatch = useRef(false);
   const completed = useRef(new Set<string>());
   const [review, setReview] = useState<Correction | null>(null);
-  const [translated, setTranslated] = useState<{ source: string; sourceLang: string; targetLang: string; parts: string[]; total: number } | null>(null);
+  const [translated, setTranslated] = useState<TranslationDraft | null>(null);
   const stopTranslation = useRef(false);
   const token = useRef(0);
   const locked = useRef(false);
   const submitting = useRef(false);
-  const pendingInput = useRef<Input | null>(null);
+  const pendingInput = useRef<{ input: Input; document: string; index: number; limit: number } | null>(null);
   const pdfTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const importName = useRef('');
   const importRevision = useRef(0);
@@ -76,7 +79,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
           charCount: input.text.length, createdAt: new Date().toISOString(), local: true };
       } else {
         let job = await api.synthesize(input, `part-${index}`);
-        const deadline = Date.now() + 5 * 60 * 1000;
+        const deadline = Date.now() + 20 * 60 * 1000;
         while (job.status === 'PENDING' || job.status === 'PROCESSING') {
           if (id !== token.current) return;
           setStage(job.progress ? `Đang đọc ${job.progress.done}/${job.progress.total} đoạn…` : 'Đang xử lý bản thu…');
@@ -86,7 +89,9 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
           job = await api.job(job.jobId);
         }
         if (job.status === 'FAILED') throw new Error(typeof job.error === 'string' ? job.error : job.error?.message || 'Chưa tạo được bản thu.');
-        record = { ...input, ...job, lang: input.translateTo ?? input.lang, charCount: input.text.length, createdAt: new Date().toISOString() };
+        if (input.translateTo && !job.translated) job = await api.job(job.jobId);
+        if (input.translateTo && (!job.translated || !job.text)) throw new Error('Chưa có bản dịch hợp lệ. Hãy kiểm tra lại trong Bản thu.');
+        record = { ...input, ...job, lang: input.translateTo ?? input.lang, text: job.translated && job.text ? job.text : input.text, charCount: (job.translated && job.text ? job.text : input.text).length, createdAt: new Date().toISOString() };
       }
       if (id !== token.current) return;
       await saveRecording(record);
@@ -99,10 +104,13 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   };
   const generate = async () => {
     if (locked.current || importLock.current) return;
-    if (mode === 'translation') { await translateDocument(); return; }
+    if (mode === 'translation' && translationReview) { await translateDocument(); return; }
+    if (mode === 'translation' && languages.find(item => item.lang === target)?.translationEnabled === false) {
+      setError('Chưa cấu hình Azure Translator.'); return;
+    }
     if (!availableVoice || loadingVoices) { setError('Hãy chờ tải xong và chọn một giọng đọc.'); return; }
     try { checkedDocument(draft); } catch (reason) { setError((reason as Error).message); return; }
-    const input: Input = { text: parts[selectedPart] ?? '', lang, voice, speed, translateTo: null };
+    const input: Input = { text: parts[selectedPart] ?? '', lang, voice: mode === 'translation' ? selectedTargetVoice : voice, speed, translateTo: mode === 'translation' ? target : null };
     const invalid = validate(input);
     if (invalid) { setError(invalid); return; }
     locked.current = true; setBusy(true); setError(''); Keyboard.dismiss(); stop();
@@ -112,7 +120,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       const correction = await api.correct(input.text, input.lang).catch(() => null);
       if (id !== token.current) return;
       if (draftRef.current !== draft) { finish(); return; }
-      if (correction) { pendingInput.current = input; setReview(correction); setStage(''); return; }
+      if (correction) { pendingInput.current = { input, document: draft, index: selectedPart, limit: partLimit }; setReview(correction); setStage(''); return; }
     }
     await submit(input, id);
   };
@@ -120,32 +128,24 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     if (locked.current || importLock.current) return;
     try { checkedDocument(draft); } catch (reason) { setError((reason as Error).message); return; }
     if (lang === target) { setError('Hãy chọn ngôn ngữ đích khác ngôn ngữ gốc.'); return; }
-    const sourceParts = splitDocument(draft);
-    const done = translated?.source === draft && translated.sourceLang === lang && translated.targetLang === target
-      ? [...translated.parts] : [];
     locked.current = true; stopTranslation.current = false; setBusy(true); setError(''); Keyboard.dismiss();
     const id = ++token.current;
     try {
-      for (let index = done.length; index < sourceParts.length; index++) {
-        if (stopTranslation.current || id !== token.current) break;
-        setStage(`Đang dịch phần ${index + 1}/${sourceParts.length}…`);
-        const offset = sourceParts.slice(0, index).reduce((count, part) => count + part.length, 0);
-        const part = sourceParts[index];
-        const text = part.trim()
-          ? (await api.translate(part, lang, target, draft.slice(Math.max(0, offset - 600), offset))).translatedText : part;
-        done.push(text);
-        if (done.join('\n\n').length > MAX_DOCUMENT_CHARS) throw new Error('Bản dịch vượt 200.000 ký tự. Hãy chia nhỏ tài liệu.');
-        if (id !== token.current) return;
-        setTranslated({ source: draft, sourceLang: lang, targetLang: target, parts: [...done], total: sourceParts.length });
+      let latest = translated;
+      for await (const result of translateParts(draft, lang, target, api.translate, translated,
+        () => id !== token.current || draftRef.current !== draft)) {
+        latest = result; setTranslated(result);
+        setStage(`Đã dịch ${result.translatedParts.length}/${result.sourceParts.length} phần`);
+        if (stopTranslation.current) break;
       }
-      if (id === token.current && done.length === sourceParts.length) setNotice('Đã dịch xong. Xem lại bản dịch trước khi tạo giọng.');
+      if (id === token.current && latest && latest.translatedParts.length === latest.sourceParts.length) setNotice('Đã dịch xong. Xem lại bản dịch trước khi tạo giọng.');
     } catch (reason) { if (id === token.current) setError(reason instanceof Error ? reason.message : 'Chưa dịch được tài liệu.'); }
     finally { if (id === token.current) finish(); }
   };
   const generateAll = async () => {
     if (locked.current || importLock.current || !availableVoice) return;
     try { checkedDocument(draft); } catch (reason) { setError((reason as Error).message); return; }
-    const inputs = parts.map((text, index) => ({ index, input: { text, lang, voice, speed, translateTo: null } })).filter(({ input }) => input.text.trim());
+    const inputs = parts.map((text, index) => ({ index, input: { text, lang, voice: mode === 'translation' ? selectedTargetVoice : voice, speed, translateTo: mode === 'translation' ? target : null } })).filter(({ input }) => input.text.trim());
     const invalid = inputs.map(({ input }) => validate(input)).find(Boolean);
     if (invalid) { setError(invalid); return; }
     locked.current = true; stopBatch.current = false; setBusy(true); setError(''); stop();
@@ -172,13 +172,13 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       if (id !== importRevision.current) return;
       if (result.canceled) { importLock.current = false; setImporting(false); return; }
       const asset = result.assets[0];
-      if ((asset.size ?? 0) > MAX_FILE_BYTES) throw new Error('Tệp tối đa 20 MB.');
+      if ((asset.size ?? 0) > MAX_FILE_BYTES) throw new Error('Tệp tối đa 50 MB.');
       const data = Platform.OS === 'web' ? await new Promise<string>((resolve, reject) => {
         const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = () => reject(new Error('Không mở được tệp.'));
         if (!asset.file) { reject(new Error('Chưa đọc được tệp. Hãy chọn lại.')); return; } reader.readAsDataURL(asset.file);
       }) : await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
       if (id !== importRevision.current) return;
-      if (data.length > Math.ceil(MAX_FILE_BYTES / 3) * 4) throw new Error('Tệp tối đa 20 MB.');
+      if (data.length > Math.ceil(MAX_FILE_BYTES / 3) * 4) throw new Error('Tệp tối đa 50 MB.');
       importName.current = asset.name;
       setPartIndex(0);
       if (/\.(pdf|jpg|jpeg|png|webp)$/i.test(asset.name)) {
@@ -200,24 +200,30 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     <KeyboardArea>
       <Header title={title} left={<Circle name="close" label="Đóng trang soạn thảo" disabled={busy} onPress={close} />} />
       <PageScroll contentContainerStyle={{ flexGrow: 1 }}>
-        {mode === 'translation' && <View style={styles.translation}>
+        {mode === 'translation' && <><View style={{ gap: 8 }}>
+          <Label size={13} muted>Cách dịch</Label>
+          <Action onPress={() => setTranslationReview(value => !value)} disabled={busy || importing}>
+            {translationReview ? 'Gemini · Xem lại trước khi đọc' : 'Azure · Dịch và đọc'}
+          </Action>
+          {translationReview && <Label size={12} muted>Cần quản trị viên bật Gemini.</Label>}
+        </View><View style={styles.translation}>
           <Pressable accessibilityRole="button" onPress={() => setSheet('source')} disabled={busy} style={[styles.language, { backgroundColor: colors.raised }]}><Label size={12} muted>Từ</Label><Label weight="600">{languageNames[lang]}</Label></Pressable>
           <Icon name="arrow" color={colors.secondary} />
           <Pressable accessibilityRole="button" onPress={() => setSheet('target')} disabled={busy} style={[styles.language, { backgroundColor: colors.raised }]}><Label size={12} muted>Sang</Label><Label weight="600">{languageNames[target]}</Label></Pressable>
-        </View>}
+        </View></>}
         <Pressable accessibilityRole="button" accessibilityLabel="Chọn giọng đọc" disabled={busy} onPress={() => setSheet('voices')}
           style={[styles.voicePill, { backgroundColor: colors.raised }]}><View style={[styles.voiceDot, { backgroundColor: colors.blueSoft }]}><Icon name="mic" color={colors.blue} size={18} /></View>
           <View style={{ flex: 1, minWidth: 0 }}><Label weight="500" size={16}>{loadingVoices ? 'Đang tải giọng đọc…' : (availableVoice?.name ?? availableVoice?.id) || 'Chọn giọng đọc'}</Label><Label size={12} muted>{languageNames[mode === 'translation' ? target : lang]}</Label></View>
           <Icon name="next" size={16} color={colors.secondary} /></Pressable>
         {(mode === 'document' || mode === 'translation') && <><Action icon="upload" disabled={busy || importing} onPress={() => void importFile()}>{importing ? importStage || 'Đang đọc tài liệu…' : documentName || 'Chọn PDF, Word, TXT hoặc ảnh scan'}</Action>
-          <Label size={12} muted>20 MB · 200.000 ký tự · 50.000 từ. Tối đa 30 trang scan/lần; kiểm tra lại chữ trước khi tạo giọng.</Label></>}
+          <Label size={12} muted>50 MB · 200.000 ký tự · 50.000 từ. Tối đa 30 trang scan/lần; kiểm tra lại chữ trước khi tạo giọng.</Label></>}
         {importing && <Action onPress={cancelImport}>Hủy nhập</Action>}
         {parts.length > 1 && <View style={{ gap: 10 }}>
           <Label>Phần {selectedPart + 1}/{parts.length} · {number(parts[selectedPart].length)} ký tự</Label>
           <View style={{ flexDirection: 'row', gap: 10 }}><Action disabled={busy || selectedPart === 0} onPress={() => setPartIndex(selectedPart - 1)}>Phần trước</Action>
             <Action disabled={busy || selectedPart >= parts.length - 1} onPress={() => setPartIndex(selectedPart + 1)}>Phần sau</Action></View>
           <Label muted size={12}>{parts[selectedPart].slice(0, 180)}…</Label>
-          {mode !== 'translation' && <Action disabled={busy || importing} onPress={() => void generateAll()}>Tạo các phần còn lại · bản gốc</Action>}
+          {!(mode === 'translation' && translationReview) && <Action disabled={busy || importing} onPress={() => void generateAll()}>Tạo các phần còn lại</Action>}
           <Label size={12} muted>Mỗi phần dùng hạn mức riêng. Tạo lần lượt và dừng khi máy chủ báo hết hạn mức.</Label>
           {!!batchProgress && <><Label>{batchProgress}</Label><Action onPress={() => { stopBatch.current = true; }}>Dừng sau phần hiện tại</Action></>}
         </View>}
@@ -227,17 +233,17 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
             minHeight: keyboard.visible ? 110 : Math.max(150, Math.min(260, usableHeight * 0.32)),
             maxHeight: keyboard.visible ? Math.max(120, Math.min(200, usableHeight - keyboard.height - 180)) : Math.max(160, usableHeight * 0.5) }]} selectionColor={colors.blue} />
         {mode === 'translation' && translated?.source === draft && translated.sourceLang === lang && translated.targetLang === target && <View style={{ gap: 8 }}>
-          <Label weight="600">Đã dịch {translated.parts.length}/{translated.total} phần</Label>
-          <TextInput accessibilityLabel="Bản dịch để xem lại" value={translated.parts.join('\n\n')} multiline editable={false}
+          <Label weight="600">Đã dịch {translated.translatedParts.length}/{translated.sourceParts.length} phần</Label>
+          <TextInput accessibilityLabel="Bản dịch để xem lại" value={translated.translatedParts.join('\n\n')} multiline editable={false}
             style={[styles.editor, { color: colors.text, minHeight: 150, maxHeight: 300 }]} />
-          {translated.parts.length === translated.total && <Action onPress={() => {
-            const result = translated.parts.join('\n\n');
+          {translated.translatedParts.length === translated.sourceParts.length && <Action onPress={() => {
+            const result = translated.translatedParts.join('\n\n');
             try { checkedDocument(result); } catch (reason) { setError((reason as Error).message); return; }
             setDraft(result); selectVoice(target, selectedTargetVoice); setTranslated(null);
             router.replace({ pathname: '/compose', params: { mode: 'speech' } });
           }}>Dùng bản dịch để tạo giọng</Action>}
         </View>}
-        <View style={styles.editorMeta}><Label size={12} muted>{number(draft.length)} ký tự · {number(wordCount(draft))} từ · {number(MAX_CHARS)}/phần</Label>
+        <View style={styles.editorMeta}><Label size={12} muted>{number(draft.length)} ký tự · {number(wordCount(draft))} từ · {number(partLimit)}/phần</Label>
           <Label size={12} muted>~ {time(duration(draft, speed))}</Label>
           <Pressable accessibilityRole="button" accessibilityLabel="Xóa nội dung" disabled={busy || !draft} onPress={() => setDraft('')} hitSlop={12}><Icon name="trash" color={colors.faint} size={17} /></Pressable></View>
         {!draft && <View style={{ gap: 14 }}><Pressable accessibilityRole="button" onPress={() => { void Clipboard.getStringAsync().then(text => { if (text) setDraft(text); else setNotice('Bộ nhớ tạm chưa có văn bản.'); }).catch(() => setNotice('Chưa đọc được bộ nhớ tạm.')); }}
@@ -252,7 +258,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
         {busy && <View style={styles.progress}><ActivityIndicator color={colors.blue} size="small" /><Label size={14} muted>{stage || 'Đang chờ bạn chọn nội dung…'}</Label></View>}
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}><Glass interactive style={{ borderRadius: 30 }}><Pressable accessibilityRole="button" accessibilityLabel="Cài đặt giọng đọc" disabled={busy}
           onPress={() => { Keyboard.dismiss(); setSheet('settings'); }} style={{ width: keyboard.visible ? 48 : 56, height: keyboard.visible ? 48 : 56, justifyContent: 'center', alignItems: 'center' }}><Icon name="settings" /></Pressable></Glass>
-          <Action primary style={{ flex: 1 }} disabled={busy || importing || (mode !== 'translation' && (loadingVoices || !availableVoice)) || !draft.trim()} icon="wave" onPress={() => void generate()}>{busy ? 'Đang xử lý…' : mode === 'translation' ? translated && translated.parts.length < translated.total ? 'Tiếp tục dịch' : 'Dịch tài liệu' : parts.length > 1 ? `Tạo phần ${selectedPart + 1}` : 'Tạo giọng đọc'}</Action>
+          <Action primary style={{ flex: 1 }} disabled={busy || importing || (!(mode === 'translation' && translationReview) && (loadingVoices || !availableVoice)) || !draft.trim()} icon="wave" onPress={() => void generate()}>{busy ? 'Đang xử lý…' : mode === 'translation' ? translationReview ? translated && translated.translatedParts.length < translated.sourceParts.length ? 'Tiếp tục dịch' : 'Dịch tài liệu' : 'Dịch và tạo giọng' : parts.length > 1 ? `Tạo phần ${selectedPart + 1}` : 'Tạo giọng đọc'}</Action>
         </View>
       </View>
     </KeyboardArea>
@@ -277,8 +283,14 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       <Label muted>Chọn nội dung để đọc.</Label>
       <Label weight="600">Bản gốc</Label><Label style={{ lineHeight: 24 }}>{review?.originalText}</Label>
       <Label weight="600">Bản đề xuất</Label><Label style={{ lineHeight: 24 }}>{review?.correctedText}</Label>
-      <Action primary onPress={() => { if (pendingInput.current && review) void submit({ ...pendingInput.current, text: review.correctedText }, token.current); }}>Dùng bản đề xuất</Action>
-      <Action onPress={() => { if (pendingInput.current) void submit(pendingInput.current, token.current); }}>Giữ bản gốc</Action>
+      <Action primary onPress={() => {
+        const pending = pendingInput.current;
+        if (!pending || !review || draftRef.current !== pending.document) return;
+        const parts = splitDocument(pending.document, pending.limit);
+        parts[pending.index] = review.correctedText; setDraft(parts.join(''));
+        void submit({ ...pending.input, text: review.correctedText }, token.current, false, pending.index);
+      }}>Dùng bản đề xuất</Action>
+      <Action onPress={() => { const pending = pendingInput.current; if (pending) void submit(pending.input, token.current, false, pending.index); }}>Giữ bản gốc</Action>
     </Sheet>
     {pdfData && <PdfReader base64={pdfData} kind={fileKind} lang={lang} onProgress={setImportStage} onResult={(text, reason) => {
       if (pdfRevision !== importRevision.current) return;

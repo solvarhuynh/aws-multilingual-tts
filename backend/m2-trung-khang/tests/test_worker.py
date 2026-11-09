@@ -218,6 +218,64 @@ class WorkerTest(unittest.TestCase):
         self.assertNotIn("BI MAT", self.output.getvalue())
 
 
+    def test_translation_is_checkpointed_and_uses_target_voice(self):
+        self.seed(translateTo='vi-VN', lang='en-US', text='Hello')
+        with mock.patch.object(app, 'translate', return_value='Xin chào') as translate:
+            self.assertEqual(self.run_worker()['status'], 'DONE')
+        translate.assert_called_once()
+        self.provider.synthesize.assert_called_once_with('Xin chào', 'v1', 1.0)
+        self.assertEqual(self.saved()['sourceLang'], 'en-US')
+        self.assertTrue(self.saved()['translated'])
+        self.assertEqual(self.saved()['text'], 'Xin chào')
+        self.assertNotIn('Hello', self.output.getvalue())
+
+    def test_transient_after_translation_reuses_saved_translation(self):
+        self.seed(translateTo='vi-VN', lang='en-US', text='Hello')
+        with mock.patch.object(app, 'translate', return_value='Xin chào') as translate:
+            with self.assertRaises(TransientProviderError):
+                self.run_worker(failing(TransientProviderError('BUSY','retry')))
+            self.assertEqual(self.run_worker()['status'], 'DONE')
+        self.assertEqual(translate.call_count, 1)
+        self.assertEqual(self.saved()['attempt'], 2)
+
+    def test_oversize_translation_is_not_truncated_or_synthesized(self):
+        self.seed(translateTo='vi-VN', lang='en-US')
+        with mock.patch.object(app, 'translate', return_value='x' * (config.MAX_CHARS + 1)):
+            self.assertEqual(self.run_worker()['status'], 'FAILED')
+        self.provider.synthesize.assert_not_called()
+
+    def test_long_job_reuses_parts_after_retry_and_cleans_up(self):
+        self.seed(text='a' * 10000)
+        frame = b'\xff\xf3\xa4\xc0' + bytes(284)
+        with mock.patch.object(config, 'CHUNK_SIZE', 1500):
+            first = mock.Mock(**{'synthesize.side_effect': [frame, TransientProviderError('BUSY','retry')]})
+            with self.assertRaises(TransientProviderError): self.run_worker(first)
+            self.assertEqual(self.saved()['chunksDone'], 1)
+            retry = mock.Mock(**{'synthesize.return_value': frame})
+            self.assertEqual(self.run_worker(retry)['status'], 'DONE')
+        self.assertEqual(retry.synthesize.call_count, 6)
+        self.assertEqual(self.saved()['chunksDone'], 7)
+        self.assertEqual(self.saved()['chunkCount'], 7)
+        self.assertEqual(self.s3.objects['audio', AUDIO_KEY][0], frame * 7)
+        self.assertFalse(any('/parts/' in key for bucket, key in self.s3.objects))
+
+    def test_delete_failed_long_job_removes_private_parts(self):
+        self.seed(text='a' * 4000)
+        frame = b'\xff\xf3\xa4\xc0' + bytes(284)
+        provider = mock.Mock(**{'synthesize.side_effect':[frame, PermanentProviderError('REJECTED','Không tạo được đoạn tiếp theo.')]})
+        self.assertEqual(self.run_worker(provider)['status'], 'FAILED')
+        self.assertTrue(any('/parts/' in key for bucket, key in self.s3.objects))
+        db.delete_job('demo', JOB_ID)
+        self.assertFalse(any('/parts/' in key for bucket, key in self.s3.objects))
+        self.assertNotIn(('jobs', JOB_KEY), self.s3.objects)
+
+    def test_splitting_preserves_unicode_and_all_whitespace(self):
+        text = ('Nội dung.  中文日本語 👋🏽\n' * 600)[:10000]
+        parts = list(app.split_text(text, 1500))
+        self.assertEqual(''.join(parts), text)
+        self.assertTrue(all(0 < len(part) <= 1500 for part in parts))
+
+
 class RegistryCopyTest(unittest.TestCase):
     def test_layer_copy_matches_config(self):
         self.assertEqual(

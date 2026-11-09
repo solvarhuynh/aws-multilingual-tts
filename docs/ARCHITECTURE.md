@@ -68,7 +68,7 @@ Lambda OAC cần AWS_IAM Function URL, SourceArn và hai invoke permissions theo
 
 ## Nhập tài liệu dài và OCR
 
-Nhập tệp/OCR là bước trước API, chạy cục bộ trên web/WebView bằng PDF.js/Tesseract.js. Ảnh hoặc trang PDF không có chữ được OCR theo ngôn ngữ người dùng chọn; tải core/gói ngôn ngữ cần mạng. Giới hạn 20 MiB, 200.000 ký tự UTF-16, 50.000 từ; PDF 200 trang và tối đa 30 trang OCR. Frontend chia tài liệu thành các phần tối đa 2.000 ký tự và gửi tuần tự qua luồng hiện tại; mỗi phần có job/MP3 riêng. Không thêm service AWS, API upload hay đường gọi Azure trực tiếp từ client. Chi tiết dùng/giới hạn ở [README frontend](../frontend/README.md#nhập-tài-liệu-scan-và-tạo-nhiều-bản-thu).
+Nhập tệp/OCR là bước trước API, chạy cục bộ trên web/WebView bằng PDF.js/Tesseract.js. Ảnh hoặc trang PDF không có chữ được OCR theo ngôn ngữ người dùng chọn; tải core/gói ngôn ngữ cần mạng. Giới hạn 50 MiB, 200.000 ký tự UTF-16, 50.000 từ; PDF 200 trang và tối đa 30 trang OCR. Frontend chia tài liệu thành các phần tối đa 10.000 ký tự và gửi tuần tự qua luồng hiện tại; mỗi phần có job/MP3 riêng. Không thêm service AWS, API upload hay đường gọi Azure trực tiếp từ client. Chi tiết dùng/giới hạn ở [README frontend](../frontend/README.md#nhập-tài-liệu-scan-và-tạo-nhiều-bản-thu).
 
 ## Typo/language sau MVP
 
@@ -93,3 +93,15 @@ Kiến trúc cũ có API Gateway/Polly/DynamoDB/SQS/Secrets Manager/Cognito/Comp
 Backend đã có code cho submit, worker, voices, history và router; stats và sửa lỗi đánh máy là MR chưa bật. `deployment/config/settings.json` và root SAM chọn Azure mặc định, `deployment/samconfig.toml` dùng `us-east-1`. Việc tạo mới stack, chạy E2E web/app và dựng lại sau lab reset cần bằng chứng riêng. Không lấy kết quả một phiên làm bằng chứng cho phiên khác.
 
 Phụ thuộc kỹ thuật: M3 giao schema/common/CAS cho M2 và M5; M2 giao worker, voice registry và MP3 cho M5/M4; M5 giao response 202 và event contract cho M1/M4; M1 giao route/URL cho M4. M2 sở hữu một `EventInvokeConfig` của worker, M5 chốt policy nghiệp vụ. Nguồn chuẩn: [API/data](CONVENTIONS.md), [ma trận Sandbox](../backend/m1-minh-ly/reference/SANDBOX-PERMISSIONS.md), [runbook xác minh](../backend/m1-minh-ly/reference/SANDBOX-VALIDATION.md).
+
+### Dịch và MP3 dài
+
+Khi người dùng chọn Dịch và đọc, submit M5 vẫn chỉ validate/tạo job/dispatch. M2 dịch bằng Azure Translator với key riêng trong SSM, checkpoint bản dịch vào job bằng CAS rồi dùng giọng đích từ registry để tạo MP3. Không thêm route hoặc dịch vụ AWS ngoài baseline. Thiếu cấu hình trả lỗi rõ, không phát nguyên bản như bản dịch.
+
+Mỗi request tối đa 10.000 ký tự; worker chia nội bộ tối đa 1.500 ký tự/lần provider để tránh audio bị cắt ở giới hạn thời gian của dịch vụ. Các phần MPEG Layer III cùng định dạng được ghép, cập nhật Xing/Info duration/seek. Retry dùng lại phần private đã lưu trong audio bucket. Ảnh/PDF gốc chỉ xử lý trên thiết bị; chỉ text được gửi đến backend/provider khi người dùng tạo giọng.
+
+Web đóng gói worker/WASM và sáu model OCR Việt/Anh/Nhật/Hàn/Trung giản thể/phồn thể bằng npm prepare/build, phục vụ từ CloudFront cùng website. Không tải các model này khi mở trang thông thường. Nguồn chuẩn và cách nghiệm thu: [hướng dẫn Azure](AZURE-SPEECH.md#dịch-và-đọc--azure-translator).
+
+### Runtime local bằng env
+
+Trước Sandbox, web `/api` qua Vite → Python local → router/submit/worker/history hiện có. Moto thay S3/SSM trong RAM; key từ env backend được đưa vào SSM mô phỏng, không tạo tài nguyên AWS. Catalog Azure chỉ tải khi người vận hành chạy `server.py voices`; giọng/dịch thật chỉ gọi khi người dùng yêu cầu. Media local có link ký + Range, không giả presigned URL AWS. Dữ liệu runtime mất khi tắt; đây không phải bằng chứng IAM/OAC/Lambda trên Sandbox. Xem [hướng dẫn local](../deployment/local/README.md).

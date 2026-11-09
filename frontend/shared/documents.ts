@@ -1,8 +1,8 @@
 // File size, imported text and a provider request are separate limits.
-export const MAX_FILE_BYTES = 20 * 1024 * 1024;
+export const MAX_FILE_BYTES = 50 * 1024 * 1024;
 export const MAX_DOCUMENT_CHARS = 200_000;
 export const MAX_DOCUMENT_WORDS = 50_000;
-export const MAX_PART_CHARS = 2_000;
+export const MAX_PART_CHARS = 10_000;
 export const MAX_DOCUMENT_PAGES = 200;
 export const MAX_OCR_PAGES = 30;
 
@@ -43,8 +43,9 @@ export function splitDocument(text: string, limit = MAX_PART_CHARS): string[] {
 
 export function ocrLanguage(lang: string): string {
   if (lang.startsWith('vi')) return 'vie+eng';
+  if (lang.startsWith('ko')) return 'kor+eng';
   if (lang.startsWith('ja')) return 'jpn+eng';
   if (lang.startsWith('zh-TW') || lang.startsWith('zh-HK')) return 'chi_tra+eng';
-  if (lang.startsWith('zh')) return 'chi_sim+eng';
+  if (lang.startsWith('zh') || lang.startsWith('cmn')) return 'chi_sim+eng';
   return 'eng';
 }

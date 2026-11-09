@@ -110,8 +110,11 @@ _opener = urllib.request.build_opener(_NoRedirect)
 
 
 def _interaction(prompt, cfg, key, schema, max_output_tokens=2048):
+    generation = {"max_output_tokens": max_output_tokens}
+    if cfg["model"].startswith("gemini-3."):
+        generation["thinking_level"] = "low"
     payload = {"model": cfg["model"], "input": prompt, "store": False,
-               "generation_config": {"max_output_tokens": max_output_tokens, "temperature": 0},
+               "generation_config": generation,
                "response_format": {"type": "text", "mime_type": "application/json", "schema": schema}}
     request = urllib.request.Request(API_URL, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
                                      headers={"Content-Type": "application/json", "x-goog-api-key": key}, method="POST")

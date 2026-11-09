@@ -61,8 +61,8 @@ Root SAM đã nối Parameters/Outputs cho các Lambda. Tên parameter là cấu
 | TYPO_MAX_CHANGES | Tối đa 5 thay đổi/lần theo cấu hình M5 | Submit M5 |
 | TYPO_DAILY_CALL_LIMIT | Tối đa 100 lần gọi Gemini/ngày, counter S3 riêng `typo-usage/` | Submit M5 |
 | STATS_SCAN_MAX_JOBS | Mặc định 200 object job/scope/lần; vượt cap trả 503 | Stats M5 |
-| MAX_CHARS | 2000, đề xuất từ đo thật: 2.000 ký tự chạy 6,8 giây, tốn khoảng 1.000 credit; chờ nhóm duyệt | Submit |
-| CHUNK_SIZE | Chỉ chốt nếu provider cần chia đoạn và M2 có ghép MP3 hợp lệ | Worker |
+| MAX_CHARS | 10000; root `MaxChars` truyền cùng giá trị cho submit/worker/catalog; frontend không vượt giới hạn server | M2/M5 |
+| CHUNK_SIZE | 1500 ký tự/đoạn; checkpoint + MP3 cùng định dạng, cập nhật duration/seek metadata | Worker |
 | PRESIGN_TTL_SECONDS | TTL ngắn do M3/M1 chốt, không quá credential/session còn lại | Common |
 | JOB_TTL_DAYS | App expiry + lifecycle sau review, không bảo đảm qua reset | Common |
 | VITE_API_BASE_URL | URL HTTP/CloudFront công khai, M4 | Web |
@@ -72,11 +72,11 @@ Root SAM đã nối Parameters/Outputs cho các Lambda. Tên parameter là cấu
 
 ### Giới hạn nhập tài liệu ở frontend
 
-Tệp tối đa 20 MiB, văn bản tối đa 200.000 đơn vị UTF-16 và 50.000 từ đếm theo khoảng trắng. Nhật/Trung không có khoảng trắng vẫn bị chặn bởi giới hạn ký tự. PDF tối đa 200 trang, không quá 30 trang cần OCR/lần nhập. Tesseract.js chạy trên browser/WebView, tải core/gói ngôn ngữ qua mạng; tệp gốc không tải lên backend để OCR. Lỗi đọc/OCR hoặc vượt cap không được trả nội dung thiếu như thành công.
+Tệp tối đa 50 MiB, văn bản tối đa 200.000 đơn vị UTF-16 và 50.000 từ đếm theo khoảng trắng. Nhật/Trung không có khoảng trắng vẫn bị chặn bởi giới hạn ký tự. PDF tối đa 200 trang, không quá 30 trang cần OCR/lần nhập. Tesseract.js chạy trên browser/WebView; web tự phục vụ worker/WASM/model từ `/ocr/`, app hiện tải gói ngôn ngữ qua mạng; tệp gốc không tải lên backend để OCR. Lỗi đọc/OCR hoặc vượt cap không được trả nội dung thiếu như thành công.
 
-Frontend chia văn bản thành nhiều phần tối đa 2.000 đơn vị UTF-16, giữ đủ nội dung và không cắt cặp surrogate; mỗi phần dùng POST `/synthesize` riêng, tạo job/MP3 riêng. Không nới `MAX_CHARS` của worker hoặc gửi tệp 20 MiB qua router. Tạo hàng loạt dùng nội dung gốc đã hiển thị để người dùng duyệt, tuần tự từng phần; Gemini review chỉ trong thao tác tạo phần riêng. Hàng đợi dừng khi lỗi/quota. Thành công trong phiên màn hình được bỏ qua khi tiếp tục; chưa có manifest tài liệu bền vững sau reload.
+Frontend chia văn bản thành nhiều phần tối đa 10.000 đơn vị UTF-16, giữ đủ nội dung và không cắt cặp surrogate; mỗi phần dùng POST `/synthesize` riêng, tạo job/MP3 riêng. Backend nhận tối đa 10.000 ký tự Unicode/request; không gửi tệp 50 MiB qua router. Worker chia nội bộ thành đoạn 1.500 ký tự và ghép thành một MP3 cho mỗi job; file trung gian private dùng lại khi retry và được xóa khi thành công/xóa bản thu. Tạo hàng loạt dùng nội dung gốc đã hiển thị để người dùng duyệt, tuần tự từng phần; Gemini review chỉ trong thao tác tạo phần riêng. Hàng đợi dừng khi lỗi/quota. Thành công trong phiên màn hình được bỏ qua khi tiếp tục; chưa có manifest tài liệu bền vững sau reload.
 
-`DailyCharLimit` mặc định vẫn 6.000 ký tự/ngày cho scope demo, độc lập giới hạn tài liệu. Công cụ deploy có `plan --daily-char-limit N` để đưa quota đã thống nhất vào changeset; không tự apply hoặc tăng quota Azure. Các giới hạn này khác quota theo tháng/tốc độ của Azure.
+`DailyCharLimit` mặc định 30.000 ký tự/ngày cho scope demo, độc lập giới hạn tài liệu. Công cụ deploy có `plan --daily-char-limit N` để đưa quota đã thống nhất vào changeset; không tự apply hoặc tăng quota Azure. Các giới hạn này khác quota theo tháng/tốc độ của Azure.
 
 ## 4. API tám route
 
@@ -95,7 +95,7 @@ Mọi route auth như mục 2; OPTIONS là preflight. Response JSON và headers 
 
 ### POST /synthesize
 
-text không rỗng; chọn lang rõ trong registry, auto/thiếu lang trả LANG_REQUIRED để người dùng chọn. voice mặc định chỉ lấy từ registry Azure đã cấu hình. Cấu hình hiện tại đặt speed mặc định 0.9, dải 0.7–1.2; M2/M4 cần xác nhận dải này với Azure trong đúng tài khoản/voice đang dùng. Giá trị không hỗ trợ trả UNSUPPORTED_SPEED, không bỏ qua ngầm. translateTo khác null trả FEATURE_NOT_ENABLED; không dịch ngầm.
+text không rỗng; chọn lang rõ trong registry, auto/thiếu lang trả LANG_REQUIRED để người dùng chọn. voice mặc định chỉ lấy từ registry Azure đã cấu hình. Cấu hình hiện tại đặt speed mặc định 0.9, dải 0.7–1.2; M2/M4 cần xác nhận dải này với Azure trong đúng tài khoản/voice đang dùng. Giá trị không hỗ trợ trả UNSUPPORTED_SPEED, không bỏ qua ngầm. `translateTo` khác null phải là mã đích khác `lang`, có trong registry; `voice` thuộc ngôn ngữ đích. Submit kiểm cấu hình Translator trước khi reserve quota. Thiếu cấu hình trả 503 `TRANSLATION_NOT_CONFIGURED`; không dịch ngầm. Worker gọi Azure Translator rồi checkpoint bản dịch trước khi tổng hợp bằng Azure Speech. Bản dịch vượt MAX_CHARS trả FAILED có thông báo, không cắt mất chữ.
 
 Ví dụ schema, voice chỉ là placeholder, chưa là ID thật:
 
@@ -141,7 +141,7 @@ Transport/auth/input JSON hỏng vẫn trả 4xx theo contract; fail-open không
 
 Request gồm `text` không rỗng tối đa 2.000 ký tự UTF-16, `sourceLang`, `targetLang` khác nhau và `context` tùy chọn tối đa 600 ký tự từ phần trước. Response `200` gồm `sourceLang`, `targetLang`, `translatedText` không rỗng (tối đa 6.000 ký tự). Sai input trả `400`; chưa bật trả `503 FEATURE_NOT_ENABLED`; Gemini lỗi, output sai hoặc hết quota riêng trả `503 TRANSLATION_UNAVAILABLE`. Không tạo job, không trừ quota TTS, không tự gọi Azure. Gemini typo và dịch cùng dùng tên SSM parameter/model `gemini-3.6-flash` mặc định, nhưng có cờ bật và counter S3 riêng; request đặt `store=false`.
 
-Web/app chia tài liệu thành các phần và dịch tuần tự, truyền tối đa 600 ký tự của văn bản nguồn ngay trước phần đang dịch để giữ ngữ cảnh. UI giữ các phần đã dịch trong phiên màn hình để tiếp tục sau lỗi và cho người dùng xem lại toàn bộ trước khi tạo giọng. Khi duyệt, frontend gửi **bản dịch** tới `/synthesize` bằng ngôn ngữ đích, với `translateTo:null`; backend vẫn từ chối `translateTo` khác null để không dịch ngầm trong job. Tệp gốc/OCR xử lý trên thiết bị; văn bản trích xuất được gửi tới Gemini khi người dùng bấm dịch. Dịch dài tốn một API call cho mỗi phần và phụ thuộc quota/ngữ cảnh có giới hạn; chưa có manifest dịch bền vững sau reload.
+Chế độ **Gemini · Xem lại trước khi đọc** chia tài liệu thành đoạn tối đa 2.000 ký tự UTF-16, gửi tối đa 600 ký tự ngữ cảnh nguồn. Logic chung trong `frontend/shared/translation.ts` bỏ phản hồi của nguồn/phiên cũ, giữ checkpoint trong phiên để tiếp tục sau lỗi. Khi duyệt, frontend gửi bản dịch tới `/synthesize` bằng ngôn ngữ đích và `translateTo:null`. Chế độ mặc định **Azure · Dịch và đọc** vẫn dùng `/synthesize` với `translateTo` theo hợp đồng Azure phía trên; không gọi Gemini hoặc fallback. Tệp gốc/OCR xử lý trên thiết bị. Bản dịch chưa có manifest bền vững sau reload; mỗi phần Gemini dùng một API call trong quota riêng.
 
 ### GET /voices
 
@@ -176,7 +176,7 @@ Giữ totalJobs/totalChars/byLang/cacheHits cho scope demo. Code M5 quét S3 JSO
 | 400 | LANG_REQUIRED | Thiếu/auto lang, cần chọn rõ |
 | 400 | LANG_NOT_SUPPORTED | Lang/voice không ở registry đã kiểm |
 | 400 | UNSUPPORTED_SPEED | Provider không hỗ trợ speed yêu cầu |
-| 400 | FEATURE_NOT_ENABLED | translateTo không null ở MVP |
+| 503 | TRANSLATION_NOT_CONFIGURED | Chưa nối key Azure Translator; chưa tạo job hoặc dùng quota |
 | 401 | UNAUTHORIZED | Thiếu/sai token demo |
 | 404 | NOT_FOUND | Route/job thiếu hoặc expired |
 | 405 | METHOD_NOT_ALLOWED | Method không khớp route |
@@ -292,9 +292,19 @@ Chỉ ghi planned/coded/locally tested/sandbox verified/deployed & demoed đúng
 | Secrets Manager env names | TTS_API_PARAMETER_NAME/GEMINI_API_PARAMETER_NAME | Conditional SSM; M1/M2/M5 và trường duyệt secret mechanism |
 | Lang auto/optional | Explicit lang cho synthesize | M4 cần thông báo/chọn lang; typo unknown dùng und |
 | speed 0.5–2.0 | 0.7–1.2, mặc định 0.9 | M2 đã đo; M4/M5 đã áp dụng; nhóm duyệt |
-| translateTo MR | Giữ field, non-null reject MVP | Nhóm duyệt feature reduction, không dịch ngầm |
+| translateTo | Dịch rõ nguồn/đích qua Azure Translator, key riêng ở backend | Có code/local test; cấu hình và nghiệm thu Sandbox riêng |
 | Polly engine/voices | Provider registry thật, engine null | M2/M4 cập nhật types/fixtures lúc implementation |
 | History theo DB query | Shared demo + S3 paging/cap | M3/M4 duyệt ordering/limits; stats MR có cap |
 | ap-southeast-1 | us-east-1 plan | Gate 1 mới đổi runtime; không deploy file cũ |
 
 OPEN: URL/OAC/resource policies trên stack mới; E2E Azure vi/en/ja, quota/giá và giới hạn giọng; token demo/scope; idempotency/recovery; reset/redeploy. M2 đã thử riêng Invoke/SSM/S3 trên Sandbox, nhưng phải kiểm lại trên phiên dùng để demo. Theo [validation runbook](../backend/m1-minh-ly/reference/SANDBOX-VALIDATION.md), không biến candidate thành SANDBOX VERIFIED chỉ vì tài liệu AWS có tính năng.
+
+### Bổ sung hợp đồng dịch và giới hạn (09/11/2026)
+
+`GET /voices` giữ `languages`, thêm `limits: {maxChars: 10000}` và `features: {translation: boolean}`. Cờ translation xác nhận đã nối **tên** SSM parameter, không chứng minh key/quota/egress đang dùng được. Web lấy min của giới hạn client và server; catalog cũ chưa có trường này vẫn đọc được.
+
+`GET /jobs/{id}` bổ sung `text`, `lang`, `sourceLang`, `translated` cho bản dịch đã checkpoint; UI chỉ gọi đó là bản dịch khi `translated=true`, không hiển thị nguyên bản như đã dịch. Trong metadata `lang` giữ nguồn, `translateTo` giữ đích; response công khai `lang` là ngôn ngữ âm thanh. Không gửi khóa, địa chỉ endpoint tùy ý hoặc bucket từ client.
+
+`TRANSLATOR_API_PARAMETER_NAME` và `AZURE_TRANSLATOR_REGION` nối từ root sang M2/M5; Voices chỉ nhận tên để công bố capability. `TranslatorApiParameterName=''` là mặc định. Tên parameter không phải key. `MaxChars` mặc định 10.000; `DailyCharLimit` mặc định 30.000 ký tự nguồn/ngày cho scope demo, quota Azure Speech tính theo nội dung đọc (bản dịch có thể dài hơn nguồn) và các request thử lại. Hai bộ hạn mức không tương đương.
+
+Checkpoint worker bổ sung `translated`, `sourceLang`, `chunkCount`, `chunksDone`, `chunkSize` bằng ETag đang giữ; retry dùng kích thước phần cũ, không ghi đè một worker đã lấy lease mới. Lease 600+30 giây theo timeout mặc định; recovery chỉ đánh dấu để người vận hành đối soát. Crash sau provider trước checkpoint vẫn có thể tốn phí lại, không hứa exactly-once.

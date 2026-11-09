@@ -4,6 +4,8 @@ Router M1 gọi handler này cho GET /voices. Chỉ công bố giọng đã ki�
 registry; chưa có giọng nào thì trả 503 thay vì danh sách bịa. Module sở hữu: M2.
 """
 
+import os
+from tts_common import config
 from tts_common.errors import error_response, json_response, log_json
 from tts_common.voices import load_registry
 
@@ -40,4 +42,5 @@ def handler(event, context):
         languages = []
     if not languages:
         return error_response(503, "VOICES_UNAVAILABLE", "Danh sách giọng đọc chưa sẵn sàng.")
-    return json_response(200, {"languages": languages})
+    return json_response(200, {"languages": languages, "limits": {"maxChars": config.MAX_CHARS},
+                               "features": {"translation": bool(os.environ.get("TRANSLATOR_API_PARAMETER_NAME"))}})

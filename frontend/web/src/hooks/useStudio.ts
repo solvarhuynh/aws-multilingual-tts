@@ -4,13 +4,14 @@ import { extractDocument } from "../lib/document";
 import { DEFAULT_SPEED, readStored, samples, storeValue, validateInput } from "../lib/data";
 import type { HistoryItem, Job, Language, SynthesizeInput, TextCorrection } from "../lib/types";
 import { MAX_DOCUMENT_CHARS, checkedDocument, splitDocument } from '../../../shared/documents';
+import { translateDocument as translateParts, type TranslationDraft } from '../../../shared/translation';
 
-type Review = { input: SynthesizeInput; correction: TextCorrection; documentText: string; partIndex: number };
-type TranslationDraft = { source: string; sourceLang: string; targetLang: string; sourceParts: string[]; translatedParts: string[] };
+type Review = { input: SynthesizeInput; correction: TextCorrection; documentText: string; partIndex: number; partLimit?: number };
 
 export function useStudio(
   notify: (message: string, error?: boolean) => void,
   translateTo: string | null = null,
+  translationReview = false,
 ) {
   const [text, setText] = useState(() => {
     const draft = readStored<unknown>("voxa.draft.v1", "");
@@ -40,7 +41,8 @@ export function useStudio(
   const [readingFile, setReadingFile] = useState(false);
   const [importProgress, setImportProgress] = useState('');
   const importController = useRef<AbortController | null>(null);
-  const parts = useMemo(() => splitDocument(text), [text]);
+  const partLimit = languages.find(item => item.lang === (translateTo || lang))?.maxChars;
+  const parts = useMemo(() => splitDocument(text, partLimit), [text, partLimit]);
   const [partIndex, setPartIndex] = useState(0);
   const selectedPart = Math.min(partIndex, Math.max(0, parts.length - 1));
   const [batch, setBatch] = useState<{ done: number; total: number } | null>(null);
@@ -155,8 +157,8 @@ export function useStudio(
     revision.current++;
     const pending = reviewRef.current?.input;
     if (pending && (reviewRef.current?.documentText !== text || pending.lang !== lang || pending.voice !== voice ||
-      pending.speed !== speed || pending.translateTo !== translateTo)) cancelReview();
-  }, [text, lang, voice, speed, translateTo]);
+      pending.speed !== speed || pending.translateTo !== translateTo || reviewRef.current?.partLimit !== partLimit)) cancelReview();
+  }, [text, lang, voice, speed, translateTo, partLimit, translationReview]);
 
   useEffect(() => {
     setTranslationDraft(previous => previous &&
@@ -168,34 +170,24 @@ export function useStudio(
     if (!translateTo || translationLock.current || submitLock.current || fileLock.current || batchLock.current) return;
     try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
     if (lang === translateTo) { setError("Hãy chọn ngôn ngữ đích khác ngôn ngữ gốc."); return; }
-    const sourceParts = splitDocument(text);
-    const previous = translationDraft?.source === text && translationDraft.sourceLang === lang &&
-      translationDraft.targetLang === translateTo ? translationDraft : null;
-    const translatedParts = [...(previous?.translatedParts ?? [])];
     const requestRevision = revision.current;
     translationLock.current = true;
     stopTranslation.current = false;
     setTranslating(true);
     setError("");
-    setTranslationProgress({ done: translatedParts.length, total: sourceParts.length });
     try {
-      for (let index = translatedParts.length; index < sourceParts.length; index++) {
-        if (!mounted.current || stopTranslation.current || requestRevision !== revision.current) break;
-        const part = sourceParts[index];
-        const offset = sourceParts.slice(0, index).reduce((count, item) => count + item.length, 0);
-        const translated = part.trim()
-          ? (await api.translate(part, lang, translateTo, text.slice(Math.max(0, offset - 600), offset))).translatedText
-          : part;
-        if (!mounted.current || requestRevision !== revision.current) return;
-        translatedParts.push(translated);
-        if (translatedParts.join("\n\n").length > MAX_DOCUMENT_CHARS)
-          throw new Error("Bản dịch vượt 200.000 ký tự. Hãy chia nhỏ tài liệu.");
-        setTranslationDraft({ source: text, sourceLang: lang, targetLang: translateTo, sourceParts, translatedParts: [...translatedParts] });
-        setTranslationProgress({ done: translatedParts.length, total: sourceParts.length });
+      let latest = translationDraft;
+      for await (const draft of translateParts(text, lang, translateTo, api.translate, translationDraft,
+        () => !mounted.current || requestRevision !== revision.current)) {
+        latest = draft;
+        setTranslationDraft(draft);
+        setTranslationProgress({ done: draft.translatedParts.length, total: draft.sourceParts.length });
+        if (stopTranslation.current) break;
       }
-      if (mounted.current && translatedParts.length === sourceParts.length) notify("Đã dịch xong. Xem lại bản dịch trước khi tạo giọng.");
+      if (mounted.current && requestRevision === revision.current && latest && latest.translatedParts.length === latest.sourceParts.length)
+        notify("Đã dịch xong. Xem lại bản dịch trước khi tạo giọng.");
     } catch (reason) {
-      if (mounted.current) setError((reason as Error).message);
+      if (mounted.current && requestRevision === revision.current) setError((reason as Error).message);
     } finally {
       translationLock.current = false;
       if (mounted.current) setTranslating(false);
@@ -214,7 +206,7 @@ export function useStudio(
   }
 
   async function generate() {
-    if (translateTo) return translateDocument();
+    if (translateTo && translationReview) return translateDocument();
     if (submitLock.current || fileLock.current || reviewRef.current || batchLock.current || translationLock.current) return;
     try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
     const part = parts[selectedPart] ?? '';
@@ -228,6 +220,7 @@ export function useStudio(
       setError("Vui lòng chọn một giọng đọc khả dụng.");
       return;
     }
+    if (translateTo && language?.translationEnabled === false) { setError("Chưa kết nối Azure Translator. Nhờ quản trị viên cấu hình dịch vụ dịch."); return; }
     if (translateTo === lang) {
       setError("Hãy chọn ngôn ngữ đích khác với ngôn ngữ gốc.");
       return;
@@ -241,7 +234,7 @@ export function useStudio(
     const selected = corrected ? pending.correction.correctedText : pending.input.text;
     cancelReview();
     if (corrected) {
-      const next = splitDocument(pending.documentText);
+      const next = splitDocument(pending.documentText, pending.partLimit);
       next[pending.partIndex] = selected;
       updateText(next.join(''));
     }
@@ -262,7 +255,7 @@ export function useStudio(
         if (!mounted.current || currentRevision !== revision.current) return;
         setChecking(false);
         if (correction?.status === "checked" && correction.hasTypos && correction.correctedText !== input.text) {
-          const pending = { input, correction, documentText: text, partIndex: selectedPart };
+          const pending = { input, correction, documentText: text, partIndex: selectedPart, partLimit };
           reviewRef.current = pending;
           setReview(pending);
           return;
@@ -272,7 +265,7 @@ export function useStudio(
       if (!mounted.current) return;
       setJob(result);
       for (let attempt = 0; result.status === "PENDING" || result.status === "PROCESSING"; attempt++) {
-        if (attempt >= 120) throw new Error("Bản thu vẫn đang xử lý. Bạn có thể kiểm tra lại trong Lịch sử.");
+        if (attempt >= 480) throw new Error("Bản thu vẫn đang xử lý. Bạn có thể kiểm tra lại trong Lịch sử.");
         await new Promise((resolve) => window.setTimeout(resolve, DEMO ? 700 : 2500));
         if (!mounted.current) return;
         result = await api.job(result.jobId);
@@ -286,13 +279,16 @@ export function useStudio(
             : result.error?.message || "Không tạo được âm thanh. Vui lòng thử lại.",
         );
       if (!DEMO && !result.audioUrl) throw new Error("Bản thu chưa có link nghe. Vui lòng làm mới lịch sử.");
+      if (!DEMO && input.translateTo && !result.translated) result = await api.job(result.jobId);
+      if (input.translateTo && !DEMO && (!result.translated || !result.text))
+        throw new Error("Bản thu chưa có bản dịch hợp lệ. Hãy kiểm tra lại trong Lịch sử.");
       const recording: HistoryItem = {
         ...result,
-        text: input.text,
+        text: result.translated ? result.text! : input.text,
         lang: input.translateTo || input.lang,
         voice: input.voice,
         speed: input.speed,
-        charCount: input.text.length,
+        charCount: (result.translated ? result.text! : input.text).length,
         createdAt: new Date().toISOString(),
       };
       setCurrentAudio(recording);
@@ -314,8 +310,10 @@ export function useStudio(
   }
 
   async function generateAll() {
-    if (batchLock.current || submitLock.current || fileLock.current || reviewRef.current) return;
+    if (batchLock.current || submitLock.current || fileLock.current || reviewRef.current || translationLock.current) return;
     try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
+    if (translateTo && language?.translationEnabled === false) { setError("Chưa kết nối Azure Translator. Nhờ quản trị viên cấu hình dịch vụ dịch."); return; }
+    if (translateTo === lang) { setError('Hãy chọn ngôn ngữ đích khác với ngôn ngữ gốc.'); return; }
     if (!voice || !language?.voices.some(item => item.id === voice)) { setError('Vui lòng chọn giọng đọc.'); return; }
     const inputs = parts.map((part, index) => ({ index, input: { text: part, lang, voice, speed, translateTo } })).filter(({ input }) => input.text.trim());
     if (inputs.some(({ input }) => validateInput(input.text, input.speed))) { setError('Thiết lập phần đọc không hợp lệ.'); return; }
@@ -383,6 +381,7 @@ export function useStudio(
 
   async function deleteRecording(item: HistoryItem) {
     await api.remove(item.jobId);
+    for (const [key, value] of completed.current) if (value.jobId === item.jobId) completed.current.delete(key);
     recordingRequest.current++;
     historyRequest.current++;
     setLoadingHistory(false);

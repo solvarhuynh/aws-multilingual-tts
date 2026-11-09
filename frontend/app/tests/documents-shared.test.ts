@@ -7,7 +7,7 @@ test('Chia tài liệu giữ đủ nội dung, giới hạn phần và cặp UTF
   for (const text of ['Xin chào. '.repeat(15000), '日本語'.repeat(12000), 'a'.repeat(1999) + '🌏'.repeat(2000), 'a'.repeat(2000) + ' '.repeat(4000) + 'b']) {
     const parts = splitDocument(text);
     assert.equal(parts.join(''), text);
-    assert.ok(parts.every(part => part.length <= 2000));
+    assert.ok(parts.every(part => part.length <= 10000));
     assert.ok(parts.every(part => !/[\uD800-\uDBFF]$/.test(part) && !/^[\uDC00-\uDFFF]/.test(part)));
   }
   assert.throws(() => splitDocument('text', 1));

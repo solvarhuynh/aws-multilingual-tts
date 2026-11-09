@@ -109,6 +109,8 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
     await suite.test("màn dịch cho chọn tài liệu, xem bản dịch và chỉ tạo giọng sau khi chọn", async () => {
       await click(env.mount.querySelector('.sidebar a[href="#translation"]'));
       assert.ok(env.mount.querySelector('.document-drop'));
+      await click(env.mount.querySelector('#translation-mode'));
+      await click([...document.querySelectorAll('[role="option"]')].find(item => item.textContent.includes('Gemini')));
       const originalTranslate = api.translate, originalSynthesize = api.synthesize;
       const calls = [];
       api.translate = async (...args) => { calls.push(args); return { sourceLang: args[1], targetLang: args[2], translatedText: 'Hello, this is a document.' }; };

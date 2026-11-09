@@ -51,6 +51,14 @@ test('Lỗi máy chủ và dữ liệu sai không trở thành thành công', as
   assert.throws(() => checkedJob({ jobId: 'x', status: 'DONE', audioUrl: 'file:///secret' }), /chưa đúng/);
 });
 
+test('App nhận giới hạn và khả năng dịch thực; không dùng giới hạn sai từ catalog', async () => {
+  const language = { lang: 'vi-VN', provider: 'azure', engine: null, voices: [{ id: 'verified', gender: 'F' }] };
+  globalThis.fetch = async () => new Response(JSON.stringify({ languages: [language], limits: { maxChars: 1200 }, features: { translation: false } }));
+  assert.deepEqual(await api.voices(), [{ ...language, maxChars: 1200, translationEnabled: false }]);
+  globalThis.fetch = async () => new Response(JSON.stringify({ languages: [language], limits: { maxChars: 1 } }));
+  await assert.rejects(api.voices(), /Giới hạn/);
+});
+
 test('Replay sau mất kết nối và SUBMIT_UNCERTAIN dùng cùng key, khác phần dùng key riêng', async () => {
   configureSubmissionStore({}, async () => {});
   const keys: string[] = [];

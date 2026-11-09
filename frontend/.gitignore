@@ -4,6 +4,7 @@ dist/
 .env
 .env.*
 !web/.env.example
+!app/.env.example
 playwright-report/
 test-results/
 references/
@@ -11,3 +12,6 @@ references/
 *.MP4
 PhanCong*.pdf
 *plan*.pdf
+
+/web/public/ocr/
+/web/public/pdf/

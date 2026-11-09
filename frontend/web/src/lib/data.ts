@@ -1,3 +1,4 @@
+import { MAX_PART_CHARS as MAX_CHARS } from "../../../shared/documents";
 import type { HistoryItem, Language, Page } from "./types";
 
 export const navigation: { id: Page; title: string; icon: string }[] = [
@@ -89,7 +90,7 @@ export const samples: Record<string, string> = {
   "ko-KR":
     "도서관은 월요일부터 토요일까지, 오전 여덟 시부터 오후 여섯 시까지 운영합니다.\n\n온라인으로 도서를 검색할 수 있습니다. 도서관 안에서는 조용히 해 주세요.",
 };
-export const MAX_CHARS = 2000;
+export { MAX_PART_CHARS as MAX_CHARS } from "../../../shared/documents";
 export const MIN_SPEED = 0.7;
 export const MAX_SPEED = 1.2;
 export const DEFAULT_SPEED = 0.9;

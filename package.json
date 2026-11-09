@@ -1,0 +1,7 @@
+{
+  "name": "aws-multilingual-tts",
+  "private": true,
+  "scripts": {
+    "dev": "bash deployment/local/dev.sh"
+  }
+}

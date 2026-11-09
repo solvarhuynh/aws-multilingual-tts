@@ -92,3 +92,7 @@ Suite dùng mocks, không cần AWS credentials hoặc provider key. Khi sửa i
 Đối chiếu bằng chứng Lab 1/3 với phiên Sandbox đang dùng; kiểm Function URL/OAC/resource policy, CREATE mới và dựng lại sau reset. Dashboard/alarm có source chưa thay cho bằng chứng nhận SNS hoặc metric thực.
 
 Khi được giao thao tác lab, theo [hướng dẫn Azure](../../docs/AZURE-SPEECH.md); không tự chạy script chỉ vì có trong README. Bàn giao cần ghi commit/source, cấu hình không nhạy cảm, lệnh đã chạy, kết quả, phần chưa kiểm và dependency còn chờ. Lưu nội dung đó vào CHANGELOG của mình, giữ nguyên lịch sử thành viên khác. Dùng [khung báo cáo](../../docs/REPORT.md) khi tổng hợp đồ án.
+
+## Local API trước khi triển khai
+
+`deployment/local/server.py` nạp env Python và dùng lại router này qua invoker hiện có; handler M2/M3/M5 giữ nguyên. S3/SSM được Moto mô phỏng trong RAM, dispatch vào một worker thread; không tạo role/bucket/Lambda trên AWS. Các adapter Azure đọc key từ SSM mô phỏng, nguồn là `.env.local` phía Python. Runtime local không được đóng gói vào Lambda và không thay secret mechanism Sandbox. Xem [cấu hình/cách chạy](../../deployment/local/README.md). Suite M1 bổ sung `test_local_runtime.py`; cài requirements local để chạy, nếu thiếu dependency thì các ca runtime được skip rõ ràng.

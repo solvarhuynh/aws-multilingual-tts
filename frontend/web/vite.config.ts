@@ -1,9 +1,20 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({
-  plugins: [react()],
-  base: "./",
-  optimizeDeps: { include: ["pdfjs-dist", "mammoth"] },
-  server: { port: 5173, strictPort: true },
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, import.meta.dirname, "LOCAL_");
+  const proxy = {
+    "/api": {
+      target: env.LOCAL_API_TARGET || "http://127.0.0.1:8000",
+      changeOrigin: true,
+      rewrite: (path: string) => path.replace(/^\/api(?=\/|$)/, ""),
+    },
+  };
+  return {
+    plugins: [react()],
+    base: "./",
+    optimizeDeps: { include: ["pdfjs-dist", "mammoth"] },
+    server: { port: 5173, strictPort: true, proxy },
+    preview: { proxy },
+  };
 });

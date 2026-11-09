@@ -27,6 +27,10 @@ def _public_job(job):
         "progress": {"done": job.get("chunksDone", 0), "total": job.get("chunkCount", 1)},
         "audioUrl": _audio_url(job),
         "error": job.get("errorMessage") if job["status"] == "FAILED" else None,
+        "text": job.get("text", ""),
+        "lang": job.get("translateTo") or job.get("lang", ""),
+        "sourceLang": job.get("sourceLang"),
+        "translated": job.get("translated", False),
     }
 
 
@@ -35,7 +39,7 @@ def _history_item(job):
     return {
         **_public_job(job),
         "text": job.get("text", ""),
-        "lang": job.get("lang", ""),
+        "lang": job.get("translateTo") or job.get("lang", ""),
         "voice": job.get("voice", ""),
         "speed": job.get("speed"),
         "charCount": job.get("charCount", 0),

@@ -93,3 +93,9 @@ Suite dùng mocks, không cần AWS credentials hoặc provider key. Khi sửa i
 Hoàn tất SB-M3-05 trong phiên được giao: kiểm Lifecycle/app expiry, private audio, thời hạn presign và rehearsal reset. Giữ jobs/audio/web riêng, không persist signed URL.
 
 Khi được giao thao tác lab, theo [hướng dẫn Azure](../../docs/AZURE-SPEECH.md); không tự chạy script chỉ vì có trong README. Bàn giao cần ghi commit/source, cấu hình không nhạy cảm, lệnh đã chạy, kết quả, phần chưa kiểm và dependency còn chờ. Lưu nội dung đó vào CHANGELOG của mình, giữ nguyên lịch sử thành viên khác. Dùng [khung báo cáo](../../docs/REPORT.md) khi tổng hợp đồ án.
+
+## Checkpoint bản dịch và đoạn âm thanh
+
+Common bổ sung `checkpoint_job` chỉ ghi các trường worker được phép bằng ETag/lease đang giữ. `complete_job` lấy `chunksDone` bằng `chunkCount`. MP3 tạm nằm trong audio bucket ở `audio/<scope>/<jobId>/parts/NNN.mp3`; job giữ `chunkSize` để retry không dùng phần cũ theo kích thước mới. Không lưu presigned URL. Xóa job terminal đặt tombstone, xóa MP3/parts rồi xóa metadata; worker không xóa metadata đã bị một phiên lease khác thay đổi.
+
+API job/history bổ sung text bản dịch và ngôn ngữ âm thanh, `translated`, `sourceLang`; metadata `lang` vẫn là nguồn, `translateTo` là đích. Đây là thay đổi code/local test; M3 cần nghiệm thu quyền đọc/xóa parts và retention trên phiên lab thật. Parts còn sau FAILED được dọn khi xóa bản thu hoặc theo lifecycle audio bucket hiện có.

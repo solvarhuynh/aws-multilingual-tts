@@ -10,8 +10,8 @@ test('Văn bản rỗng hiển thị thời lượng bằng không', () => {
 });
 test('Chặn nội dung rỗng, quá dài và tốc độ sai', () => {
   assert.equal(validate(input), null);
-  for (const text of ['', '  \n ', 'x'.repeat(2001)]) assert.ok(validate({ ...input, text }));
-  assert.equal(validate({ ...input, text: 'x'.repeat(2000) }), null);
+  for (const text of ['', '  \n ', 'x'.repeat(10001)]) assert.ok(validate({ ...input, text }));
+  assert.equal(validate({ ...input, text: 'x'.repeat(10000) }), null);
   for (const speed of [MIN_SPEED, DEFAULT_SPEED, MAX_SPEED]) assert.equal(validate({ ...input, speed }), null);
   for (const speed of [0, 0.5, 1.3, 2, 2.1, NaN, Infinity]) assert.ok(validate({ ...input, speed }));
   assert.ok(validate({ ...input, translateTo: 'vi-VN' }));

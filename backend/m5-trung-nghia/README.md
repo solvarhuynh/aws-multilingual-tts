@@ -16,6 +16,7 @@ Nhận common/schema/CAS từ M3, registry/worker/limits từ M2, auth context/r
 | `infra/submit.yaml` | Submit/stats Lambda, bucket/worker/Layer references và giới hạn runtime. |
 | `scripts/local_ai.py` | Cầu nối Gemini cho web local, hỏi key ở terminal; không lưu key trong frontend. |
 | `tests/` | Contract và luồng mock router → submit → worker → history; correction, translation, stats, validation không gọi AWS/provider thật. |
+| `reference/` | [Review tích hợp](reference/INTEGRATION-REVIEW.md) và [bàn giao cho nhóm](reference/TEAM-HANDOFF.md), giữ nguyên báo cáo M5 từ nhánh 3f87586. |
 
 Đọc [AGENTS.md](../../AGENTS.md), [kiến trúc](../../docs/ARCHITECTURE.md) và [API/dữ liệu](../../docs/CONVENTIONS.md) trước khi sửa. Quyền AWS, secret và gate triển khai được quy định một lần ở AGENTS; không tự thêm dịch vụ ngoài baseline.
 
@@ -123,3 +124,9 @@ Suite dùng mocks, không cần AWS credentials hoặc provider key. Khi sửa i
 Review SB-M5-01/02 trên code đã tích hợp; hoàn tất idempotency/replay/recovery/quota/telemetry theo acceptance. Gemini chỉ bật sau MP3 MVP và khi secret/quota/Sandbox được kiểm thực tế; stats cần xác minh hiệu năng trên bucket thật.
 
 Khi được giao thao tác lab, theo [hướng dẫn Azure](../../docs/AZURE-SPEECH.md); không tự chạy script chỉ vì có trong README. Bàn giao cần ghi commit/source, cấu hình không nhạy cảm, lệnh đã chạy, kết quả, phần chưa kiểm và dependency còn chờ. Lưu nội dung đó vào CHANGELOG của mình, giữ nguyên lịch sử thành viên khác. Dùng [khung báo cáo](../../docs/REPORT.md) khi tổng hợp đồ án.
+
+## Dịch và giới hạn được giao bổ sung 09/11/2026
+
+Submit nhận `translateTo` rõ ràng, kiểm nguồn/đích trong registry, đích khác nguồn, voice thuộc đích và tên cấu hình Translator trước khi reserve quota. Có cấu hình thì giữ flow async/idempotency, truyền `translate_to` vào job M3; dịch diễn ra ở worker M2, không chặn HTTP chờ Azure. Thiếu cấu hình trả 503 `TRANSLATION_NOT_CONFIGURED`; input sai không tạo job. Root `MaxChars` mặc định 10.000; `DailyCharLimit` cho stack mới 30.000 ký tự nguồn/ngày. Stack cũ có thể giữ quota cũ: chủ lab kiểm changeset và dùng `plan --daily-char-limit 30000` nếu đúng hạn mức nhóm chốt.
+
+Pure validator cho phép caller bật `translation_enabled=True`; mặc định vẫn tắt để callers cũ không tự mở tính năng. Bộ kiểm mới dùng mocks, chưa chứng minh key/quota/egress hay mọi cặp ngôn ngữ trên Sandbox. Hướng dẫn cấu hình/acceptance nằm trong [AZURE-SPEECH.md](../../docs/AZURE-SPEECH.md#dịch-và-đọc--azure-translator).

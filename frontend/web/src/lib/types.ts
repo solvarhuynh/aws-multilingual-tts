@@ -7,6 +7,8 @@ export interface Voice {
   name?: string;
 }
 export interface Language {
+  maxChars?: number;
+  translationEnabled?: boolean;
   lang: string;
   provider: string;
   engine: string | null;
@@ -33,6 +35,10 @@ export interface Translation {
   translatedText: string;
 }
 export interface Job {
+  text?: string;
+  lang?: string;
+  translated?: boolean;
+  sourceLang?: string | null;
   jobId: string;
   status: JobStatus;
   audioUrl: string | null;

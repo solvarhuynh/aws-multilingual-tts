@@ -27,13 +27,26 @@ Parameters:
     Type: String
     Default: azure
     AllowedValues: [elevenlabs, azure]
+  TranslatorApiParameterName:
+    Type: String
+    Default: ''
+    Description: SSM SecureString name for Azure Translator; leave empty to disable translation
+  AzureTranslatorRegion:
+    Type: String
+    Default: global
+    AllowedPattern: '[a-z][a-z0-9]{1,39}'
   AzureSpeechRegion:
     Type: String
     Default: eastasia
     AllowedPattern: '[a-z][a-z0-9]{1,39}'
+  MaxChars:
+    Type: Number
+    Default: 10000
+    MinValue: 1
+    MaxValue: 10000
   WorkerTimeoutSeconds:
     Type: Number
-    Default: 120
+    Default: 600
     MinValue: 30
     MaxValue: 900
   WorkerMemoryMb:
@@ -72,8 +85,12 @@ Resources:
           JOBS_PREFIX: !Ref JobsPrefix
           AUDIO_BUCKET: !Ref AudioBucket
           TTS_API_PARAMETER_NAME: !Ref TtsApiParameterName
+          MAX_CHARS: !Ref MaxChars
+          CHUNK_SIZE: 1500
           TTS_PROVIDER: !Ref TtsProvider
           AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
+          TRANSLATOR_API_PARAMETER_NAME: !Ref TranslatorApiParameterName
+          AZURE_TRANSLATOR_REGION: !Ref AzureTranslatorRegion
 
   # EventInvokeConfig duy nhất của worker; không tạo cái thứ hai cho cùng function.
   SynthesizeEventInvokeConfig:
@@ -98,6 +115,8 @@ Resources:
         - !Ref CommonLayerArn
       Environment:
         Variables:
+          MAX_CHARS: !Ref MaxChars
+          TRANSLATOR_API_PARAMETER_NAME: !Ref TranslatorApiParameterName
           TTS_PROVIDER: !Ref TtsProvider
           AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
 

@@ -120,7 +120,7 @@ class SubmitTest(FlowTestCase):
         cases = [
             ({"text": "   "}, 400, "INVALID_INPUT"),
             ({"text": 5}, 400, "INVALID_INPUT"),
-            ({"text": "a" * 2001}, 400, "TEXT_TOO_LONG"),
+            ({"text": "a" * (config.MAX_CHARS + 1)}, 400, "TEXT_TOO_LONG"),
             ({"lang": "auto"}, 400, "LANG_REQUIRED"),
             ({"lang": None}, 400, "LANG_REQUIRED"),
             ({"lang": "xx-XX"}, 400, "LANG_NOT_SUPPORTED"),
@@ -130,7 +130,7 @@ class SubmitTest(FlowTestCase):
             ({"speed": 1.3}, 400, "UNSUPPORTED_SPEED"),
             ({"speed": True}, 400, "UNSUPPORTED_SPEED"),
             ({"speed": "1"}, 400, "UNSUPPORTED_SPEED"),
-            ({"translateTo": "en-US"}, 400, "FEATURE_NOT_ENABLED"),
+            ({"translateTo": "en-US"}, 503, "TRANSLATION_NOT_CONFIGURED"),
         ]
         for fields, status, code in cases:
             with self.subTest(fields=fields):
@@ -140,7 +140,7 @@ class SubmitTest(FlowTestCase):
         self.assertEqual(self.events, [])
 
     def test_max_length_and_speed_edges_accepted(self):
-        for fields in ({"text": "a" * 2000}, {"speed": 0.7}, {"speed": 1.2}, {"speed": 1}):
+        for fields in ({"text": "a" * config.MAX_CHARS}, {"speed": 0.7}, {"speed": 1.2}, {"speed": 1}):
             self.assertEqual(self.post(**self.good(**fields))[0], 202)
 
     def test_broken_json(self):
@@ -319,6 +319,21 @@ class FullFlowTest(FlowTestCase):
         self.assertIn("tts-history-${Env}", m3)
         self.assertIn("tts-submit-${Env}", m5)
         self.assertIn("tts-stats-${Env}", m5)
+
+
+    def test_translation_validates_target_voice_and_preserves_source(self):
+        import os
+        entry = submit._find_entry('en-US')
+        target_voice = entry['voices'][0]['id']
+        with mock.patch.dict(os.environ, {'TRANSLATOR_API_PARAMETER_NAME': '/translator'}):
+            status, result = self.post(**self.good(translateTo='en-US', voice=target_voice))
+            self.assertEqual(status, 202)
+            job = submit.db.get_job('demo', result['jobId'])
+            self.assertEqual(job['translateTo'], 'en-US')
+            self.assertEqual(job['lang'], 'vi-VN')
+            self.assertEqual(job['voice'], target_voice)
+            self.assertEqual(self.post(**self.good(translateTo=[]))[0], 400)
+            self.assertEqual(self.post(**self.good(translateTo='vi-VN'))[0], 400)
 
 
 if __name__ == "__main__":

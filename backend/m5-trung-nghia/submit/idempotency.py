@@ -83,7 +83,7 @@ def replay_if_present(user_id, key, expected_fingerprint):
     return _replay_record(user_id, record, expected_fingerprint) if record is not None else None
 
 
-def submit_first(user_id, key, expected_fingerprint, text, lang, voice, speed, provider, engine, dispatch):
+def submit_first(user_id, key, expected_fingerprint, text, lang, voice, speed, provider, engine, dispatch, translate_to=None):
     """Claim before quota and job creation; only the claim winner may dispatch."""
     try:
         created, record = db.create_idempotency(user_id, key, expected_fingerprint, make_job_id())
@@ -94,7 +94,8 @@ def submit_first(user_id, key, expected_fingerprint, text, lang, voice, speed, p
             db.update_idempotency(user_id, key, record, "QUOTA_REJECTED")
             return _quota_error()
         record = db.update_idempotency(user_id, key, record, "RESERVED")
-        db.create_job(user_id, text, lang, voice, speed, provider=provider, engine=engine, job_id=job_id)
+        db.create_job(user_id, text, lang, voice, speed, translate_to=translate_to,
+                      provider=provider, engine=engine, job_id=job_id)
         record = db.update_idempotency(user_id, key, record, "JOB_CREATED")
         record = db.update_idempotency(user_id, key, record, "DISPATCHING")
     except Exception as error:

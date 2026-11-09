@@ -64,7 +64,7 @@ Thực hiện theo gate trong AGENTS. Các kiểm thử AWS/provider, deploy và
 
 - **Phụ trách:** M4 Nguyên Khang. **Giai đoạn:** Gate 2.
 - **Cần có trước:** SB-M1-03, SB-M2-04, SB-M3-04, SB-M5-01/02; group sign-off token. **Mã nguồn:** frontend/web và frontend/app API/state/tests cần thiết.
-- **Cách làm:** X-Demo-Token do người dùng nhập lúc chạy, API base URL, exact POST hash nếu OAC, verified voice registry; 202 polling/history/typo skipped; reject translate/auto rõ. **CLI/test khi được duyệt:** Existing frontend tests + mock contract; sandbox E2E khi được duyệt.
+- **Cách làm:** X-Demo-Token do người dùng nhập lúc chạy, API base URL, exact POST hash nếu OAC, verified voice registry; 202 polling/history/typo skipped; xử lý dịch đã cấu hình/auto không hỗ trợ rõ. **CLI/test khi được duyệt:** Existing frontend tests + mock contract; sandbox E2E khi được duyệt.
 - **Đầu ra:** TTS flow không submit trùng, token không bundle, không key browser. **Bằng chứng:** Network sanitized + UI polling/playback video từ AWS thật. Tách local mock với sandbox verified.
 - **Rủi ro / khôi phục:** SigV4 Authorization conflict→custom header; token demo hiện lưu localStorage/AsyncStorage; cần chốt cách phát và thu hồi trước khi mở công khai.
 - **Nghiệm thu:** 8 routes compatible (gồm dịch MR), user thấy lỗi tính năng chưa bật, không xây lại UI cơ bản. **Làm local được không:** Có mock frontend. **Trạng thái:** Web/app đã có tích hợp; cần E2E Azure và xác nhận route mới
@@ -86,14 +86,17 @@ Thực hiện theo gate trong AGENTS. Các kiểm thử AWS/provider, deploy và
 
 ## Kiểm tra local
 
-Cả hai giao diện dùng API/giọng Azure của cùng stack AWS. Cấu hình dịch vụ và CloudFront: [hướng dẫn cả nhóm](../docs/AZURE-SPEECH.md). Key Azure chỉ nằm ở AWS SSM; mã demo nhập trong Cài đặt khi chạy.
+Cả hai giao diện có thể dùng API Python local trước, rồi chuyển sang cùng stack AWS. Cấu hình dịch vụ và CloudFront: [hướng dẫn cả nhóm](../docs/AZURE-SPEECH.md). Local: key nằm trong env Python; Sandbox: key nằm trong AWS SSM. Frontend chỉ có API base; mã demo nhập trong Cài đặt khi chạy.
 
 ### Web
 
-Trong `frontend/web`, sao chép `.env.example` thành `.env.local` và thay domain mẫu bằng domain CloudFront của phiên lab hiện tại. Chỉ dùng URL công khai; mã demo nhập trong Cài đặt, không đặt token hoặc khóa Gemini/Azure vào biến `VITE_*`:
+Chạy cả backend + web + app từ **gốc repo** bằng `npm run dev` sau khi cài dependency và điền `deployment/local/.env.local`. Lệnh tự nối API/IP LAN, hiển thị QR Expo Go và dừng cả ba khi Ctrl+C; xem [hướng dẫn local](../deployment/local/README.md). Các lệnh dưới đây dành cho chạy riêng từng dịch vụ.
+
+Trong `frontend/web`, sao chép `.env.example` thành `.env.local` để nối Python local theo [hướng dẫn](../deployment/local/README.md). API mặc định `127.0.0.1:8000`, Vite proxy `/api`. Khi chuyển Sandbox, dùng domain CloudFront của phiên lab hiện tại. Chỉ dùng URL công khai; mã demo nhập trong Cài đặt, không đặt token hoặc khóa Gemini/Azure vào biến `VITE_*`:
 
 ```dotenv
-VITE_API_BASE_URL=https://TEN-MIEN-CUA-NHOM.cloudfront.net
+VITE_API_BASE_URL=/api
+LOCAL_API_TARGET=http://127.0.0.1:8000
 ```
 
 ```bash
@@ -104,30 +107,7 @@ npm run dev
 
 Web cần Node ≥20.19. `npm run build` tạo dist; `npm run test:ui` chạy kiểm thử local. Upload từ CloudShell bằng `bash deployment/scripts/sandbox.sh web` ở gốc repo, script tự lấy domain/bucket từ Outputs; không cần quy trình ZIP hosting riêng.
 
-Vite đọc `VITE_API_BASE_URL` lúc khởi động dev server và lúc build. Sau khi đổi `.env.local`, khởi động lại `npm run dev` hoặc build lại trước khi upload. Có URL thì web gọi tám API qua CloudFront thật, gồm `/text/correct`, `/text/translate`, `/synthesize` và `/stats`; thiếu URL thì TTS dùng dữ liệu mẫu. URL CloudFront cũng phải trỏ đúng API của stack đang triển khai; Gemini typo/dịch chỉ hoạt động khi backend tương ứng được bật và có dữ liệu/quyền phù hợp.
-
-### Thử Gemini trên web local, không cần AWS
-
-Mở PowerShell ở gốc repo. Terminal thứ nhất chạy:
-
-```powershell
-python backend/m5-trung-nghia/scripts/local_ai.py --model gemini-3.6-flash
-```
-
-Nhập Gemini API key khi terminal hỏi; không dán vào `.env.local`, `VITE_*` hoặc mã nguồn. Cầu nối chỉ lắng nghe `127.0.0.1:8765`; để thử model khác nếu key chưa dùng được 3.6 Flash, truyền `--model` với model ID được key hỗ trợ. Lỗi HTTP 404 thường cần kiểm lại model ID/quyền truy cập model trên tài khoản đang dùng.
-
-Tạo `frontend/web/.env.local` với đúng hai dòng sau, rồi chạy ở terminal thứ hai:
-
-```dotenv
-VITE_API_BASE_URL=
-VITE_LOCAL_AI_BASE_URL=http://127.0.0.1:8765
-```
-
-```powershell
-npm --prefix frontend/web run dev
-```
-
-Mở `http://127.0.0.1:5173` → **Dịch và đọc** → nhập nội dung hoặc chọn PDF/Word/TXT/ảnh scan → chọn ngôn ngữ gốc/đích → **Dịch toàn bộ tài liệu**. Xem bản dịch, tải TXT hoặc chọn **Dùng bản dịch để tạo giọng**. Màn tạo giọng trong cấu hình này vẫn là chế độ nghe thử local; muốn MP3 thật phải kết nối backend AWS/Azure. Nếu Gemini lỗi ở một phần, giao diện giữ phần đã dịch trong phiên để tiếp tục. Tài liệu trích chữ/OCR được gửi theo phần tới Gemini khi bấm dịch; tệp gốc không được upload. Cầu nối local chỉ dùng cho Vite dev trên cùng máy, app Expo vẫn cần backend API để dịch.
+Vite đọc `VITE_API_BASE_URL` lúc khởi động dev server và lúc build. Đổi env cần mở lại dev server/build. Bảy API cũ được giữ nguyên; M5 bổ sung `/text/translate` cho Gemini tùy chọn. **Dịch và đọc** mặc định Azure Translator → Azure Speech; chế độ **Gemini · Xem lại trước khi đọc** chỉ gọi khi người dùng chọn và backend đã bật. Không fallback giữa hai dịch vụ. Cấu hình local chung cho web/app: [local README](../deployment/local/README.md#gemini-tùy-chọn-sau-khi-gộp-m5).
 
 ### App iOS/Android
 
@@ -162,12 +142,12 @@ PDF/DOCX/TXT/Markdown và ảnh đọc cục bộ; `npm ci` sinh bundle PDF/OCR 
 
 ### Nhập tài liệu, scan và tạo nhiều bản thu
 
-1. Mở **Đọc tài liệu**, chọn TXT/MD/DOCX/PDF hoặc ảnh JPG/PNG/WebP từ máy/thư viện ảnh. Tối đa **20 MiB** (UI ghi 20 MB), **200.000 ký tự UTF-16** và **50.000 từ tách bằng khoảng trắng**. PDF tối đa 200 trang; không quá 30 trang cần nhận dạng chữ/lần. Ảnh không quá 40 megapixel, được giảm kích thước trước OCR.
-2. PDF có chữ dùng PDF.js; trang không có chữ và ảnh dùng Tesseract.js 7. Chọn ngôn ngữ trước khi nhập: vi → Việt+Anh, ja → Nhật+Anh, zh → Trung+Anh, các ngôn ngữ khác dùng Anh. Xem tiến độ hoặc **Hủy nhập** khi cần. Trang scan không nhận dạng ra chữ làm lần nhập thất bại rõ ràng để tránh thiếu trang âm thầm.
-3. Kiểm tra chữ trong trình soạn thảo, chọn phần cần đọc; mỗi phần tối đa 2.000 ký tự. **Tạo phần N** dùng luồng Gemini review hiện có khi được bật. **Tạo các phần còn lại · bản gốc** đọc tuần tự nội dung đã nhập, bỏ bước Gemini cho từng phần; mỗi phần có bản thu/MP3 riêng trong Lịch sử/Bản thu. Không ghép thành một MP3 dài.
+1. Mở **Đọc tài liệu**, chọn TXT/MD/DOCX/PDF hoặc ảnh JPG/PNG/WebP từ máy/thư viện ảnh. Tối đa **50 MiB** (UI ghi 50 MB), **200.000 ký tự UTF-16** và **50.000 từ tách bằng khoảng trắng**. PDF tối đa 200 trang; không quá 30 trang cần nhận dạng chữ/lần. Ảnh không quá 40 megapixel, được giảm kích thước trước OCR.
+2. PDF có chữ dùng PDF.js; trang không có chữ và ảnh dùng Tesseract.js 7. Chọn ngôn ngữ trước khi nhập: vi → Việt+Anh, ja → Nhật+Anh, cmn/zh-CN → Trung giản thể+Anh, zh-TW/zh-HK → Trung phồn thể+Anh, ko → Hàn+Anh; các ngôn ngữ khác hiện dùng OCR Anh. Xem tiến độ hoặc **Hủy nhập** khi cần. Trang scan không nhận dạng ra chữ làm lần nhập thất bại rõ ràng để tránh thiếu trang âm thầm.
+3. Kiểm tra chữ trong trình soạn thảo, chọn phần cần đọc; mỗi phần tối đa 10.000 ký tự. **Tạo phần N** dùng luồng Gemini review hiện có khi được bật. **Tạo các phần còn lại** đọc tuần tự nội dung đã nhập, bỏ bước Gemini cho từng phần; mỗi phần có bản thu/MP3 riêng trong Lịch sử/Bản thu. Không ghép thành một MP3 dài.
 4. Có thể dừng sau phần hiện tại. Lỗi mạng, job FAILED hoặc hết quota dừng hàng đợi. Trong cùng phiên màn hình, bấm lại chỉ tạo phần chưa thành công. Sau reload/đóng màn hình, đối chiếu Lịch sử trước khi tạo lại cả tài liệu; danh sách phần đã xong chưa được lưu thành manifest tài liệu bền vững.
 
-Quota backend mặc định **6.000 ký tự/ngày cho cả scope demo**, vì vậy nhập 50.000 ký tự được nhưng không đồng nghĩa tổng hợp hết trong cùng ngày. M1/M5 phải thống nhất `DailyCharLimit` và quota Azure trước phiên demo tài liệu dài.
+Quota backend mặc định **30.000 ký tự nguồn/ngày cho cả scope demo**, vì vậy nhập 50.000 ký tự được nhưng không đồng nghĩa tổng hợp hết trong cùng ngày. M1/M5 phải thống nhất `DailyCharLimit` và quota Azure trước phiên demo tài liệu dài.
 
 Tệp/ảnh gốc xử lý trên thiết bị, không gửi sang dịch vụ OCR. Tesseract tải core/WASM và gói ngôn ngữ từ CDN công khai khi cần; lần đầu phải có mạng, chưa đóng gói để bảo đảm offline. Văn bản của phần người dùng tạo giọng vẫn gửi backend/Azure như trước. OCR có thể sai dấu/thứ tự/cột; chưa hỗ trợ camera scan chuyên dụng, chữ viết tay, bảng biểu phức tạp hoặc tự OCR phần ảnh trong trang PDF đã có lớp chữ. Chất lượng thực tế cần người dùng duyệt.
 
@@ -185,7 +165,7 @@ Kiểm ít nhất 320/390/768/1440/2560 px, nội dung/tên giọng dài, sáng/
 
 ### Kiểm kê frontend
 
-Web giữ các màn tổng quan, tạo giọng, dịch theo phần (Gemini cần bật hoặc cầu nối local), đọc tài liệu, giọng đọc, bản thu, cài đặt và hướng dẫn. App gồm bốn tab Trang chủ/Giọng đọc/Công cụ/Bản thu, nút tạo mới và các màn compose/settings/recording/help. Không xây lại UI cơ bản khi chỉ tích hợp AWS.
+Web giữ các màn tổng quan, tạo giọng, dịch Azure/Gemini tùy cấu hình, đọc tài liệu, giọng đọc, bản thu, cài đặt và hướng dẫn. App gồm bốn tab Trang chủ/Giọng đọc/Công cụ/Bản thu, nút tạo mới và các màn compose/settings/recording/help. Hai nền tảng dùng chung logic chia đoạn dịch/tiếp tục trong `shared/translation.ts`; giữ TTS tối đa 10.000 ký tự, Gemini 2.000 ký tự và ngữ cảnh 600 ký tự riêng biệt.
 
 Hosting dùng template trong infra; root SAM tham chiếu template này. Azure rollout trên một stack/web hiện có ngày 08/11 đã được ghi trong CHANGELOG; cần kiểm lại CREATE mới và app native riêng. Không lấy việc có nút trên UI làm bằng chứng chức năng backend đã bật.
 
@@ -194,3 +174,13 @@ Hosting dùng template trong infra; root SAM tham chiếu template này. Azure r
 Nghiệm thu SB-M4-02/03/04 theo đúng phiên lab/thiết bị. Kiểm tạo → polling → phát/tua/tải → lịch sử/xóa, link hết hạn và dùng app trên iOS/Android. Build/export local không thay cho thử native.
 
 Khi được giao thao tác lab, theo [hướng dẫn Azure](../docs/AZURE-SPEECH.md); không tự chạy script chỉ vì có trong README. Bàn giao cần ghi commit/source, cấu hình không nhạy cảm, lệnh đã chạy, kết quả, phần chưa kiểm và dependency còn chờ. Lưu nội dung đó vào CHANGELOG của mình, giữ nguyên lịch sử thành viên khác. Dùng [khung báo cáo](../docs/REPORT.md) khi tổng hợp đồ án.
+
+### Dịch và đọc, scan và nghiệm thu mới
+
+- Dịch: chọn ngôn ngữ gốc/đích khác nhau và giọng thuộc ngôn ngữ đích. Backend dịch rồi tạo MP3; bản gốc trong editor không bị thay, bản dịch hiển thị riêng, có nút sao chép. Chưa cấu hình Translator sẽ báo rõ; không có API thì không giả lập bản dịch.
+- Scan: **Nhập tệp** hỗ trợ ảnh và PDF có chữ/scan/hỗn hợp. **Chụp tài liệu** dùng camera qua bộ chọn tệp trên điện thoại; desktop mở bộ chọn ảnh theo hỗ trợ trình duyệt. Chọn ngôn ngữ trước OCR, kiểm chữ sau khi nhập rồi mới tạo giọng. Không tự gửi ảnh gốc lên AWS/Azure.
+- 50 MB trên UI là 50 × 1024 × 1024 byte. Giới hạn nội dung sau nhập vẫn 200.000 đơn vị UTF-16 và 50.000 từ; mỗi phần tạo job tối đa min(10.000, catalog.maxChars). Một job 10.000 ký tự được worker chia và ghép thành một MP3. Tài liệu nhiều phần vẫn có MP3 riêng từng job.
+- Web self-host model/WASM ở `public/ocr/`, sinh bằng `npm ci`/`npm run build`, có trong `dist/ocr/` khi upload S3. Không commit tài nguyên sinh này. OCR chỉ tải khi cần nhận dạng; lần đầu cần mạng và có thể chậm trên máy yếu. App WebView vẫn cần mạng tải model.
+- Key Translator là key riêng; local đặt trong `deployment/local/.env.local`, khi deploy mới nhập kín trong CloudShell; xem [Azure Translator](../docs/AZURE-SPEECH.md#dịch-và-đọc--azure-translator). Bản code mới chưa được deploy/AWS/provider live trong đợt này; cần nghiệm thu theo hướng dẫn, gồm ảnh/PDF thật, bản dịch, MP3 dài và các giọng còn lại.
+
+DOCX trên web được kiểm trước giải nén: tối đa 5.000 mục ZIP và 64 MiB tổng dữ liệu giải nén; ZIP64/tệp hỏng báo lỗi rõ. Đây là giới hạn xử lý độc lập với 50 MiB của tệp gốc. PDF dùng CMap/font/WASM đóng gói cùng web để đọc các font/chữ và ảnh nhúng thông dụng.

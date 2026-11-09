@@ -16,7 +16,7 @@ test('Từ chối tài liệu hỏng, trống, sai loại và vượt giới h�
   assert.throws(() => extractDocument(strToU8('not a zip'), 'broken.docx'), /bị lỗi/);
   assert.throws(() => extractDocument(zipSync({ 'nothing.xml': strToU8('test') }), 'empty.docx'), /Không tìm/);
   assert.throws(() => extractDocument(strToU8('abc'), 'old.doc'), /PDF, DOCX/);
-  assert.throws(() => extractDocument(new Uint8Array(MAX_FILE_BYTES + 1), 'large.txt'), /20 MB/);
+  assert.throws(() => extractDocument(new Uint8Array(MAX_FILE_BYTES + 1), 'large.txt'), /50 MB/);
   assert.throws(() => checkedText('  '), /không có chữ/);
   assert.throws(() => checkedText('x'.repeat(200001)), /200\.000/);
 });

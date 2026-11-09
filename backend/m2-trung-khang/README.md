@@ -104,3 +104,15 @@ Chưa nằm trong script: lỗi 429 khi hết hạn mức F0, giọng trên app 
 Nghiệm thu Azure vi/en/ja đã đạt ngày 2026-11-08. Còn lại: lỗi 429 khi hết hạn mức F0, app di động, dựng lại ở phiên lab khác. ElevenLabs được giữ cho tương thích và tests, không phải provider mặc định.
 
 Khi được giao thao tác lab, theo [hướng dẫn Azure](../../docs/AZURE-SPEECH.md); không tự chạy script chỉ vì có trong README. Bàn giao cần ghi commit/source, cấu hình không nhạy cảm, lệnh đã chạy, kết quả, phần chưa kiểm và dependency còn chờ. Lưu nội dung đó vào CHANGELOG của mình, giữ nguyên lịch sử thành viên khác. Dùng [khung báo cáo](../../docs/REPORT.md) khi tổng hợp đồ án.
+
+## Bổ sung: dịch, MP3 10.000 ký tự và các ngôn ngữ còn lại
+
+`providers/translation.py` gọi Azure Translator bằng key SSM riêng; worker checkpoint bản dịch rồi chọn giọng đích từ registry. `providers/mp3.py` ghép MPEG Layer III cùng cấu hình và cập nhật duration/seek; đoạn 1.500 ký tự được lưu private, dùng lại khi retry, xóa sau DONE/xóa lịch sử. Worker timeout mặc định 600 giây, một EventInvokeConfig giữ nguyên. Hạn mức là 10.000 ký tự nguồn và tối đa 10.000 ký tự sau dịch; bản dịch dài hơn báo FAILED, không cắt chữ. Các thay đổi cần nghiệm thu riêng trên Sandbox, không kế thừa kết quả 23/23 cũ.
+
+Bộ nghiệm thu mới `scripts/languages.py` dùng câu mẫu bản ngữ cho 35 locale, lấy **voice ID thật** từ catalog. Mặc định chỉ in kế hoạch, không gọi mạng. `--live` chạy tuần tự có giới hạn lượt/ký tự; kết quả và MP3 lưu ngoài repo, không ghi token/presigned URL. Khi bị lỗi thì dừng, giữ request key/jobId để chạy lại cùng thư mục output mà không tạo lại job thành công. Kiểm MP3 tự động không thay nghe và đánh giá phát âm của người có khả năng ngôn ngữ đó.
+
+```bash
+python3 backend/m2-trung-khang/scripts/languages.py --languages ko-KR,fr-FR,de-DE
+```
+
+Các lệnh `--live`, cấu hình và tiêu chí nghe: [hướng dẫn Azure](../../docs/AZURE-SPEECH.md#nghiệm-thu-các-ngôn-ngữ-còn-lại). Không tick nghiệm thu chỉ vì catalog có giọng hoặc mock pass.

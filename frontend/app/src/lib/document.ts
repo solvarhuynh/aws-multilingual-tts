@@ -26,7 +26,7 @@ function xmlText(xml: string) {
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
 }
 export function extractDocument(bytes: Uint8Array, name: string) {
-  if (bytes.length > MAX_FILE_BYTES) throw new Error('Tệp tối đa 20 MB.');
+  if (bytes.length > MAX_FILE_BYTES) throw new Error('Tệp tối đa 50 MB.');
   if (/\.(txt|md)$/i.test(name)) return checkedText(strFromU8(bytes).replace(/^\uFEFF/, ''));
   if (!/\.docx$/i.test(name)) throw new Error('Hãy chọn tệp PDF, DOCX hoặc TXT.');
   let xml: Uint8Array | undefined;

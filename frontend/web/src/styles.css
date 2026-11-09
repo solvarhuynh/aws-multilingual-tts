@@ -674,3 +674,7 @@ select { cursor: pointer; }
 :root[data-theme="dark"][data-contrast="high"] { --background: #000; --text: #fff; --muted: #e5e5ea; --line: #8e8e93; --card-border: #8e8e93; --surface: #1c1c1e; --lg-glass: #1c1c1e; }
 :root[data-theme="dark"][data-contrast="high"] :is(.sidebar-glass, .sidebar-tooltip, .surface, .audio-player, .modal, .select-trigger, .select-content, .header-search-field, .header-search-menu) { background: #1c1c1e; }
 :root[data-theme="dark"][data-contrast="high"] .nav-item.active { color: var(--blue); }
+
+.translation-result { padding: 24px; margin-top: 16px; }
+.translation-result h2 { font-size: 17px; margin: 0 0 12px; }
+.translation-result p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }

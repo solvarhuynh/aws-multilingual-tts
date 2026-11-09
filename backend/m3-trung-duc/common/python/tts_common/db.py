@@ -174,7 +174,15 @@ def release_job(job):
 
 def complete_job(job, audio_key):
     """Ghi DONE cho job đang giữ."""
-    return _write(job, status="DONE", audioKey=audio_key, chunksDone=1, leaseUntil=None, errorMessage=None)
+    return _write(job, status="DONE", audioKey=audio_key, chunksDone=job.data.get("chunkCount", 1), leaseUntil=None, errorMessage=None)
+
+
+def checkpoint_job(job, **fields):
+    """Giữ ETag/lease của worker hiện tại; không retry trên một chủ sở hữu mới."""
+    allowed = {"text", "sourceLang", "translated", "charCount", "chunkCount", "chunksDone", "chunkSize"}
+    if job.data.get("status") != "PROCESSING" or fields.keys() - allowed:
+        raise ValueError("Checkpoint không hợp lệ")
+    return _write(job, **fields)
 
 
 def fail_job(job, message):
@@ -384,6 +392,7 @@ def delete_job(user_id, job_id):
             raise JobBusy
         job = _write(job, deleting=True)
     storage.delete_audio(storage.audio_key(user_id, job_id))
+    storage.delete_parts(user_id, job_id)
     aws.s3().delete_object(Bucket=config.JOBS_BUCKET, Key=_key(user_id, job_id))
 
 

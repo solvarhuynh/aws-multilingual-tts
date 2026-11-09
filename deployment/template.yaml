@@ -26,6 +26,14 @@ Parameters:
     Type: String
     Default: azure
     AllowedValues: [elevenlabs, azure]
+  TranslatorApiParameterName:
+    Type: String
+    Default: ''
+    Description: SSM SecureString name for Azure Translator; leave empty to disable translation
+  AzureTranslatorRegion:
+    Type: String
+    Default: global
+    AllowedPattern: '[a-z][a-z0-9]{1,39}'
   AzureSpeechRegion:
     Type: String
     Default: eastasia
@@ -34,9 +42,14 @@ Parameters:
     Type: String
     Default: jobs/
     AllowedPattern: '[a-z0-9-]+/'
+  MaxChars:
+    Type: Number
+    Default: 10000
+    MinValue: 1
+    MaxValue: 10000
   DailyCharLimit:
     Type: Number
-    Default: 6000
+    Default: 30000
     MinValue: 1
   StatsScanMaxJobs:
     Type: Number
@@ -93,6 +106,9 @@ Resources:
         TtsApiParameterName: !Ref TtsApiParameterName
         TtsProvider: !Ref TtsProvider
         AzureSpeechRegion: !Ref AzureSpeechRegion
+        MaxChars: !Ref MaxChars
+        TranslatorApiParameterName: !Ref TranslatorApiParameterName
+        AzureTranslatorRegion: !Ref AzureTranslatorRegion
 
   Submit:
     Type: AWS::Serverless::Application
@@ -108,6 +124,9 @@ Resources:
         SynthFunctionName: !GetAtt TtsCore.Outputs.SynthesizeFunctionName
         TtsProvider: !Ref TtsProvider
         AzureSpeechRegion: !Ref AzureSpeechRegion
+        MaxChars: !Ref MaxChars
+        TranslatorApiParameterName: !Ref TranslatorApiParameterName
+        AzureTranslatorRegion: !Ref AzureTranslatorRegion
         GeminiTypoEnabled: !Ref GeminiTypoEnabled
         GeminiApiParameterName: !Ref GeminiApiParameterName
         GeminiModel: !Ref GeminiModel

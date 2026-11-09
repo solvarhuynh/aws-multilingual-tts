@@ -16,8 +16,11 @@ class Body:
     def __init__(self, data):
         self.data = data
 
-    def read(self):
-        return self.data
+    def read(self, size=-1):
+        return self.data if size < 0 else self.data[:size]
+
+    def close(self):
+        pass
 
 
 class FakeS3:

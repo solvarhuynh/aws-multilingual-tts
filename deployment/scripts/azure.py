@@ -23,6 +23,8 @@ ROOT = Path(__file__).resolve().parents[2]
 REGISTRY_SOURCE = ROOT / "backend/m2-trung-khang/config"
 REGISTRY_LAYER = ROOT / "backend/m3-trung-duc/common/python/tts_common"
 STATE_PATH = Path.home() / ".tts-azure.json"
+TRANSLATOR_STATE = Path.home() / ".tts-translator.json"
+TRANSLATOR_PARAMETER = "/tts/dev/azure-translator"
 TOKEN_PATH = Path.home() / ".tts-demo-token"
 PARAMETER = "/tts/dev/azure-speech"
 STACK = "tts-dev"
@@ -126,6 +128,7 @@ def build_registry(items, target_languages, region):
 
 def save_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    path.chmod(0o600)
 
 
 def configure(region):
@@ -162,6 +165,43 @@ def read_state():
     if state.get("parameter") != PARAMETER or not re.fullmatch(r"[a-z][a-z0-9]{1,39}", state.get("region", "")):
         raise ValueError("Chạy configure trước")
     return state
+
+
+def configure_translator(region):
+    if not re.fullmatch(r"[a-z][a-z0-9]{1,39}", region):
+        raise ValueError("Vùng Azure Translator không hợp lệ")
+    if not sys.stdin.isatty():
+        raise ValueError("Chạy trực tiếp trong CloudShell để nhập key kín")
+    key = getpass.getpass("Dán key Azure Translator (không hiện), rồi Enter: ").strip()
+    if not key:
+        raise ValueError("Chưa nhập key")
+    headers = {"Content-Type": "application/json", "Ocp-Apim-Subscription-Key": key}
+    if region != "global":
+        headers["Ocp-Apim-Subscription-Region"] = region
+    request = urllib.request.Request(
+        "https://api.cognitive.microsofttranslator.com/translate?api-version=3.0&from=vi&to=en",
+        data=json.dumps([{"Text": "Xin chào"}], ensure_ascii=False).encode(), headers=headers, method="POST")
+    with urllib.request.build_opener(NoRedirect).open(request, timeout=20) as response:
+        result = json.loads(response.read(100_001))
+    try:
+        translation = result[0]["translations"][0]["text"]
+        if not isinstance(translation, str) or not translation.strip():
+            raise ValueError
+    except (KeyError, IndexError, TypeError, ValueError):
+        raise ValueError("Azure Translator chưa trả bản dịch hợp lệ; chưa lưu key") from None
+    aws("ssm", "put-parameter", payload={"Name": TRANSLATOR_PARAMETER, "Type": "SecureString",
+                                          "Value": key, "Overwrite": True})
+    save_json(TRANSLATOR_STATE, {"parameter": TRANSLATOR_PARAMETER, "region": region})
+    print("PASS Azure Translator; key lưu riêng trong SSM. Chạy plan, xem changeset rồi apply.")
+
+
+def translator_overrides():
+    if not TRANSLATOR_STATE.exists():
+        return {}
+    state = json.loads(TRANSLATOR_STATE.read_text(encoding="utf-8"))
+    if state.get("parameter") != TRANSLATOR_PARAMETER or not re.fullmatch(r"[a-z][a-z0-9]{1,39}", state.get("region", "")):
+        raise ValueError("Chạy configure-translator lại trong CloudShell")
+    return {"TranslatorApiParameterName": state["parameter"], "AzureTranslatorRegion": state["region"]}
 
 
 def registry_matches(state):
@@ -230,6 +270,7 @@ def plan(daily_char_limit=None):
     aws("cloudformation", "package", "--template-file", str(ROOT / "deployment/template.yaml"),
         "--s3-bucket", bucket, "--output-template-file", str(packaged), parse_json=False)
     overrides = {"TtsProvider": "azure", "AzureSpeechRegion": state["region"], "TtsApiParameterName": PARAMETER}
+    overrides.update(translator_overrides())
     if daily_char_limit is not None:
         overrides["DailyCharLimit"] = str(daily_char_limit)
     # UsePreviousValue giữ DemoToken/CORS/Env hiện có, không đọc hay in token.
@@ -298,7 +339,7 @@ def status():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("action", choices=("configure", "plan", "apply", "status"))
+    parser.add_argument("action", choices=("configure", "configure-translator", "plan", "apply", "status"))
     parser.add_argument("--region", default="eastasia", help="Vùng Azure; AWS luôn us-east-1")
     parser.add_argument("--daily-char-limit", type=int, help="Chỉ dùng với plan; ghi đè quota TTS/ngày trong changeset, không tự apply")
     args = parser.parse_args()
@@ -307,6 +348,8 @@ def main():
     try:
         if args.action == "configure":
             configure(args.region)
+        elif args.action == "configure-translator":
+            configure_translator(args.region)
         elif args.action == "plan":
             plan(args.daily_char_limit)
         else:

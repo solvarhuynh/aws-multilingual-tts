@@ -45,14 +45,14 @@ Repository được tổ chức theo trách nhiệm của năm thành viên. Fro
 |---|---|
 | Chuyển văn bản thành MP3 | Có backend async và giao diện web/app. Một stack/web hiện có đã được chuyển sang Azure và ghi nhận demo ngày 08/11/2026. |
 | Chọn ngôn ngữ, giọng và tốc độ | Lấy từ `/voices`; danh mục Azure được xác minh theo resource/vùng khi chạy `configure`. |
-| Đọc tài liệu và OCR | PDF, DOCX, TXT, Markdown và ảnh JPG/PNG/WebP; tối đa 20 MB, 200.000 ký tự và 50.000 từ. OCR tại thiết bị cho ảnh/PDF scan, đã thử local trên Chrome. |
-| Tài liệu dài | Chia thành các bản thu tối đa 2.000 ký tự; chọn từng phần hoặc tạo tuần tự, dừng khi gặp lỗi/quota. Chưa kiểm chứng trên Sandbox/điện thoại thật. |
+| Đọc tài liệu và OCR | PDF, DOCX, TXT, Markdown và ảnh JPG/PNG/WebP; tối đa 50 MB, 200.000 ký tự và 50.000 từ. OCR tại thiết bị cho ảnh/PDF scan, đã thử local trên Chrome. |
+| Tài liệu dài | Chia thành các bản thu tối đa 10.000 ký tự; chọn từng phần hoặc tạo tuần tự, dừng khi gặp lỗi/quota. Chưa kiểm chứng trên Sandbox/điện thoại thật. |
 | Phát và tải âm thanh | MP3 dùng URL có hạn; player web lấy thời gian từ tệp, hỗ trợ tạm dừng, tua, lặp lại và điều chỉnh âm lượng. |
 | Lịch sử bản thu | Có danh sách, phân trang, phát lại và xóa bản thu đã kết thúc. Dữ liệu hiện dùng chung cho scope demo. |
 | Giao diện | Tiếng Việt, sáng/tối/theo hệ thống, giảm chuyển động và tăng tương phản; thiết kế kính trên web và app. |
 | Nghe thử không có backend | Dùng giọng có sẵn trên thiết bị. Chế độ này không tạo tệp MP3 trên AWS. |
-| Dịch văn bản/tài liệu bằng Gemini | Có code web/app và API `/text/translate` dịch theo phần với ngữ cảnh; mặc định tắt trên AWS. Web có cầu nối local để thử bằng key nhập trong terminal. Người dùng xem bản dịch trước khi tạo giọng. |
-| Sửa lỗi đánh máy bằng Gemini | M5 đã có code và test mock; mặc định tắt trên AWS. Model mặc định trong source là `gemini-3.6-flash`; key cần quyền dùng model này. |
+| Dịch và đọc | Có code Azure Translator → Azure Speech, chọn giọng đích, giữ bản gốc và hiển thị bản dịch. Cần resource/key Translator riêng và cấu hình theo hướng dẫn; chưa nghiệm thu live trong đợt này. |
+| Sửa lỗi đánh máy bằng Gemini | M5 đã có code và test mock; mặc định tắt, chưa gọi Gemini thật hoặc deploy. |
 | Thống kê đầy đủ | M5 đã có code quét job S3 có giới hạn; chưa xác minh trên bucket Sandbox thật. |
 
 Code, kiểm thử local và demo trong một phiên là các mức bằng chứng khác nhau. Khả năng tạo mới toàn bộ stack, dựng lại sau reset và hoạt động trên thiết bị thật cần được kiểm riêng. Trạng thái và tiêu chí nghiệm thu của từng phần nằm trong README/CHANGELOG của thành viên.
@@ -84,7 +84,7 @@ flowchart LR
     ROUTER --> SUBMIT[Lambda submit · M5]
     ROUTER --> VOICES[Lambda voices · M2]
     ROUTER --> HISTORY[Lambda history · M3]
-    SUBMIT -.->|Sửa typo / dịch khi bật| GEMINI[Gemini 3.6 Flash]
+    SUBMIT -.->|Sửa typo / dịch khi bật| GEMINI[Gemini · model đã cấu hình]
     SUBMIT -->|Invoke Event| WORKER[Lambda worker · M2]
     WORKER --> AZURE[Azure Speech]
     WORKER --> AUDIO[S3 audio]
@@ -102,7 +102,7 @@ flowchart LR
 
 Tài liệu dài được chia ở frontend thành nhiều request theo API này; mỗi phần có job và MP3 riêng. Tệp gốc không tải lên AWS để OCR. Bộ nhận dạng cần mạng để tải mã lõi/dữ liệu ngôn ngữ; người dùng kiểm tra và sửa chữ trước khi tạo giọng. PDF tối đa 200 trang, trong đó không quá 30 trang cần OCR/lần nhập. Chọn **Tạo các phần còn lại · bản gốc** để tạo lần lượt; phần đã thành công được bỏ qua trong phiên màn hình hiện tại. Tải lại trang/mở lại màn hình cần đối chiếu Lịch sử trước khi chạy cả tài liệu lần nữa.
 
-Ở màn **Dịch và đọc**, người dùng có thể nhập cùng loại tài liệu, chọn ngôn ngữ và dịch từng phần qua Gemini; mỗi request mang thêm ngữ cảnh của phần trước. Xem hoặc tải bản dịch TXT, sau đó chọn đưa bản dịch sang màn Tạo giọng. Dịch không tự tạo MP3 hoặc tự chạy khi chỉ nhập tài liệu. Gemini trên AWS mặc định tắt; web có cầu nối để thử local.
+Màn **Dịch và đọc** mặc định dùng Azure Translator → Azure Speech, giữ bản gốc và hiển thị bản dịch kèm MP3. Lựa chọn **Gemini · Xem lại trước khi đọc** của M5 dịch tuần tự theo đoạn 2.000 ký tự/ngữ cảnh 600 ký tự, cho dừng/tiếp tục, tải TXT và duyệt trước khi tạo giọng. Gemini cần key/model và cờ bật riêng, mặc định tắt. Hai luồng không tự fallback sang nhau; TTS vẫn tối đa 10.000 ký tự/lượt.
 
 S3 web, jobs và audio là ba bucket riêng. Metadata không lưu presigned URL. S3 conditional write/lease giúp kiểm soát cập nhật đồng thời, nhưng không tạo giao dịch nhiều object hoặc bảo đảm provider chỉ bị tính phí đúng một lần.
 
@@ -118,7 +118,7 @@ Chi tiết routing, quyền, timeout và recovery: [ARCHITECTURE.md](docs/ARCHIT
 | Dữ liệu | S3 jobs JSON, S3 audio private, Common Lambda Layer |
 | Hạ tầng | AWS SAM/CloudFormation, CloudFront/OAC, SSM SecureString, CloudWatch/SNS theo template |
 | TTS mặc định | Azure Speech; adapter ElevenLabs được giữ cho tương thích và kiểm thử cũ |
-| Sửa typo và dịch theo ngữ cảnh | Gemini 3.6 Flash qua backend M5; mặc định tắt trên AWS, web thử được qua cầu nối local |
+| Sửa typo và dịch theo ngữ cảnh | Gemini qua backend M5; model phải được key hỗ trợ, mặc định tắt; có thể cấu hình ở runtime local chung |
 | Triển khai | Thủ công trong CloudShell/Lab IDE; review changeset trước khi áp dụng |
 
 Phiên bản cài đặt được khóa tại `package-lock.json` của từng frontend. Giữ lockfile khi làm việc nhóm.
@@ -208,6 +208,27 @@ Các gate, đầu ra và điều kiện chuyển bước được quy định tr
 - Expo Go tương thích **SDK 58** để demo trên điện thoại; thiết bị phải kết nối được Metro trên máy chạy app.
 - Không cần AWS credentials hoặc Azure key để chạy giao diện local và các bộ kiểm thử mock.
 
+### Backend Python local
+
+Để thử tạo MP3/dịch trước khi deploy, dùng [hướng dẫn local](deployment/local/README.md). Sau khi cài dependency Python/web/app và điền key trong `deployment/local/.env.local`, chạy từ gốc repo:
+
+```bash
+npm run dev
+```
+
+Lệnh mở API Python, web tại `http://127.0.0.1:5173` và QR Expo Go. Tự nhận IP LAN cho điện thoại/các URL MP3, không sửa env hay đưa key vào frontend; **Ctrl+C dừng cả ba**. Điện thoại và máy cùng Wi-Fi, nhập `DEMO_TOKEN` tại Cài đặt web/app. Catalog thiếu/khác vùng được lấy từ Azure nếu đã có Speech key; `--no-voices` bỏ bước gọi catalog, `--refresh-voices` lấy lại. Không cần mở Sandbox hoặc AWS credentials.
+
+Nếu chỉ muốn chạy backend riêng:
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r deployment/local/requirements.txt
+.venv/bin/python deployment/local/server.py voices
+.venv/bin/python deployment/local/server.py
+```
+
+`voices` gọi Azure thật sau khi bạn điền Speech key. Runtime không gọi AWS thật; job/MP3 lưu trong Moto RAM và mất khi tắt API. `.env.example` nằm cạnh từng cấu hình, file env thật được ignore. Không chạy thêm từng dịch vụ bên dưới khi đã dùng `npm run dev` ở gốc repo.
+
 ### Web
 
 Từ gốc repository:
@@ -218,15 +239,16 @@ npm ci
 npm run dev
 ```
 
-Mặc định mở `http://127.0.0.1:5173`. Khi có backend, tạo `frontend/web/.env.local`:
+Mặc định mở `http://127.0.0.1:5173`. Để nối Python local, `frontend/web/.env.local` dùng:
 
 ```dotenv
-VITE_API_BASE_URL=https://TEN-MIEN-CUA-NHOM.cloudfront.net
+VITE_API_BASE_URL=/api
+LOCAL_API_TARGET=http://127.0.0.1:8000
 ```
 
-Chỉ dùng domain CloudFront đang hoạt động của lab. Dừng và chạy lại dev server sau khi đổi env. Mã demo nhập trong **Cài đặt → Kết nối**, không đặt trong file env.
+Nhập `DEMO_TOKEN` của env backend trong **Cài đặt → Kết nối** (mẫu local: `local-demo`), không đặt mã trong env frontend. Khi nối Sandbox sau này, đổi API base thành domain CloudFront hoạt động hoặc để script upload build đúng domain. Đổi env cần khởi động lại dev server.
 
-Để thử **Gemini 3.6 Flash trên máy** mà chưa dùng AWS, xem [lệnh cầu nối local và nhập tài liệu để dịch](frontend/README.md#thử-gemini-trên-web-local-không-cần-aws). Key được hỏi ở terminal Python; `.env.local` chỉ chứa URL `127.0.0.1`. Giao diện cho xem/tải bản dịch rồi mới chọn tạo giọng.
+Muốn thử Gemini của M5 bằng cùng lệnh chạy, xem [cấu hình Gemini tùy chọn](deployment/local/README.md#gemini-tùy-chọn-sau-khi-gộp-m5). Key/model chỉ ở env backend và phải được tài khoản hỗ trợ; Azure tiếp tục dùng key riêng. Không cần cấu hình Gemini để dùng dịch Azure.
 
 ### App iOS/Android
 
@@ -240,7 +262,7 @@ npm start -- --clear
 
 `npm ci` chạy `prepare` để tạo PDF bundle cần cho app; không dùng `--ignore-scripts`. iPhone quét QR bằng Camera, Android mở Expo Go để quét. Dùng Expo Go đúng SDK với project.
 
-Khi có backend, tạo `frontend/app/.env.local`:
+Local: tạo `frontend/app/.env.local` từ `.env.example` và dùng IP LAN theo [hướng dẫn](deployment/local/README.md#4-expo-go-trên-điện-thoại). Khi chuyển Sandbox, dùng:
 
 ```dotenv
 EXPO_PUBLIC_API_BASE_URL=https://TEN-MIEN-CUA-NHOM.cloudfront.net
@@ -252,7 +274,8 @@ Khởi động lại Metro rồi nhập mã demo trong Cài đặt của app. Li
 
 | Chế độ | Cấu hình | Kết quả |
 |---|---|---|
-| Local | Không có API base | Dữ liệu mẫu/cục bộ và giọng thiết bị; chưa có MP3 AWS. |
+| UI mẫu | API base trống | Dữ liệu mẫu/cục bộ và giọng thiết bị; chưa có MP3. |
+| Backend local | Web `/api` qua Vite; app IP LAN của máy | Handler thật, Azure thật khi bấm tạo giọng/dịch; lưu trữ AWS được Moto mô phỏng trong RAM. |
 | Kết nối backend | Có API base và mã demo hợp lệ | Catalog/job/history từ API, MP3 từ backend và S3. |
 
 Giọng đọc thiết bị phụ thuộc hệ điều hành và gói giọng đã cài. Khi backend báo lỗi, frontend hiển thị lỗi; không chuyển ngầm sang giọng local rồi coi là MP3 cloud thành công.
@@ -381,7 +404,7 @@ Rà thêm `Location`, `CodeUri`, `ContentUri` sau khi di chuyển file. Giữ lo
 
 - `deployment/config/settings.json` là thông số chung không nhạy cảm; cấu hình runtime thực nằm trong template/Parameters/Outputs và biến môi trường Lambda.
 - Registry nguồn ở `backend/m2-trung-khang/config/`; bản trong `backend/m3-trung-duc/common/python/tts_common/` phục vụ đóng gói Layer. `configure` giữ hai bản Azure đồng bộ. Registry Azure trong Git ban đầu chưa có catalog thật.
-- Giới hạn hiện tại: nhập tệp tối đa 20 MB, 200.000 ký tự và 50.000 từ; mỗi job vẫn tối đa 2.000 ký tự, tốc độ mặc định 0,9× trong dải 0,7–1,2×. Quota server mặc định 6.000 ký tự/ngày cho scope demo chung, độc lập với giới hạn nhập tệp. Khi được giao triển khai tài liệu dài, dùng `deployment/scripts/azure.py plan --daily-char-limit N` với hạn mức đã thống nhất, review changeset rồi mới apply; quota Azure tính riêng. Xem [hướng dẫn frontend](frontend/README.md#nhập-tài-liệu-scan-và-tạo-nhiều-bản-thu).
+- Giới hạn hiện tại: nhập tệp tối đa 50 MB, 200.000 ký tự và 50.000 từ; mỗi job tối đa 10.000 ký tự, tốc độ mặc định 0,9× trong dải 0,7–1,2×. Quota server mặc định 30.000 ký tự nguồn/ngày cho scope demo chung, độc lập với giới hạn nhập tệp. Khi được giao triển khai tài liệu dài, dùng `deployment/scripts/azure.py plan --daily-char-limit N` với hạn mức đã thống nhất, review changeset rồi mới apply; quota Azure tính riêng. Xem [hướng dẫn frontend](frontend/README.md#nhập-tài-liệu-scan-và-tạo-nhiều-bản-thu).
 - Chỉ đưa API base công khai vào `VITE_*`/`EXPO_PUBLIC_*`. Key provider không nằm trong bundle, repository, log hoặc screenshot.
 - Token demo nhập lúc chạy; web hiện lưu localStorage, app dùng AsyncStorage. Đây là cơ chế demo giới hạn, không phải hệ thống tài khoản tách dữ liệu theo người. Xóa mã trên thiết bị mượn sau sử dụng.
 - Không commit AWS credentials, `.env*`, token, key, văn bản riêng tư hoặc presigned URL đầy đủ. Cache/dependency/build output được ignore; giấy phép, lockfile và tests phải được giữ.
@@ -433,3 +456,5 @@ Phân biệt `planned`, `coded`, `locally tested`, `sandbox verified` và `deplo
 | [Kiểm quyền Sandbox](backend/m1-minh-ly/reference/SANDBOX-VALIDATION.md) | Runbook kiểm tra khi được giao thao tác lab |
 
 Giữ nguyên thông báo giấy phép và ghi công thư viện tại [web/public/licenses](frontend/web/public/licenses/), [font OFL](frontend/web/public/fonts/OFL.txt), [app/licenses](frontend/app/licenses/) và [app/LICENSE](frontend/app/LICENSE).
+
+Dịch và đọc, OCR 50 MB, request 10.000 ký tự và nghiệm thu các ngôn ngữ còn lại: xem [hướng dẫn cấu hình/kiểm tra](docs/AZURE-SPEECH.md#dịch-và-đọc--azure-translator). Đây là code/local test, không tự xác nhận Sandbox hay thay thế các dịch vụ bắt buộc của đề.

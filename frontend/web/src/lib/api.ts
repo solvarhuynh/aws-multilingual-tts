@@ -68,6 +68,8 @@ function isJob(value: unknown): value is Job {
       value.progress.total < 0)
   )
     return false;
+  if (["text", "lang", "sourceLang"].some(key => value[key] != null && typeof value[key] !== "string")) return false;
+  if (value.translated !== undefined && typeof value.translated !== "boolean") return false;
   return true;
 }
 function isHistoryItem(value: unknown): value is HistoryItem {
@@ -95,7 +97,7 @@ async function request<T>(path: string, init?: RequestInit, timeout = 45000, bas
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeout);
   try {
-    const token = getDemoToken();
+    const token = base === API_BASE ? getDemoToken() : '';
     const hash = typeof init?.body === "string" ? await bodyHash(init.body) : null;
     const response = await fetch(`${base}${path}`, {
       ...init,
@@ -202,7 +204,10 @@ export const api = {
       )
     )
       throw new ApiError("Danh sách giọng đọc chưa đúng định dạng.", "INVALID_RESPONSE");
-    return data.languages;
+    const catalog = data as typeof data & { limits?: { maxChars?: number }; features?: { translation?: boolean } };
+    const limit = catalog.limits?.maxChars;
+    if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) throw new ApiError("Giới hạn máy chủ chưa hợp lệ.", "INVALID_RESPONSE");
+    return data.languages.map(language => ({ ...language, maxChars: Math.min(MAX_CHARS, limit ?? MAX_CHARS), translationEnabled: catalog.features?.translation }));
   },
   async synthesize(input: SynthesizeInput, context = ''): Promise<Job> {
     if (!DEMO) {
@@ -215,7 +220,7 @@ export const api = {
         if (result.status === 'DONE' || result.status === 'FAILED') await submissions.finish(result.jobId);
         return result;
       } catch (error) {
-        if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'UNSUPPORTED_SPEED', 'FEATURE_NOT_ENABLED'].includes(error.code)) await submissions.reject(digest);
+        if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'UNSUPPORTED_SPEED', 'FEATURE_NOT_ENABLED', 'TRANSLATION_NOT_CONFIGURED'].includes(error.code)) await submissions.reject(digest);
         throw error;
       }
     }

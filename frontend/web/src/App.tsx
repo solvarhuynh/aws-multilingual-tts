@@ -83,6 +83,7 @@ export default function App() {
   const deleteLock = useRef(false);
   const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const notify = useCallback((text: string, error = false) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -90,8 +91,9 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToast(null), 5500);
   }, []);
   const [target, setTarget] = useState("en-US");
+  const [translationReview, setTranslationReview] = useState(false);
   const isStudio = ["studio", "translation", "documents"].includes(page);
-  const studio = useStudio(notify, page === "translation" ? target : null);
+  const studio = useStudio(notify, page === "translation" ? target : null, translationReview);
   useEffect(() => {
     if (studio.languages.length)
       setTarget((previous) =>
@@ -266,7 +268,7 @@ export default function App() {
             Nhấn <strong>Tạo giọng đọc</strong>, sau đó phát để nghe.
           </li>
         </ol>
-        <p>Tệp tối đa 20 MB, 200.000 ký tự và 50.000 từ. Mỗi bản thu tối đa {formatNumber(MAX_CHARS)} ký tự; tạo từng phần theo hạn mức máy chủ.</p>
+        <p>Tệp tối đa 50 MB, 200.000 ký tự và 50.000 từ. Mỗi bản thu tối đa {formatNumber(MAX_CHARS)} ký tự; tạo từng phần theo hạn mức máy chủ.</p>
         <div className="help-note">
           {DEMO
             ? "Bản nghe thử dùng giọng có trên máy. Lịch sử được lưu trong trình duyệt; chưa có tệp MP3."
@@ -432,6 +434,7 @@ export default function App() {
                       />
                       <button type="submit">Lưu mã</button>
                     </form>
+
                   )}
                 </section>
               </div>
@@ -447,7 +450,7 @@ export default function App() {
                   {[
                     {
                       q: "Có thể đọc những loại tài liệu nào?",
-                      a: `PDF, Word DOCX, TXT, Markdown và ảnh JPG/PNG/WebP; tối đa 20 MB, 200.000 ký tự và 50.000 từ. PDF scan được nhận dạng chữ tại thiết bị, tối đa 30 trang scan/lần. Kiểm tra lại chữ trước khi tạo các bản thu, mỗi phần tối đa ${formatNumber(MAX_CHARS)} ký tự.`,
+                      a: `PDF, Word DOCX, TXT, Markdown và ảnh JPG/PNG/WebP; tối đa 50 MB, 200.000 ký tự và 50.000 từ. PDF scan được nhận dạng chữ tại thiết bị, tối đa 30 trang scan/lần. Kiểm tra lại chữ trước khi tạo các bản thu, mỗi phần tối đa ${formatNumber(MAX_CHARS)} ký tự.`,
                     },
                     {
                       q: "Làm sao để dịch và đọc?",
@@ -496,7 +499,7 @@ export default function App() {
                             ? "Đang đọc tài liệu…"
                             : studio.fileName || "Thả tài liệu hoặc chọn tệp"}
                         </strong>
-                        <small>PDF, DOCX, TXT, Markdown, ảnh scan · 20 MB</small>
+                        <small>PDF, DOCX, TXT, Markdown, ảnh scan · 50 MB</small>
                       </span>
                       <Icon name="plus" size={19} />
                     </Button>
@@ -509,11 +512,12 @@ export default function App() {
                     }}
                     noValidate
                   >
+                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={event => { void studio.importFile(event.target.files?.[0]); event.target.value = ""; }} />
                     <div className="editor-toolbar">
                       <Button
                         type="button"
                         className="speaker-chip"
-                        disabled={studio.busy || studio.loadingVoices || !!studio.voiceError}
+                        disabled={studio.busy || studio.readingFile || studio.loadingVoices || !!studio.voiceError}
                         onClick={() => openDialog("voices")}
                       >
                         <VoiceAvatar id={voiceLabel(studio.languages, studio.voice)} />
@@ -530,6 +534,7 @@ export default function App() {
                         {studio.readingFile ? "Đang nhập…" : "Nhập tệp"}
                       </Button>
                     </div>
+                    <div className="document-tools"><Button type="button" className="secondary-button" disabled={studio.busy || studio.readingFile} onClick={() => cameraRef.current?.click()}>Chụp tài liệu</Button><span>Kiểm tra chữ nhận dạng trước khi tạo bản thu.</span></div>
                     {studio.readingFile && <div className="document-tools" role="status">
                       <span>{studio.importProgress}</span>
                       <Button type="button" onClick={studio.cancelImport}>Hủy nhập</Button>
@@ -539,11 +544,11 @@ export default function App() {
                         onChange={event => studio.setPartIndex(Number(event.target.value))}>
                         {studio.parts.map((part, index) => <option value={index} key={index}>Phần {index + 1}/{studio.parts.length} · {formatNumber(part.length)} ký tự</option>)}
                       </select></label>
-                      {page !== "translation" && <Button type="button" disabled={studio.busy || studio.readingFile} onClick={() => void studio.generateAll()}>Tạo các phần còn lại · bản gốc</Button>}
+                      {!(page === "translation" && translationReview) && <Button type="button" disabled={studio.busy || studio.readingFile} onClick={() => void studio.generateAll()}>Tạo các phần còn lại</Button>}
                       {studio.batch && <><span role="status">Đã xong {studio.batch.done}/{studio.batch.total} phần</span>
                         <Button type="button" onClick={studio.stopBatch}>Dừng sau phần hiện tại</Button></>}
                       <details><summary>Xem phần {studio.partIndex + 1} sẽ được đọc</summary><p className="part-preview">{studio.parts[studio.partIndex]}</p></details>
-                      <p>{page === "translation" ? "Dịch tài liệu theo thứ tự; mỗi phần dùng ngữ cảnh phần trước. Xem lại bản dịch rồi mới tạo giọng." : "Mỗi phần có bản thu riêng trong Lịch sử. Nếu hết hạn mức hoặc mất kết nối, hàng đợi dừng; các phần đã xong được giữ lại."}</p>
+                      <p>{page === "translation" && translationReview ? "Xem lại bản dịch trước khi tạo giọng. Phần đã dịch được giữ trong phiên này." : "Mỗi phần có bản thu riêng trong Lịch sử. Phần đã xong được giữ lại khi dừng hoặc gặp lỗi."}</p>
                     </div>}
                     {!studio.text && page === "studio" && (
                       <div className="editor-emblem">
@@ -665,7 +670,7 @@ export default function App() {
                           type="button"
                           className="icon-button"
                           aria-label="Xóa nội dung văn bản"
-                          disabled={!studio.text || studio.busy}
+                          disabled={!studio.text || studio.busy || studio.readingFile}
                           onClick={() => {
                             studio.updateText("");
                             studio.editorRef.current?.focus();
@@ -679,21 +684,27 @@ export default function App() {
                           disabled={
                             studio.busy ||
                             studio.readingFile ||
-                            (page !== "translation" && (studio.loadingVoices || !!studio.voiceError || !studio.voice)) ||
+                            (!(page === "translation" && translationReview) && (studio.loadingVoices || !!studio.voiceError || !studio.voice)) ||
                             (page === "translation" && !studio.text.trim())
                           }
                         >
                           {studio.busy ? <Spinner /> : <Icon name="wave" size={17} />}
                           {studio.busy
                             ? studio.translating ? "Đang dịch tài liệu…" : "Đang tạo âm thanh…"
-                            : page === "translation"
+                            : page === "translation" && translationReview
                               ? studio.translationDraft && studio.translationDraft.translatedParts.length < studio.translationDraft.sourceParts.length
                                 ? "Tiếp tục dịch tài liệu" : studio.parts.length > 1 ? "Dịch toàn bộ tài liệu" : "Dịch nội dung"
+                              : page === "translation" ? "Dịch và tạo giọng đọc"
                               : studio.parts.length > 1 ? `Tạo phần ${studio.partIndex + 1}` : "Tạo giọng đọc"}
                         </Button>
                       </div>
                     </div>
                   </form>
+                  {page === "translation" && studio.currentAudio?.translated && <section className="surface translation-result" aria-label="Bản dịch">
+                    <h2>Bản dịch · {languageNames[studio.currentAudio.lang] || studio.currentAudio.lang}</h2>
+                    <p>{studio.currentAudio.text}</p>
+                    <Button type="button" onClick={() => { void navigator.clipboard.writeText(studio.currentAudio!.text).then(() => notify("Đã sao chép bản dịch.")).catch(() => notify("Không sao chép được. Hãy chọn và sao chép văn bản.", true)); }}>Sao chép bản dịch</Button>
+                  </section>}
                 </section>
                 <aside className="voice-settings surface" aria-label="Cài đặt giọng đọc">
                   <div className="settings-heading">
@@ -702,14 +713,19 @@ export default function App() {
                   <div className="setting-field">
                     <label htmlFor="language">{page === "translation" ? "Ngôn ngữ gốc" : "Ngôn ngữ"}</label>
                     <Select id="language" label={page === "translation" ? "Ngôn ngữ gốc" : "Ngôn ngữ"}
-                      value={studio.lang} onValueChange={studio.setLang} disabled={studio.busy || studio.loadingVoices}
+                      value={studio.lang} onValueChange={studio.setLang} disabled={studio.busy || studio.readingFile || studio.loadingVoices}
                       options={studio.languages.map((l) => ({ value: l.lang, label: languageNames[l.lang] || l.lang }))} />
                   </div>
                   {page === "translation" && (
                     <div className="setting-field">
+                      <label htmlFor="translation-mode">Cách dịch</label>
+                      <Select id="translation-mode" label="Cách dịch" value={translationReview ? 'review' : 'speech'}
+                        onValueChange={value => setTranslationReview(value === 'review')} disabled={studio.busy || studio.readingFile}
+                        options={[{ value: 'speech', label: 'Azure · Dịch và đọc' }, { value: 'review', label: 'Gemini · Xem lại trước khi đọc' }]} />
+                      {translationReview && <small>Cần quản trị viên bật Gemini; không dùng key Azure Translator.</small>}
                       <label htmlFor="target-language">Dịch sang</label>
                       <Select id="target-language" label="Dịch sang" value={target} onValueChange={setTarget}
-                        disabled={studio.busy || studio.loadingVoices}
+                        disabled={studio.busy || studio.readingFile || studio.loadingVoices}
                         options={studio.languages.filter((l) => l.voices.length).map((l) => ({ value: l.lang, label: languageNames[l.lang] || l.lang }))} />
                     </div>
                   )}
@@ -719,7 +735,7 @@ export default function App() {
                       className="voice-select"
                       aria-labelledby="selected-voice-label selected-voice-value"
                       aria-haspopup="dialog"
-                      disabled={studio.busy || studio.loadingVoices || !!studio.voiceError}
+                      disabled={studio.busy || studio.readingFile || studio.loadingVoices || !!studio.voiceError}
                       onClick={() => openDialog("voices")}
                     >
                       <VoiceAvatar id={voiceLabel(studio.languages, studio.voice)} />

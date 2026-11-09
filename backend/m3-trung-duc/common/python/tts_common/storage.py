@@ -52,3 +52,41 @@ def get_audio_url(key, ttl=None) -> str:
 def delete_audio(key):
     """Xóa đối tượng âm thanh trong S3 theo khóa; file không có thì không lỗi."""
     aws.s3().delete_object(Bucket=config.AUDIO_BUCKET, Key=key)
+
+
+def _part_key(user_id, job_id, index):
+    if type(index) is not int or not 0 <= index < 100:
+        raise ValueError("Phần âm thanh không hợp lệ")
+    return audio_key(user_id, job_id).removesuffix(".mp3") + f"/parts/{index:03}.mp3"
+
+
+def read_part(user_id, job_id, index):
+    client = aws.s3()
+    try:
+        response = client.get_object(Bucket=config.AUDIO_BUCKET, Key=_part_key(user_id, job_id, index))
+    except client.exceptions.ClientError as error:
+        if error.response["Error"]["Code"] in {"404", "NoSuchKey"}:
+            return None
+        raise
+    body = response["Body"]
+    try:
+        data = body.read(50 * 1024 * 1024 + 1)
+        if len(data) > 50 * 1024 * 1024:
+            raise ValueError("Phần âm thanh quá lớn")
+        return data
+    finally:
+        body.close()
+
+
+def put_part(user_id, job_id, index, data):
+    aws.s3().put_object(Bucket=config.AUDIO_BUCKET, Key=_part_key(user_id, job_id, index),
+                        Body=data, ContentType="audio/mpeg", ServerSideEncryption="AES256")
+
+
+def delete_parts(user_id, job_id):
+    client = aws.s3()
+    prefix = audio_key(user_id, job_id).removesuffix(".mp3") + "/parts/"
+    # Worker giới hạn 100 phần; mỗi phần có một khóa cố định.
+    response = client.list_objects_v2(Bucket=config.AUDIO_BUCKET, Prefix=prefix)
+    for item in response.get("Contents", []):
+        client.delete_object(Bucket=config.AUDIO_BUCKET, Key=item["Key"])

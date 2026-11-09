@@ -34,6 +34,8 @@ Cập nhật **08/11/2026**. Dành cho cả năm thành viên, có thể làm t�
 
 <a id="nhom"></a>
 
+Hướng dẫn bổ sung: [Azure Translator — Dịch và đọc](#dịch-và-đọc--azure-translator), [nghiệm thu các ngôn ngữ còn lại](#nghiệm-thu-các-ngôn-ngữ-còn-lại).
+
 ## 1. Dùng chung hay tự dựng
 
 | Trường hợp | Cần làm |
@@ -678,3 +680,127 @@ Lệnh/tên thao tác đã đối chiếu source nhóm; tên menu Portal có th�
 | [Quy ước chung](./CONVENTIONS.md) | Bảy paths, async, scope và dữ liệu. |
 
 Nguồn Microsoft/AWS dẫn ngay tại phần Azure, quota, vùng và CloudShell. Kết quả một phiên không thay thế kiểm quyền/giới hạn của tài khoản khác.
+
+## Dịch và đọc — Azure Translator
+
+Bổ sung ngày **09/11/2026**. Người dùng đã chọn làm sẵn code, chưa có resource/key Translator. Phần này **chưa được triển khai hoặc gọi live trong đợt sửa code**. Không cần dựng lại Azure Speech đang dùng; Translator là resource/key riêng cho bước dịch, Speech vẫn tạo MP3.
+
+### 1. Tạo resource Translator trên Azure
+
+1. Vào Azure Portal bằng tài khoản có **Azure for Students** đang Active. Chọn đúng subscription trong bộ lọc.
+2. **Create a resource** → tìm **Translator** do Microsoft cung cấp, chức năng **Text Translation**. Không chọn Speech, Speech-to-text hoặc dịch vụ SaaS bên thứ ba.
+3. Subscription: **Azure for Students**; Resource group: có thể dùng `tts-demo-rg`; Name: ví dụ `hcmute-translator-demo` (tên phải còn dùng được).
+4. Region: chọn vùng subscription cho phép và Translator hỗ trợ. Có thể thử **East Asia** nếu vùng này đang được tài khoản cho phép. Nếu portal chọn **Global**, bước cấu hình sau dùng `--region global`. Không dùng vùng AWS `us-east-1` cho lệnh này.
+5. Pricing tier: **Free F0** nếu resource/tài khoản cung cấp. Đọc hạn mức hiển thị ngay trong portal; F0 không có nghĩa dùng không giới hạn. Nếu không có F0, kiểm tra resource miễn phí đã có hoặc hỏi chủ tài khoản, không tự chọn S0/nâng gói.
+6. **Review + create** → **Create**. Nếu gặp `RequestDisallowedByAzure`, chọn vùng trong danh sách được subscription cho phép; không sửa Azure Policy để lách giới hạn.
+7. Mở resource vừa tạo → **Keys and Endpoint**. Ghi lại **Location/Region** chính xác và giữ **Key 1** riêng. Không gửi key vào chat, Git hoặc ảnh chụp. Key Speech hiện tại không thay được key Translator single-service.
+
+Nguồn: [tài liệu Translator](https://learn.microsoft.com/en-us/azure/ai-services/translator/) và [Translate REST v3](https://learn.microsoft.com/en-us/azure/ai-services/translator/text-translation/reference/v3/translate). Backend dùng endpoint cố định `https://api.cognitive.microsofttranslator.com/translate`, explicit `from`/`to`, không nhận endpoint hoặc key từ trình duyệt.
+
+### 2. Cấu hình trong CloudShell của phiên AWS Academy
+
+Chỉ chủ phiên lab thực hiện. Bật Sandbox, mở AWS Console và CloudShell ở **N. Virginia / us-east-1**, vào thư mục repo. Lấy phiên bản chứa tính năng này bằng quy trình Git của nhóm; kiểm `git status` và giữ thay đổi của người khác, không reset/ghi đè để cập nhật.
+
+Nếu là lab mới hoặc chưa có `~/.tts-azure.json`, làm mục 7 ở trên để cấu hình **Speech** trước. Key provider cần nhập lại khi SSM của lab cũ đã bị xóa; file cấu hình còn trên CloudShell không chứng minh resource AWS còn tồn tại.
+
+Ví dụ resource **Translator** ở East Asia:
+
+```bash
+python3 deployment/scripts/azure.py configure-translator --region eastasia
+```
+
+Nếu resource ghi Global:
+
+```bash
+python3 deployment/scripts/azure.py configure-translator --region global
+```
+
+Chỉ chạy **một lệnh đúng vùng resource**. Khi hỏi `Dán key Azure Translator (không hiện)`, dán **key Translator** rồi Enter. Lệnh thực hiện một câu dịch ngắn `vi → en` để kiểm quyền/key/vùng, sau đó lưu key vào SSM SecureString `/tts/dev/azure-translator` tại AWS `us-east-1`. File `~/.tts-translator.json` chỉ giữ **tên parameter + vùng**, không giữ key.
+
+Kết quả mong đợi:
+
+```text
+PASS Azure Translator; key lưu riêng trong SSM. Chạy plan, xem changeset rồi apply.
+```
+
+- HTTP 401/403: kiểm key/resource/vùng; chưa kết luận lỗi code hay tạo thêm tài khoản.
+- HTTP 429: kiểm quota của Translator, đợi và kiểm lại trong Azure; không chạy lặp liên tục.
+- AWS AccessDenied: giữ nguyên policy, nhờ M1 kiểm quyền `ssm:PutParameter` trong phiên lab. Worker cần `ssm:GetParameter` có giải mã trên parameter đó. Không xuất credentials hoặc tự sửa IAM.
+- Đổi key/vùng: chạy lại `configure-translator` rồi tạo changeset mới. Không cần chép key vào Lambda Environment hoặc frontend.
+
+### 3. Review thay đổi backend rồi upload web
+
+```bash
+python3 deployment/scripts/azure.py plan --daily-char-limit 30000
+```
+
+`plan` tạo changeset, **chưa thực thi**. Kiểm tra trước khi tiếp tục:
+
+- `TranslatorApiParameterName=/tts/dev/azure-translator`, `AzureTranslatorRegion` đúng resource Translator.
+- `MaxChars=10000` đi từ root xuống Submit, Worker và Voices; `DailyCharLimit=30000` ký tự nguồn/ngày cho **cả scope demo**. Stack cũ có thể đang giữ 6.000: dùng flag trên khi nhóm đồng ý mức 30.000. Thay quota ứng dụng không tăng quota Azure.
+- Worker timeout mặc định 600 giây; vẫn chỉ một `EventInvokeConfig`, retry hữu hạn. Không có role, database, endpoint công khai mới hoặc xóa/thay resource ngoài dự kiến.
+- Changeset M1/M3/M5 được tích hợp cùng tính năng: giữ idempotency, JSON errors, S3 CAS/checkpoint và timeout router. Nếu thấy Remove/Replacement, dừng xem lại theo quy trình mục 9.
+
+Sau khi đã review changeset đúng phạm vi được giao:
+
+```bash
+python3 deployment/scripts/azure.py apply
+python3 deployment/scripts/azure.py status
+bash deployment/scripts/sandbox.sh web
+```
+
+`status` kiểm cấu hình provider Speech chung như trước; chưa phải nghiệm thu Translator. Chủ lab có thể xem Lambda Environment: worker/submit có `TRANSLATOR_API_PARAMETER_NAME` và `AZURE_TRANSLATOR_REGION` (chỉ tên/vùng, không phải key). `/voices` trả `features.translation=true` khi đã nối tên parameter; cờ này không kiểm key/quota đang hợp lệ. Nghiệm thu bằng bước 4.
+
+Upload web cần Node theo README và `npm ci` đầy đủ. `prepare`/`prebuild` tự sinh `dist/ocr/` gồm worker, WASM và sáu model; không upload riêng vài file JS hoặc bỏ thư mục OCR. Worker/model chỉ tải khi nhập scan, không tải toàn bộ khi mở trang.
+
+### 4. Nghiệm thu Dịch và đọc trên URL CloudFront
+
+1. Mở web từ URL vừa in, tải lại để lấy build mới. Cài đặt → nhập mã demo của phiên hiện tại nếu chưa có.
+2. **Dịch và đọc** → nguồn **Tiếng Việt**, đích **Tiếng Anh**, chọn một giọng Anh trong catalog. Nhập `Xin chào. Hôm nay chúng tôi thử tính năng dịch và đọc.` rồi bấm **Dịch và tạo giọng đọc** một lần.
+3. Mong đợi: 202 → PROCESSING → DONE; ô soạn thảo giữ nguyên tiếng Việt, khu vực **Bản dịch** hiện tiếng Anh; nghe MP3 thực sự đọc bản dịch bằng giọng Anh. Thử sao chép bản dịch, tải MP3, phát/tạm dừng/tua.
+4. Lịch sử phải hiện nội dung đã dịch, ngôn ngữ và giọng đúng; tải lại trang rồi mở bản thu vẫn đúng. Thử Anh → Việt và Việt → Nhật/Hàn/Trung bằng giọng **đích** thật trong catalog, không dùng voice ID tự viết.
+5. Nguồn trùng đích hoặc giọng không thuộc đích phải bị chặn. Chưa cấu hình Translator báo lỗi rõ, không tạo bản thu giả hoặc chuyển sang giọng thiết bị. Key sai/quota lỗi làm job FAILED hoặc retry hữu hạn, không báo đã dịch thành công.
+6. Thử 10.000 ký tự ở **Tạo giọng đọc**. Một job được chia nội bộ thành đoạn 1.500 ký tự, checkpoint tiến độ và ghép thành một MP3; nghe đầu/giữa/cuối, tua gần cuối và đối chiếu timeline. Không dùng thời lượng ước tính từ văn bản để nghiệm thu MP3. Dùng quota đã thống nhất, không bấm tạo lặp khi chưa rõ trạng thái.
+7. Dịch có thể làm văn bản dài hơn nguồn. Nếu bản dịch vượt 10.000 ký tự, job báo FAILED và yêu cầu chia nhỏ nguồn, **không cắt bản dịch âm thầm**.
+
+Theo [giới hạn Speech](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-services-quotas-and-limits), real-time TTS có giới hạn thời lượng mỗi request; việc chia đoạn tránh gửi cả văn bản dài trong một call provider. Các request cùng resource vẫn dùng chung hạn mức; không chạy nhiều bộ nghiệm thu đồng thời.
+
+### 5. Nghiệm thu scan và tài liệu
+
+- **Đọc tài liệu** → nhập TXT/DOCX/PDF có chữ, ảnh JPG/PNG/WebP, PDF scan và PDF gồm cả trang chữ/trang ảnh. Kiểm đầu/giữa/cuối và số trang, sửa chữ OCR trước khi tạo giọng.
+- **Chụp tài liệu**: điện thoại mở camera qua file picker nếu trình duyệt hỗ trợ; desktop chọn ảnh. Đặt đúng ngôn ngữ trước OCR. Web có model Việt/Anh/Nhật/Hàn/Trung giản thể/phồn thể; các ngôn ngữ khác hiện dùng OCR Anh, không tự tuyên bố nhận dạng tốt mọi script.
+- Giới hạn tệp: **50 × 1024 × 1024 byte**; nội dung sau nhập **200.000 đơn vị UTF-16, 50.000 từ**; PDF **200 trang, tối đa 30 trang scan**; ảnh tối đa 40 megapixel, được giảm kích thước trước OCR.
+- Thử tệp vượt 50 MB, PDF khóa mật khẩu, ảnh không có chữ và hủy khi OCR đang chạy. Phải báo rõ, không xóa bản nháp hoặc nhập thiếu trang như thành công. Kiểm lại trên điện thoại thật vì tốc độ và bộ nhớ khác máy tính.
+- Trên tài liệu nhiều phần: chọn **Tạo phần N** hoặc **Tạo các phần còn lại**. Mỗi phần có job/MP3 riêng. Hết quota/lỗi/dừng thì giữ các phần đã xong trong phiên; sau reload cần đối chiếu Lịch sử, chưa có manifest tài liệu bền vững.
+
+## Nghiệm thu các ngôn ngữ còn lại
+
+M2 cung cấp `backend/m2-trung-khang/scripts/languages.py`. Bộ này không thay đổi cấu hình Lambda, key hay tài nguyên của nhóm; chế độ live chỉ gửi các job demo qua API. **Mặc định không gọi mạng**:
+
+```bash
+python3 backend/m2-trung-khang/scripts/languages.py --languages ko-KR,fr-FR,de-DE
+```
+
+Khi được giao chạy nghiệm thu, thực hiện trong CloudShell của phiên hiện tại, lấy URL của chính stack từ kết quả `sandbox.sh web`. Thay URL mẫu dưới đây; không chép token vào lệnh, script đọc `~/.tts-demo-token` do quy trình deploy tạo sẵn. Nếu dùng mã khác do chủ lab cấp, lưu trong file riêng ở CloudShell với quyền 600 và dùng `--token-file` trỏ đến file đó.
+
+```bash
+python3 backend/m2-trung-khang/scripts/languages.py --live \
+  --base https://TEN-MIEN-CUA-PHIEN.cloudfront.net \
+  --languages ko-KR,fr-FR,de-DE \
+  --max-cases 6 --char-budget 3000
+```
+
+Mỗi giọng thật trong catalog được thử bằng câu mẫu bản ngữ. Chạy tuần tự; mặc định tối đa 6 trường hợp, 3.000 ký tự nguồn/lần. Không mở nhiều bản script đồng thời. Chạy lại cùng `--output` (mặc định `~/tts-language-acceptance`) bỏ qua trường hợp đã tải MP3 thành công; request chưa rõ kết quả giữ cùng Idempotency-Key/jobId. Nếu HTTP 429 hoặc lỗi, bộ test dừng, không tự reset quota hoặc spam provider. Khi được nhóm duyệt ngân sách lớn hơn mới tăng flag hoặc chọn nhóm ngôn ngữ tiếp theo.
+
+Kết quả: `results.json` và các MP3 trong thư mục ngoài repo; không ghi token, nội dung riêng tư hay presigned URL. **`audioValidated=true` chỉ xác nhận job DONE và dữ liệu nhận có đầu MP3; chưa chứng minh phát âm đúng hoặc không thiếu chữ.** Nghe từng file và ghi lại:
+
+| Nội dung cần ghi | Tiêu chí |
+|---|---|
+| Lang, voice, ngày/phiên, source commit | Đúng catalog của resource/phiên đang thử |
+| `jobId`, trạng thái, thời gian chờ | DONE, không bị kẹt/dispatch trùng |
+| Nghe đầu/giữa/cuối | Đủ câu mẫu, đúng ngôn ngữ, không đọc tiếng Anh thay script gốc |
+| Chất lượng | Nhờ người biết ngôn ngữ nhận xét phát âm/ngắt câu; chưa có người nghe thì ghi **pending listening** |
+| Web | Phát/pause/seek/tải/xóa và tải lại lịch sử đúng |
+| Kết luận | Tách MP3 kỹ thuật đạt với chất lượng đã nghe đạt, không tick chung mọi ngôn ngữ |
+
+Ghi kết quả đã che dữ liệu vào CHANGELOG của owner chạy nghiệm thu theo AGENTS. Không nâng trạng thái của M2/M3/M5 chỉ vì M4 build hoặc mock pass.

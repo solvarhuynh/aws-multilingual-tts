@@ -6,11 +6,13 @@
   "jobStorage": "s3-json",
   "dispatchMode": "lambda-async-event",
   "ttsProvider": "azure",
-  "maxChars": 2000,
+  "maxChars": 10000,
   "presignTtlSeconds": null,
   "jobTtlDays": null,
   "audioLifecycleDays": null,
   "defaultSpeed": 0.9,
   "minSpeed": 0.7,
-  "maxSpeed": 1.2
+  "maxSpeed": 1.2,
+  "maxFileBytes": 52428800,
+  "dailyCharLimit": 30000
 }

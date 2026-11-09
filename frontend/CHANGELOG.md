@@ -4,16 +4,70 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 
 
 **Người phụ trách:** Nguyên Khang
-**Danh sách việc:** `docs/tasks/task-m4.md`
+**Danh sách việc:** [README](README.md)
+
+## 2026-11-09 — Bàn giao source và đồng bộ các nhánh
+
+- Người dùng yêu cầu push bản hiện có lên toàn bộ nhánh trước khi tiếp tục xử lý lỗi web. Phạm vi gồm source M4 và các phần tích hợp M1/M2/M3/M5, OCR 50 MiB, TTS 10.000 ký tự, Azure/Gemini và công cụ local; không deploy AWS hoặc gọi provider trong đợt bàn giao này.
+- Fetch xác nhận `main`, `m1-minhly`, `m2-trungkhang`, `m3-trungduc`, `m4-nguyenkhang`, `m5-trungnghia` đều là tổ tiên của bản tích hợp. Đồng bộ bằng fast-forward/atomic push, không force-push; giữ ba stash và lịch sử owner. Mã commit và trạng thái remote được xác nhận trong báo cáo bàn giao sau push.
+- Chạy lại **399 kiểm thử PASS**: M1 31, M2 87, M3 49, M5 89, web 91, app 42, launcher/TLS 10. Build web với env công khai trống, app typecheck/lint, Expo export iOS+Android với dotenv tắt, cfn-lint tất cả template và `git diff --check` đạt. Đây là bằng chứng local/mock, không phải nghiệm thu Azure/Gemini/AWS thật.
+- **Vấn đề còn mở:** người dùng vẫn báo lỗi trên web sau hướng dẫn nhập mã demo. Phép kiểm riêng `/voices` trước bàn giao ghi nhận 401 khi thiếu token và 200 khi gửi đúng token qua cả API/proxy; chưa tái hiện và xác định nguyên nhân lỗi còn lại trên trình duyệt người dùng. Không đánh dấu đã sửa hoàn toàn; cần kiểm request/response và origin/storage của phiên trình duyệt tiếp theo.
+- File env thật, key/token, catalog local, dependency, build/export và dữ liệu QA không thuộc bản commit; chỉ đưa env mẫu không có key cùng source/test/tài liệu/giấy phép. Không dừng hay thay đổi tiến trình dev người dùng đang mở.
+
+## 2026-11-09 — Chọn sẵn model Gemini cho local
+
+- Theo yêu cầu chỉ cần dán key: đặt `GEMINI_MODEL=gemini-3.8-flash` và hai cờ Gemini local thành true trong env được ignore; giữ nguyên key/Azure/cấu hình khác. Người dùng cần điền key trước khi chạy vì local runner kiểm cấu hình đầy đủ, không gọi provider khi còn thiếu key.
+- Đối chiếu [model/Interactions API](https://ai.google.dev/gemini-api/docs/interactions-overview) và [hướng dẫn model mới](https://ai.google.dev/gemini-api/docs/latest-model). Bỏ sampling `temperature` cũ; dùng `thinking_level=low` cho Gemini 3.x để phù hợp tác vụ ngắn và timeout, giữ structured JSON/store=false. Không đổi SAM mặc định hoặc provider Azure.
+- Kiểm thử payload và suite M5 **89/89 PASS** bằng mock; `git diff --check` sạch. Không dùng key thật/gọi Gemini/AWS, không deploy/commit/push; quyền truy cập và quota của key cần thử thực tế sau khi người dùng điền.
+
+## 2026-11-09 — Gộp M5 3f87586, giữ Azure và sửa HTTPS local
+
+- Theo yêu cầu tiếp tục sửa startup và lấy code mới của Nghĩa: fetch phát hiện `origin/m5-trungnghia` mới tại `3f87586`; nhánh M4 được fast-forward tới commit đó. Sao lưu source/diff ngoài repo và tạo stash riêng trước khi nhập; hai stash cũ được giữ. Khôi phục thay đổi M4 bằng merge ba phía trên nền `ae76ef0`, xử lý sáu xung đột, giữ 50 MiB/tệp, 10.000 ký tự/lượt, tự phục vụ OCR web và key env được ignore. Không tạo commit/push mới.
+- Luồng mặc định vẫn Azure Translator → Azure Speech. Gemini của M5 là lựa chọn rõ ràng để dịch/xem lại trước khi đọc, mặc định tắt; không fallback hoặc dùng key Azure cho Gemini. Runtime local dùng lại handler M5 và mock SSM/counter, nhận key/model/cờ tùy chọn ở env backend, không thêm server vào lệnh chạy chung. Bảy API cũ được giữ; `/text/translate` là mở rộng M5 đã có trên nhánh nhập về.
+- Gom vòng dịch web/app vào `shared/translation.ts`: Gemini 2.000 ký tự/phần, ngữ cảnh 600 ký tự, giữ cặp UTF-16, dừng/tiếp tục và bỏ phản hồi của tài liệu cũ. Không dùng giới hạn TTS 10.000 cho Gemini. App nhận limits/capability thực từ catalog và giữ index/giới hạn phần khi duyệt sửa lỗi; hỗ trợ nhập tài liệu ngay trong màn dịch. Báo cáo riêng M5 chuyển vào `backend/m5-trung-nghia/reference/`, nội dung giữ nguyên từng byte; lịch sử M5 không sửa.
+- Bridge Gemini local riêng của M5 được giữ để owner dùng độc lập; request tới bridge không nhận mã demo của API chính. Lệnh chạy chung xóa URL bridge phụ khỏi env phiên để dùng đúng backend/SSM/counter local đã cấu hình, không mở cổng thứ tư.
+- Sửa URLError: đã tái hiện Python ngoài cấu hình IDE có 0 CA và lỗi xác thực chứng chỉ. Runtime bổ sung Certifi khi thiếu CA và không có CA riêng, chỉ trong tiến trình local; không tắt TLS hoặc sửa trust store máy. Lỗi chứng chỉ/DNS/timeout/HTTP được mô tả riêng, không in raw exception chứa key/URL/proxy. Kiểm HTTPS bằng CA fixture xác minh kết nối thành công và vẫn từ chối sai hostname; không dùng key người dùng để kiểm.
+- **399 kiểm thử PASS:** M1 31, M2 87, M3 49, M5 89, web 91, app 42 và launcher/TLS 10. Web production build, app typecheck/lint, Expo export iOS+Android, cfn-lint root/tất cả template con, Bash syntax, liên kết tài liệu và `git diff --check` PASS. Unit/integration dùng mock, không gọi dịch vụ/provider thật.
+- Chrome trên build production với API fixture: Azure giữ nguồn/giọng đích/bản dịch đúng, Gemini chỉ chạy khi chọn và chưa tự tạo MP3; OCR thật tiếng Việt, PDF chữ+scan, DOCX, tệp đúng 50 MiB, từ chối 51 MiB, hủy nhập giữ nháp, gửi đúng 10.000 ký tự/lượt. MP3 fixture 5,072 giây phát/tua theo media clock. Bảy trang × năm cỡ 320/390/768/1440/2560 × sáng/tối không tràn ngang; không pageerror hoặc request ngoài origin local.
+- Đối chiếu source trước khi gộp: giữ nguyên 7 keyframes, 14 animation, 14 transition và các backdrop-filter. `npm run dev` với env mẫu/`--no-voices` chạy đủ ba dịch vụ, API/proxy/Metro 200, Gemini chưa bật trả 503 đúng; Ctrl+C exit 0 và không còn listener cũ. QA source/ảnh/log ở ngoài repo. Chưa deploy, gọi Azure/Gemini thật hoặc nghiệm thu trên điện thoại thật; source model M5 cần owner xác nhận với key thực trước khi bật.
+
+## 2026-11-09 — Một lệnh chạy backend, web và Expo Go
+
+- Thêm `npm run dev` tại gốc repo, gọi launcher Python trong `deployment/local/`; không thêm workspace/dependency chung giữa React web và React Native. Giữ nguyên thiết kế và hiệu ứng giao diện.
+- Tự chọn IPv4 LAN, bind API và URL MP3 cùng địa chỉ; web đi qua proxy loopback, Expo nhận API base qua môi trường phiên chạy. Không sửa env/key người dùng; không truyền key/token/AWS credentials sang bundler. Catalog thiếu/khác vùng được lấy từ Azure khi người chạy có Speech key; hỗ trợ `--no-voices`, `--refresh-voices`, `--ip` và env fixture cho kiểm offline.
+- Kiểm cổng trước khi chạy; không tắt tiến trình khác hoặc đổi cổng ngầm. Kiểm readiness, dừng cả nhóm khi một dịch vụ lỗi/Ctrl+C/SIGTERM, khôi phục terminal sau Expo. API hỗ trợ override host/public URL được validate trong phiên, không đổi file env.
+- Kiểm local: **6/6 test launcher PASS**, gồm chọn IP, cổng bận, lọc secret, override env, dịch vụ lỗi/cleanup tiến trình con và Ctrl+C không gọi Azure. Router/runtime M1 **29/29 PASS**; Bash syntax, Python compile, `git diff --check` PASS.
+- Chạy thật bằng `npm run dev` với env mẫu không key + `--no-voices`: API health/history 200, web `/api/history` 200; manifest Expo Go iOS/Android 200 và hai bundle Metro 200 chứa đúng API LAN. QR/shortcut terminal hoạt động; Ctrl+C exit 0, kiểm không còn listener 8000/5173/8081 hoặc worker Metro/Vite. Khởi động lại ngay thành công; mở trùng báo cổng bận và giữ nguyên phiên đang chạy.
+- Không gọi AWS/Azure thật, không dùng env key người dùng, không deploy/commit/push; manifest/bundle không thay thế nghiệm thu trên điện thoại thật.
+
+## 2026-11-09 — Env và backend local trước Sandbox
+
+- Theo yêu cầu mới: chuẩn bị env để thử local trước, chưa deploy AWS. Tạo env mẫu backend/web/app và hai file `.env.local` backend/web được ignore; key để trống, không yêu cầu gửi key trong chat. Đã cài dependency dev riêng trong `.venv` được ignore.
+- `deployment/local/server.py` dùng lại handler M1/M2/M3/M5; Moto mô phỏng S3/SSM trong RAM, một worker local có retry hữu hạn. Không thêm provider/repository production, không sửa template hay chuyển Lambda sang đọc env plaintext. Catalog chỉ tải Azure khi người chạy chủ động dùng lệnh `voices`; startup/health không gọi Azure.
+- Web dùng `/api` qua proxy Vite tới Python port 8000. App có env mẫu public API base và hướng dẫn IP LAN; key chỉ phía Python, mã demo nhập trong Cài đặt. Local media có URL ký/hạn dùng + HTTP Range; các file thật, cache catalog và venv không lên Git.
+- Kiểm thực tế: `.venv/bin/python -m unittest discover -s backend/m1-minh-ly/tests` **29 PASS**, trong đó **9 ca local runtime** (env validation, catalog dùng mock, auth/health, submit/poll/idempotency, dịch/giọng đích, CAS, media Range/signature/delete và CORS). M2 **87**, M3 **49**, M5 **82** PASS; web **85** PASS và production build PASS.
+- Chrome localhost + backend local chưa điền key: lưu mã demo thành công, history 200, catalog 503 rõ ràng, nút tạo giọng bị chặn; proxy `/api/health` 200; không pageerror hay request ngoài localhost. Không gọi Azure/Sandbox thật; MP3/dịch trong suite dùng provider giả, không ghi nghiệm thu giọng thật.
+- Cách chạy và chuyển Sandbox: `deployment/local/README.md`; README gốc/frontend/owner M1, kiến trúc và AGENTS được cập nhật. Không commit/push hoặc ghi thêm log của owner khác.
+
+## 2026-11-09 — Dịch và đọc, OCR và giới hạn tài liệu
+
+- Theo yêu cầu người dùng: làm sẵn code Azure Translator và hướng dẫn cấu hình thủ công, chưa có resource/key; 50 MiB/tệp, 10.000 ký tự/request. Không gọi AWS/provider live, không deploy hoặc tự commit/push trong đợt này.
+- Đối chiếu và tích hợp source M5 `ae76ef0` trên nền M2/main `49c0e60`: dùng lại parser/OCR/tài liệu nhiều phần, idempotency, correction/stats/recovery và tests; giữ các cập nhật tiếng Trung/tải MP3 của M2. Không tạo bộ submit/repository cạnh tranh.
+- Backend: submit validate nguồn/đích và giọng đích; worker dịch qua Azure Translator bằng key SSM riêng, checkpoint bằng CAS, rồi tạo MP3; không giả bản dịch thành công. Request dài chia đoạn 1.500 ký tự, cache private parts để retry, ghép MPEG Layer III/cập nhật duration/seek và dọn phần tạm. Cùng một EventInvokeConfig; timeout 600 giây. Bản dịch vượt 10.000 ký tự báo lỗi, không cắt chữ.
+- Web: 50 MiB/tệp, giới hạn nội dung 200.000 đơn vị UTF-16/50.000 từ; catalog cung cấp maxChars/capability. Giữ nguyên bản gốc, hiển thị/sao chép bản dịch riêng; chọn/chạy các phần tài liệu và hủy OCR. Camera dùng native file picker trên mobile nếu hỗ trợ. DOCX kiểm tổng dung lượng trước giải nén, PDF có CMap/font/WASM tự phục vụ cùng web.
+- OCR web self-host worker/WASM và model Việt/Anh/Nhật/Hàn/Trung giản thể/phồn thể. Kiểm SHA-256 và byte size trước khi dùng để tránh Tesseract bỏ model lỗi và đọc bằng tiếng Anh. Tài nguyên sinh nằm trong ignore, npm prepare/build sinh lại; không đưa ảnh gốc lên backend.
+- Có script cấu hình `configure-translator` (key nhập kín, kiểm một câu khi người vận hành chạy, SSM SecureString); root SAM chỉ nhận tên/vùng. Hướng dẫn có trong docs/AZURE-SPEECH.md. Bộ `languages.py` có câu bản ngữ cho 35 locale, dry-run mặc định, live có budget/resume và report/MP3 ngoài repo, vẫn cần người nghe đánh giá.
+- Kiểm local: M1 **20**, M2 **87**, M3 **49**, M5 **82** tests pass (**238 backend**), trong đó M2 có FFmpeg CBR/VBR thật để kiểm duration và giải mã MP3 ghép. Web **85** tests pass; app **37** tests pass, typecheck/lint pass, Expo export iOS/Android pass. Build web và cfn-lint root/tất cả template con pass. Đây không phải bằng chứng nghiệm thu Sandbox, Azure Translator thật, mọi giọng hoặc thiết bị native thật.
+- Chrome headless trên build production + API fixture local: dịch dùng giọng đích/giữ bản gốc/hiện bản dịch, OCR tiếng Việt thật, DOCX, PDF hỗn hợp chữ + scan, tệp chính xác 50 MiB được nhận và 51 MiB bị chặn, hủy OCR giữ nháp, gửi 10.000 ký tự trong một job; MP3 5,072 giây phát/tua bằng media clock. 7 trang × 5 cỡ 320/390/768/1440/2560 × sáng/tối không tràn ngang; không pageerror hoặc request CDN ngoài. Model lỗi bị chặn trước OCR, bản nháp được giữ. Fixtures và báo cáo kiểm local ở /tmp, không đưa vào repo.
+- Đối chiếu CSS với HEAD: 7 keyframes, 14 dòng animation, 14 dòng transition và 13 dòng backdrop-filter không đổi. Đây là kiểm source/render Chrome, không thay thế kiểm Safari/iOS/Android thật.
+
 
 ## TRẠNG THÁI NHANH
 
-- Ngày cập nhật lần cuối: 2026-11-08
-- Đang làm: đã hoàn tất tích hợp Azure mặc định, cleanup, kiểm thử và đồng bộ main cùng năm nhánh thành viên; bàn giao thực hành phiên mới.
-- Đã xong: Azure adapter/SSM/registry, CREATE/UPDATE changeset chung, hosting theo Outputs, hướng dẫn cả nhóm. 143 backend + 61 web + 22 app tests đạt; web build/cài sạch, app TypeScript/lint Node 22 và cfn-lint root/năm stack con đạt. Giữ nguyên bằng chứng UI/hosting cũ ở entry lịch sử.
-- Việc tiếp theo: thành viên pull nhánh đã đồng bộ, đọc AZURE-SPEECH.md rồi configure/plan/review/apply trên Sandbox được giao; xác nhận CREATE mới và app native trên thiết bị.
-- Đang bị chặn bởi: chưa kiểm Sandbox cho luồng CREATE mới; người dùng đã xác nhận cập nhật Azure/web dùng được, chưa đủ bằng chứng mọi giọng/native/recovery. Bản static/skeleton trong entry cũ là lịch sử.
-- Tài nguyên AWS: người dùng M4 tự deploy/cập nhật tts-dev trong CloudShell; agent không tạo/sửa AWS resource trong lượt code/Git này.
+- Ngày cập nhật: 2026-11-09.
+- Đã code/local test: tích hợp M5 mới, Dịch và đọc với Translator riêng, OCR/scan, 50 MiB/tệp, 10.000 ký tự/request, MP3 chia/ghép có checkpoint và bộ nghiệm thu ngôn ngữ. Chi tiết và bằng chứng ở mục mới nhất phía trên.
+- Bước tiếp theo: điền key trong env Python và chạy local theo `deployment/local/README.md`; sau khi local đạt mới tạo/cấu hình Translator và review changeset trên Sandbox. Xem [hướng dẫn](../docs/AZURE-SPEECH.md#dịch-và-đọc--azure-translator).
+- Git: người dùng đã yêu cầu bàn giao source lên sáu nhánh; xem mục bàn giao mới nhất. Chưa làm trong đợt này: provider/AWS live, deploy, nghiệm thu giọng thực tế/máy iOS/Android thật. Lỗi web do người dùng báo vẫn mở; không xem build/mock là bằng chứng đã triển khai hoặc xử lý xong phiên trình duyệt thực.
 
 ## NHẬT KÝ
 

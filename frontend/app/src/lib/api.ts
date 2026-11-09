@@ -40,10 +40,13 @@ export function checkedJob(value: Job): Job {
 }
 export const api = {
   async voices(): Promise<Language[]> {
-    const data = await request<{ languages: Language[] }>('/voices');
+    const data = await request<{ languages: Language[]; limits?: { maxChars?: number }; features?: { translation?: boolean } }>('/voices');
     if (!Array.isArray(data?.languages) || !data.languages.every(l => typeof l?.lang === 'string' && Array.isArray(l.voices) &&
       l.voices.every(v => typeof v?.id === 'string' && typeof v.gender === 'string' && (v.name === undefined || typeof v.name === 'string')))) throw new Error('Danh sách giọng đọc chưa hợp lệ.');
-    return data.languages;
+    const limit = data.limits?.maxChars;
+    if (limit !== undefined && (!Number.isInteger(limit) || limit < 2 || limit > MAX_CHARS)) throw new Error('Giới hạn giọng đọc chưa hợp lệ.');
+    return data.languages.map(language => ({ ...language, ...(limit !== undefined ? { maxChars: limit } : {}),
+      ...(typeof data.features?.translation === 'boolean' ? { translationEnabled: data.features.translation } : {}) }));
   },
   async correct(text: string, lang: string): Promise<Correction | null> {
     const data = await request<Correction>('/text/correct', { method: 'POST', body: JSON.stringify({ text, lang }) });
@@ -69,7 +72,7 @@ export const api = {
       if (result.status === 'DONE' || result.status === 'FAILED') await submissions.finish(result.jobId);
       return result;
     } catch (error) {
-      if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'UNSUPPORTED_SPEED', 'FEATURE_NOT_ENABLED'].includes(error.code)) await submissions.reject(digest);
+      if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'UNSUPPORTED_SPEED', 'FEATURE_NOT_ENABLED', 'TRANSLATION_NOT_CONFIGURED'].includes(error.code)) await submissions.reject(digest);
       throw error;
     }
   },

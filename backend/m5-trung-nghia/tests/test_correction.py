@@ -91,12 +91,15 @@ class CorrectionTest(FlowTestCase):
         response = mock.MagicMock()
         response.__enter__.return_value = io.BytesIO(json.dumps(reply).encode())
         with mock.patch.object(correction._opener, "open", return_value=response) as opened:
-            actual = correction._provider("Xin chào", "vi-VN", self.CFG, "fake-key")
+            actual = correction._provider("Xin chào", "vi-VN", {**self.CFG, "model": "gemini-3.8-flash"}, "fake-key")
         self.assertEqual(actual["correctedText"], "Xin chào")
         request = opened.call_args.args[0]
         body = json.loads(request.data)
         self.assertEqual(request.full_url, correction.API_URL)
         self.assertFalse(body["store"])
+        self.assertEqual(body["model"], "gemini-3.8-flash")
+        self.assertEqual(body["generation_config"]["thinking_level"], "low")
+        self.assertNotIn("temperature", body["generation_config"])
         self.assertEqual(body["response_format"]["mime_type"], "application/json")
         self.assertEqual(opened.call_args.kwargs["timeout"], 6)
 

@@ -19,16 +19,20 @@ window.extractPdf = async (base64, kind = 'pdf', lang = 'vi-VN') => {
   const recognize = async canvas => {
     if (!ocr) {
       progress('Đang tải bộ nhận dạng chữ lần đầu…');
-      ocr = await createWorker(ocrLanguage(lang), OEM.LSTM_ONLY, {
+      let fail;
+      const failed = new Promise((_, reject) => { fail = reject; });
+      const loading = createWorker(ocrLanguage(lang), OEM.LSTM_ONLY, {
+        errorHandler: () => fail(new Error('Không tải được bộ nhận dạng chữ. Hãy kiểm tra kết nối rồi thử lại.')),
         workerPath: window.TTS_OCR_WORKER, workerBlobURL: false,
         logger: info => { if (info.status === 'recognizing text') progress(`Đang nhận dạng chữ ${Math.round(info.progress * 100)}%…`); },
       });
+      ocr = await Promise.race([loading, failed]);
     }
     return (await ocr.recognize(canvas)).data.text;
   };
   try {
     const bytes = Uint8Array.from(atob(base64), char => char.charCodeAt(0));
-    if (bytes.length > MAX_FILE_BYTES) throw new Error('Tệp tối đa 20 MB.');
+    if (bytes.length > MAX_FILE_BYTES) throw new Error('Tệp tối đa 50 MB.');
     let text;
     if (kind === 'pdf') {
       task = getDocument({ data: bytes, useSystemFonts: true, isEvalSupported: false, disableFontFace: true });

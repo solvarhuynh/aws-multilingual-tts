@@ -1,0 +1,4 @@
+moto[s3,ssm]==5.2.5
+python-dotenv==1.2.1
+boto3==1.43.126
+certifi==2026.10.23

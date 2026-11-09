@@ -80,7 +80,7 @@ Các gate dưới đây là thứ tự thực hiện, không phải thông báo 
 | 3 — Tích hợp giao diện | M1 xác minh HTTP/URL/policy; M4 nối API/token/polling/history và CloudFront | Web/app tạo, phát, tải, xóa bản thu; API không cache, lỗi JSON không bị đổi thành trang HTML. |
 | 4 — Độ ổn định | M5 recovery/quota/idempotency/telemetry; M2 retry; M3 retention; M1 alarm; M4 trạng thái lỗi | Duplicate/timeout/stale job/link hết hạn được xử lý; không gọi provider vô hạn; kiểm thử thất bại có kết quả rõ. |
 | 5 — Dựng lại và bàn giao | M1 phối hợp M4 chạy phiên mới được giao, mỗi owner nghiệm thu phần mình | Hướng dẫn Azure tái thực hiện được; bind lại Outputs/env/token; evidence đã che dữ liệu và demo lại. |
-| Sau MVP | M5 đề xuất Gemini typo/dịch và stats; M4 nối màn review, dịch tài liệu | Chỉ bật trên AWS sau MP3 MVP và khi có phê duyệt, quota, secret và test riêng. |
+| Sau MVP | M5 đề xuất Gemini typo/stats; M4 nối màn review hiện có | Chỉ bật sau MP3 MVP và khi có phê duyệt, quota, secret và test riêng. |
 
 Ranh giới phải giữ:
 
@@ -106,12 +106,12 @@ Chỉ chạy AWS read/mutation, provider live, deploy/reset khi được giao r�
 
 ## 6. Hợp đồng không được làm hỏng
 
-Giữ tám public paths (đường dịch Gemini là phần mở rộng mặc định tắt):
+Giữ nguyên bảy public paths hiện có; nhánh M5 `3f87586` bổ sung `/text/translate` cho Gemini, mặc định tắt. Dịch Azure vẫn dùng `translateTo` trong `/synthesize`, không chuyển ngầm sang Gemini:
 
 | Method | Path | Owner |
 |---|---|---|
 | POST | `/text/correct` | M5, typo MR |
-| POST | `/text/translate` | M5, dịch theo ngữ cảnh MR |
+| POST | `/text/translate` | M5, Gemini tùy chọn, không tạo MP3 |
 | POST | `/synthesize` | M5 |
 | GET | `/voices` | M2 |
 | GET | `/jobs/{id}` | M3 |
@@ -125,7 +125,7 @@ Giữ tám public paths (đường dịch Gemini là phần mở rộng mặc đ
 - Giữ `JOBS_BUCKET`, `JOBS_PREFIX`, `AUDIO_BUCKET`, `SYNTH_FUNCTION_NAME`, `TTS_API_PARAMETER_NAME`; root SAM truyền từ Parameters/Outputs. Kiểm giá trị thực sau mỗi lab.
 - S3 conditional write bằng ETag/CAS, lease và retry có giới hạn. Không hứa exactly-once provider billing; crash giữa create/invoke hoặc provider/store cần reconciliation của owner.
 - Chọn ngôn ngữ rõ từ registry đã xác minh; không dịch ngầm hoặc bỏ qua speed không hỗ trợ. Giới hạn trong catalog/runtime là nguồn chuẩn cho frontend.
-- Gemini typo và dịch theo ngữ cảnh có code/test local, mặc định tắt trên AWS; typo chỉ sửa lỗi đánh máy, người dùng duyệt, provider lỗi dùng nguyên bản, offsets UTF-16; `/text/correct` và `/text/translate` không tạo job/MP3. Dịch tài liệu theo phần, người dùng duyệt bản dịch rồi mới tạo giọng. Stats quét S3 có giới hạn: bucket rỗng trả 0, quét không đủ trả 503 thay vì số thiếu. Chưa xác minh Gemini/Stats trên Sandbox thật.
+- Gemini typo có code/test local nhưng mặc định tắt, chỉ sửa lỗi đánh máy, người dùng duyệt, provider lỗi dùng nguyên bản, offsets UTF-16; `/text/correct` không tạo job/MP3. Stats có code quét S3 có giới hạn: bucket rỗng trả 0, quét không đủ trả 503 thay vì số thiếu. Chưa gọi Gemini hoặc xác minh Stats trên Sandbox thật.
 - API CloudFront không cache; giữ method/path/query/body và header cần thiết, không forward viewer Host. Không áp SPA fallback lên JSON lỗi API.
 
 ## 7. Quy tắc code và tổ chức file
@@ -181,3 +181,21 @@ Build/export không chứng minh giao diện native hoặc audio trên thiết b
 5. Chỉ commit/push khi người dùng yêu cầu. Không force-push, reset nhánh hoặc đồng bộ đè công việc của thành viên. Commit/push không đồng nghĩa được triển khai AWS.
 
 Nếu hai người cần sửa shared Layer hoặc root SAM, chốt owner và contract trước; báo dependency cụ thể thay vì tạo thêm bản sao. Khi không có AWS, tiếp tục mock/tests/tài liệu, chỉ dừng phần phụ thuộc resource thật.
+
+## 10. Phạm vi bổ sung được giao ngày 09/11/2026
+
+Người dùng yêu cầu code Dịch và đọc bằng Azure Translator riêng, tăng 50 MiB/tệp và 10.000 ký tự/lượt, thêm OCR/scan và bộ nghiệm thu các ngôn ngữ còn lại; chưa có resource/key Translator. Phạm vi này cho phép thay đổi M2/M3/M5 và wiring cần thiết, **không tự cho phép gọi live hoặc triển khai AWS/Azure**. TTS provider vẫn Azure Speech; không thay database/API hoặc kết luận yêu cầu Polly/DynamoDB/API Gateway đã được giảng viên duyệt thay thế.
+
+Nguồn chuẩn là [CONVENTIONS](docs/CONVENTIONS.md) và [hướng dẫn Translator](docs/AZURE-SPEECH.md#dịch-và-đọc--azure-translator). Giữ đúng bảy paths. `TranslatorApiParameterName` mặc định rỗng; không gửi key từ client. Submit validate giọng đích, worker checkpoint dịch bằng CAS rồi tổng hợp. Một job 10.000 ký tự được chia nội bộ thành đoạn 1.500 ký tự và ghép MP3 cùng định dạng; checkpoint chunkSize/progress và private parts phục vụ retry. Không ghi đè CAS của chủ lease mới, không tự retry provider vô hạn. Web đọc giới hạn/capability từ catalog. Model OCR web được sinh và self-host, không đưa ảnh gốc lên API. Mọi keyframes/animation/transition/kính hiện có phải được giữ.
+
+`languages.py` mặc định dry-run không gọi mạng; chỉ người được giao vận hành dùng `--live` trong Lab với hạn mức cụ thể và mã demo nhập qua file riêng. Báo cáo MP3 hợp lệ vẫn cần nghe/nhận xét bản ngữ; không nâng lên sandbox verified bằng mock/build.
+
+## 11. Local env trước Sandbox
+
+Theo yêu cầu tiếp theo của người dùng, `deployment/local/` là công cụ dev, không thuộc CodeUri Lambda. Key Speech/Translator chỉ trong `deployment/local/.env.local`; web `.env.local` chỉ có `/api` và target proxy, app chỉ có API base. File mẫu được track, file thật/catalog sinh/venv được ignore. Không xuất credentials Academy để chạy local.
+
+Runtime dùng Moto cho S3/SSM trong RAM và các handler M1/M2/M3/M5 hiện có, không thêm repository/provider production hoặc giả MP3 thành công. `server.py` startup/health không gọi Azure; lệnh `voices` và thao tác tạo giọng/dịch gọi Azure thật. Lệnh `npm run dev` tại gốc repo chạy `deployment/local/dev.py`: tự nhận IPv4 LAN, nối web/Expo, lấy catalog nếu thiếu/khác vùng khi có Speech key; dùng `--no-voices` khi kiểm offline, `--refresh-voices` khi đổi resource. Không đọc/in key để kiểm launcher; dùng env mẫu/fixture không có key thật. Không sửa env người dùng hoặc tự tắt tiến trình khác; Ctrl+C hay lỗi một dịch vụ phải cleanup cả nhóm tiến trình. Key/token không truyền sang bundler. `server.py --host/--public-url` chỉ override cấu hình trong phiên sau validation.
+
+Runtime local bổ sung Certifi khi Python thiếu CA và không có cấu hình CA riêng; không tắt xác thực TLS hoặc sửa trust store hệ thống. Gemini local chỉ bật khi có `GEMINI_API_KEY`, model hợp lệ và cờ tương ứng trong env backend; không tự chọn model hoặc gửi key sang frontend. UI mặc định Azure; Gemini là lựa chọn rõ ràng, không fallback. `frontend/shared/translation.ts` giữ chia đoạn Gemini 2.000 ký tự, ngữ cảnh 600 ký tự, checkpoint trong phiên và kiểm phản hồi cũ; không dùng giới hạn TTS 10.000 cho Gemini. Báo cáo riêng M5 đặt trong `backend/m5-trung-nghia/reference/`, không nhân thêm tài liệu chung trong docs.
+
+Kiểm local với `.venv/bin/python -m unittest discover -s backend/m1-minh-ly/tests` và `.venv/bin/python -m unittest discover -s deployment/local -p 'test_*.py'`; cần dependency `deployment/local/requirements.txt`. Sau đó deploy vẫn dùng SSM/CloudShell theo hướng dẫn, không đưa key env local lên AWS. Nguồn chuẩn: [local README](deployment/local/README.md).

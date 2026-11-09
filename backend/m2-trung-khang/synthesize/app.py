@@ -5,12 +5,15 @@ job, không đi trong event. AWS có thể gửi một event nhiều lần, nên
 job bằng CAS trước khi gọi provider. Module sở hữu: M2.
 """
 
+import re
 import time
 
 from providers import get_provider
 from providers.base import PermanentProviderError, TransientProviderError
+from providers.translation import translate
+from providers.mp3 import join_mp3
 from registry import find_entry
-from tts_common import db, storage
+from tts_common import config, db, storage
 from tts_common.errors import log_json
 from tts_common.utils import are_valid_ids
 
@@ -54,17 +57,70 @@ def _synthesize(job: dict, context) -> bytes:
     return get_provider(entry, timeout).synthesize(text, voice, speed)
 
 
-def _produce_audio(job: dict, context) -> str:
-    """Trả khóa MP3; lần trước đã lưu thì dùng lại để không tốn credit lần nữa."""
+def split_text(text, limit):
+    if limit < 100:
+        raise ValueError("CHUNK_SIZE phải từ 100 ký tự")
+    while text:
+        end = min(len(text), limit)
+        if end < len(text):
+            boundaries = list(re.finditer(r"[.!?。！？]\s*|\s+", text[:end]))
+            if boundaries and boundaries[-1].end() >= limit // 2:
+                end = boundaries[-1].end()
+        yield text[:end]
+        text = text[end:]
+
+
+def _produce_audio(job: dict, context, checkpoint) -> str:
     user_id, job_id = job["userId"], job["jobId"]
-    return storage.find_audio(user_id, job_id) or storage.put_audio(user_id, job_id, _synthesize(job, context))
+    existing = storage.find_audio(user_id, job_id)
+    if existing:
+        return existing
+    if not isinstance(job.get("text"), str) or not job["text"].strip():
+        raise PermanentProviderError("INVALID_INPUT", "Văn bản cần đọc đang trống.")
+    if len(job["text"]) > config.MAX_CHARS:
+        raise PermanentProviderError("TEXT_TOO_LONG", f"Nội dung tối đa {config.MAX_CHARS} ký tự.")
+    if job.get("translateTo") and not job.get("translated"):
+        timeout = min(30, _remaining_seconds(context) - CLEANUP_SECONDS)
+        if timeout <= 0:
+            raise TransientProviderError("WORKER_TIMEOUT", "Không đủ thời gian dịch, hệ thống sẽ thử lại.")
+        translated = translate(job["text"], job["lang"], job["translateTo"], timeout=timeout)
+        if len(translated) > config.MAX_CHARS:
+            raise PermanentProviderError("TRANSLATION_TOO_LONG", f"Bản dịch vượt {config.MAX_CHARS} ký tự. Hãy chia nhỏ nội dung gốc rồi dịch lại.")
+        job = checkpoint(text=translated, sourceLang=job["lang"], translated=True,
+                         charCount=len(translated)).data
+    job = {**job, "lang": job.get("translateTo") or job["lang"]}
+    chunks = [part for part in split_text(job["text"], job.get("chunkSize", config.CHUNK_SIZE)) if part.strip()]
+    if not chunks or len(chunks) > 100:
+        raise PermanentProviderError("INVALID_INPUT", "Nội dung không hợp lệ hoặc quá dài.")
+    if len(chunks) == 1:
+        return storage.put_audio(user_id, job_id, _synthesize(job, context))
+    checkpoint(chunkCount=len(chunks), chunkSize=job.get("chunkSize", config.CHUNK_SIZE))
+    audio = []
+    for index, chunk in enumerate(chunks):
+        data = storage.read_part(user_id, job_id, index)
+        if data is None:
+            data = _synthesize({**job, "text": chunk}, context)
+            storage.put_part(user_id, job_id, index, data)
+        audio.append(data)
+        checkpoint(chunksDone=index + 1)
+    return storage.put_audio(user_id, job_id, join_mp3(audio))
 
 
 def _process(stored, context, started):
     """Xử lý job đã claim; lỗi tạm thời thì nhả lease rồi raise để Lambda retry."""
     job_id, attempt = stored.data["jobId"], stored.data.get("attempt")
+    def checkpoint(**fields):
+        nonlocal stored
+        stored = db.checkpoint_job(stored, **fields)
+        return stored
     try:
-        db.complete_job(stored, _produce_audio(stored.data, context))
+        audio_key = _produce_audio(stored.data, context, checkpoint)
+        db.complete_job(stored, audio_key)
+        if stored.data.get("chunkCount", 1) > 1:
+            try:
+                storage.delete_parts(stored.data["userId"], job_id)
+            except Exception as error:
+                _log(job_id, context, started, "CLEANUP_FAILED", type(error).__name__, attempt)
         status, error_code = "DONE", None
     except PermanentProviderError as error:
         status, error_code = "FAILED", error.code

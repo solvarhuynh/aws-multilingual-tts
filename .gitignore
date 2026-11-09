@@ -16,6 +16,8 @@ build/
 .env
 .env.*
 !frontend/web/.env.example
+!frontend/app/.env.example
+!deployment/local/.env.example
 *.pem
 *.key
 .aws/
@@ -31,3 +33,6 @@ backend/*/tests/out/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Dữ liệu catalog sinh khi thử local
+deployment/local/data/
