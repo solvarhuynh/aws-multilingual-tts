@@ -15,6 +15,7 @@ build/
 # Bí mật
 .env
 .env.*
+!frontend/web/.env.example
 *.pem
 *.key
 .aws/

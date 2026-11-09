@@ -47,6 +47,13 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
       await mount(); api.correct = async () => { throw new Error("Mất kết nối"); };
       await act(async () => { await studio.generate(); });
       assert.equal(submitted[0].text, "toi muon nghe"); assert.equal(studio.error, "");
+      await mount();
+      api.correct = async (text, lang) => { checked.push(text); return { status: "skipped", language: lang,
+        hasTypos: false, originalText: text, correctedText: text, changes: [] }; };
+      await act(async () => { await studio.generate(); });
+      assert.equal(checked.length, 1);
+      assert.equal(submitted[0].text, "toi muon nghe");
+      assert.equal(studio.review, null);
     });
     await suite.test("sửa văn bản làm mất hiệu lực đề xuất cũ", async () => {
       await mount(); api.correct = async (text) => correction(text);
@@ -79,6 +86,56 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
       await act(() => { first = studio.openRecording(recording("old")); second = studio.openRecording(recording("new")); });
       await act(async () => { queue[1](); await second; queue[0](); await first; });
       assert.equal(studio.currentAudio.jobId, "new");
+    });
+    await suite.test("tài liệu dài gửi tuần tự, dừng khi hết quota và tiếp tục phần chưa xong", async () => {
+      await mount('a'.repeat(2000) + 'b'.repeat(2000) + 'c'.repeat(900));
+      let active = 0, maxActive = 0, count = 0;
+      api.synthesize = async input => {
+        submitted.push(input); active++; maxActive = Math.max(active, maxActive);
+        await settle(); active--;
+        if (++count === 2) throw new Error('Hết quota');
+        return recording(`part-${count}`);
+      };
+      await act(async () => { await studio.generateAll(); });
+      assert.equal(submitted.length, 2); assert.equal(maxActive, 1);
+      assert.match(studio.error, /Hết quota/); assert.equal(checked.length, 0);
+      await act(async () => { await studio.generateAll(); });
+      assert.equal(submitted.length, 4);
+      assert.equal(submitted[2].text, 'b'.repeat(2000));
+      assert.equal(submitted[3].text, 'c'.repeat(900));
+      assert.equal(studio.text.length, 4900);
+    });
+    await suite.test("dừng sau phần hiện tại và giữ các phần lặp là các bản thu riêng", async () => {
+      await mount('a'.repeat(4000) + 'tail');
+      api.synthesize = async input => { submitted.push(input); studio.stopBatch(); return recording(); };
+      await act(async () => { await studio.generateAll(); });
+      assert.equal(submitted.length, 1);
+      api.synthesize = async input => { submitted.push(input); return recording(); };
+      await act(async () => { await studio.generateAll(); });
+      assert.equal(submitted.length, 3);
+      assert.equal(submitted[0].text, submitted[1].text);
+      assert.equal(submitted[2].text, 'tail');
+    });
+    await suite.test("sửa chính tả phần đã chọn giữ nguyên các phần khác", async () => {
+      await mount('a'.repeat(2000) + 'toi muon nghe');
+      const contexts = [];
+      api.synthesize = async (input, context) => { submitted.push(input); contexts.push(context); return recording(); };
+      await act(() => studio.setPartIndex(1));
+      api.correct = async text => correction(text);
+      await act(async () => { await studio.generate(); });
+      assert.equal(studio.review.input.text, 'toi muon nghe');
+      await act(() => studio.setPartIndex(0));
+      await act(async () => { await studio.resolveReview(true); });
+      assert.equal(studio.text, 'a'.repeat(2000) + 'tôi muốn nghe');
+      assert.equal(submitted[0].text, 'tôi muốn nghe');
+      assert.deepEqual(contexts, ['part-1']);
+    });
+    await suite.test("bỏ phần trắng không làm lệch idempotency context của phần sau", async () => {
+      await mount('a'.repeat(2000) + ' '.repeat(4000) + 'b');
+      const contexts = [];
+      api.synthesize = async (input, context) => { contexts.push(context); return recording(); };
+      await act(async () => { await studio.generateAll(); });
+      assert.deepEqual(contexts, ['part-0', 'part-3']);
     });
   } finally { await act(() => env.root.unmount()); await env.close(); }
 });

@@ -5,11 +5,16 @@ import { environment, recording } from "./environment.mjs";
 test("API frontend: nội dung sửa và phản hồi không hợp lệ", async (suite) => {
   const env = await environment();
   const { api } = await env.load("lib/api.ts");
+  const { API_BASE, DEMO } = await env.load("lib/api.ts");
   const response = (body, status = 200) => { globalThis.fetch = async () => ({ ok: status < 400, status, json: async () => body }); };
   const original = "toi muon nghe";
   const valid = { status: "checked", language: "vi-VN", hasTypos: true, originalText: original,
     correctedText: "tôi muốn nghe", changes: [{ from: "toi", to: "tôi", start: 0, end: 3 }] };
   try {
+    await suite.test("có API base thì dùng CloudFront URL cấu hình, không vào mock mode", () => {
+      assert.equal(API_BASE, "https://tts.test");
+      assert.equal(DEMO, false);
+    });
     await suite.test("nhận giọng Azure và hiển thị tên dịch vụ", async () => {
       const { providerLabel } = await env.load("lib/data.ts");
       response({ languages: [{ lang: "vi-VN", provider: "azure", engine: null,
@@ -54,6 +59,51 @@ test("API frontend: nội dung sửa và phản hồi không hợp lệ", async 
       response({ items: {}, nextCursor: null });
       await assert.rejects(api.history(), { code: "INVALID_RESPONSE" });
     });
+    await suite.test("Stats lấy đúng route, giữ số 0 và báo 503 có mã HTTP", async () => {
+      let sent;
+      globalThis.fetch = async url => { sent = url; return { ok: true, status: 200,
+        json: async () => ({ totalJobs: 0, totalChars: 0, byLang: {}, cacheHits: 0 }) }; };
+      assert.equal((await api.stats()).totalJobs, 0);
+      assert.equal(sent, "https://tts.test/stats");
+      globalThis.fetch = async () => ({ ok: false, status: 503,
+        json: async () => ({ error: { code: "STATS_UNAVAILABLE", message: "Quét chưa đủ" } }) });
+      await assert.rejects(api.stats(), error => error.status === 503 && error.code === "STATS_UNAVAILABLE");
+    });
+    await suite.test("gửi lại cùng key sau mất mạng/503; phần khác dùng key khác", async () => {
+      const keys = []; let count = 0;
+      const input = { text: 'Nội dung cần thử lại.', lang: 'vi-VN', voice: 'Linh', speed: 1, translateTo: null };
+      globalThis.fetch = async (_, init) => {
+        keys.push(init.headers['Idempotency-Key']);
+        if (++count === 1) throw new TypeError('network');
+        if (count === 2) return { ok: false, status: 503, json: async () => ({ error: { code: 'SUBMIT_UNCERTAIN', message: 'Kiểm tra lịch sử' } }) };
+        return { ok: true, status: 202, json: async () => ({ jobId: 'retry', status: 'PENDING', audioUrl: null }) };
+      };
+      await assert.rejects(api.synthesize(input, 'part-1'));
+      await assert.rejects(api.synthesize(input, 'part-1'), { code: 'SUBMIT_UNCERTAIN' });
+      assert.equal((await api.synthesize(input, 'part-1')).jobId, 'retry');
+      assert.equal(keys[0], keys[1]); assert.equal(keys[1], keys[2]);
+      await api.synthesize(input, 'part-2'); assert.notEqual(keys[2], keys[3]);
+      assert.equal(localStorage.getItem('voxa.pendingSubmits.v1').includes(input.text), false);
+    });
+    await suite.test("job kết thúc xóa key cũ; tạo bản thu mới dùng key mới", async () => {
+      const keys = [], input = { text: 'Terminal replay', lang: 'vi-VN', voice: 'Linh', speed: 1, translateTo: null };
+      globalThis.fetch = async (_, init) => {
+        keys.push(init.headers['Idempotency-Key']);
+        return { ok: true, json: async () => ({ jobId: 'terminal', status: 'DONE', audioUrl: 'https://audio.test/one.mp3' }) };
+      };
+      await api.synthesize(input); await api.synthesize(input);
+      assert.notEqual(keys[0], keys[1]);
+    });
+  } finally { await env.close(); }
+});
+
+test("Không cấu hình API base thì mock mode không gọi mạng", async () => {
+  const env = await environment({ demo: true });
+  try {
+    const { api, API_BASE, DEMO } = await env.load("lib/api.ts");
+    assert.equal(API_BASE, ""); assert.equal(DEMO, true);
+    assert.equal((await api.stats()).totalJobs, 0);
+    assert.equal((await api.correct("Xin chào", "vi-VN")).status, "skipped");
   } finally { await env.close(); }
 });
 
@@ -65,13 +115,23 @@ test("Nhập tài liệu: nội dung và giới hạn", async (suite) => {
     await suite.test("giữ tiếng Việt, bỏ BOM và khoảng trắng ngoài", async () => {
       assert.equal(await extractDocument(file("THONGBAO.TXT", "\uFEFF  Nội dung tiếng Việt.\nDòng hai.  ")), "Nội dung tiếng Việt.\nDòng hai.");
     });
-    await suite.test("từ chối loại không hỗ trợ và tệp vượt 10 MB", async () => {
-      await assert.rejects(extractDocument(file("x.exe", "abc")), /Hỗ trợ tệp/);
-      await assert.rejects(extractDocument(file("x.pdf", "", 11 * 1024 * 1024)), /10 MB/);
+    await suite.test("từ chối loại không hỗ trợ và tệp vượt 20 MB", async () => {
+      await assert.rejects(extractDocument(file("x.exe", "abc")), /Hỗ trợ/);
+      await assert.rejects(extractDocument(file("x.pdf", "", 21 * 1024 * 1024)), /20 MB/);
     });
-    await suite.test("từ chối rỗng, dữ liệu nhị phân và quá 2.000 ký tự", async () => {
-      for (const [text, message] of [["   ", /chưa có nội dung/], ["abc\0def", /không phải văn bản/], ["a".repeat(2001), /2\.000/]])
+    await suite.test("từ chối rỗng, dữ liệu nhị phân và quá giới hạn tài liệu", async () => {
+      for (const [text, message] of [["   ", /không có chữ/], ["abc\0def", /không phải văn bản/], ["a".repeat(200001), /200\.000/], ['a '.repeat(50001), /50\.000/]])
         await assert.rejects(extractDocument(file("x.txt", text)), message);
+    });
+    await suite.test("nhập hơn chục nghìn từ, không cắt còn 2.000 ký tự", async () => {
+      const text = 'Bài học AWS. '.repeat(6000).trim();
+      assert.equal(await extractDocument(file('long.md', text, 12 * 1024 * 1024)), text);
+    });
+    await suite.test("hủy đang đọc không ghi kết quả muộn", async () => {
+      const controller = new AbortController();
+      const pending = extractDocument({ name: 'slow.txt', size: 10, text: () => new Promise(() => {}) }, { signal: controller.signal });
+      controller.abort();
+      await assert.rejects(pending, /Đã hủy/);
     });
   } finally { await env.close(); }
 });

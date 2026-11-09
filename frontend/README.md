@@ -83,7 +83,7 @@ Cả hai giao diện dùng API/giọng Azure của cùng stack AWS. Cấu hình 
 
 ### Web
 
-Trong frontend/web tạo .env.local chỉ chứa domain CloudFront hiện tại:
+Trong `frontend/web`, sao chép `.env.example` thành `.env.local` và thay domain mẫu bằng domain CloudFront của phiên lab hiện tại. Chỉ dùng URL công khai; mã demo nhập trong Cài đặt, không đặt token hoặc khóa Gemini/Azure vào biến `VITE_*`:
 
 ```dotenv
 VITE_API_BASE_URL=https://TEN-MIEN-CUA-NHOM.cloudfront.net
@@ -96,6 +96,8 @@ npm run dev
 ```
 
 Web cần Node ≥20.19. `npm run build` tạo dist; `npm run test:ui` chạy kiểm thử local. Upload từ CloudShell bằng `bash deployment/scripts/sandbox.sh web` ở gốc repo, script tự lấy domain/bucket từ Outputs; không cần quy trình ZIP hosting riêng.
+
+Vite đọc `VITE_API_BASE_URL` lúc khởi động dev server và lúc build. Sau khi đổi `.env.local`, khởi động lại `npm run dev` hoặc build lại trước khi upload. Có URL thì web gọi bảy API qua CloudFront thật, gồm `/text/correct`, `/synthesize` và `/stats`; thiếu URL thì chạy dữ liệu mẫu và không gọi backend AWS. URL CloudFront cũng phải trỏ đúng API của stack đang triển khai; các chức năng Gemini/Stats chỉ hoạt động khi backend tương ứng được bật và có dữ liệu/quyền phù hợp.
 
 ### App iOS/Android
 
@@ -126,7 +128,22 @@ npx expo export --platform ios --platform android
 
 Build/bản web mô phỏng không thay kiểm bàn phím, safe area, âm thanh và kính native trên thiết bị thật.
 
-PDF/DOCX/TXT đọc cục bộ; `npm ci` sinh PDF bundle cho app qua prepare. Cài đặt có sáng/tối/hệ thống, giảm chuyển động và tăng tương phản. Token lưu trên trình duyệt/thiết bị cho demo; xóa mã trên máy mượn sau sử dụng.
+PDF/DOCX/TXT/Markdown và ảnh đọc cục bộ; `npm ci` sinh bundle PDF/OCR cho app qua prepare. Cài đặt có sáng/tối/hệ thống, giảm chuyển động và tăng tương phản. Token lưu trên trình duyệt/thiết bị cho demo; xóa mã trên máy mượn sau sử dụng.
+
+### Nhập tài liệu, scan và tạo nhiều bản thu
+
+1. Mở **Đọc tài liệu**, chọn TXT/MD/DOCX/PDF hoặc ảnh JPG/PNG/WebP từ máy/thư viện ảnh. Tối đa **20 MiB** (UI ghi 20 MB), **200.000 ký tự UTF-16** và **50.000 từ tách bằng khoảng trắng**. PDF tối đa 200 trang; không quá 30 trang cần nhận dạng chữ/lần. Ảnh không quá 40 megapixel, được giảm kích thước trước OCR.
+2. PDF có chữ dùng PDF.js; trang không có chữ và ảnh dùng Tesseract.js 7. Chọn ngôn ngữ trước khi nhập: vi → Việt+Anh, ja → Nhật+Anh, zh → Trung+Anh, các ngôn ngữ khác dùng Anh. Xem tiến độ hoặc **Hủy nhập** khi cần. Trang scan không nhận dạng ra chữ làm lần nhập thất bại rõ ràng để tránh thiếu trang âm thầm.
+3. Kiểm tra chữ trong trình soạn thảo, chọn phần cần đọc; mỗi phần tối đa 2.000 ký tự. **Tạo phần N** dùng luồng Gemini review hiện có khi được bật. **Tạo các phần còn lại · bản gốc** đọc tuần tự nội dung đã nhập, bỏ bước Gemini cho từng phần; mỗi phần có bản thu/MP3 riêng trong Lịch sử/Bản thu. Không ghép thành một MP3 dài.
+4. Có thể dừng sau phần hiện tại. Lỗi mạng, job FAILED hoặc hết quota dừng hàng đợi. Trong cùng phiên màn hình, bấm lại chỉ tạo phần chưa thành công. Sau reload/đóng màn hình, đối chiếu Lịch sử trước khi tạo lại cả tài liệu; danh sách phần đã xong chưa được lưu thành manifest tài liệu bền vững.
+
+Quota backend mặc định **6.000 ký tự/ngày cho cả scope demo**, vì vậy nhập 50.000 ký tự được nhưng không đồng nghĩa tổng hợp hết trong cùng ngày. M1/M5 phải thống nhất `DailyCharLimit` và quota Azure trước phiên demo tài liệu dài.
+
+Tệp/ảnh gốc xử lý trên thiết bị, không gửi sang dịch vụ OCR. Tesseract tải core/WASM và gói ngôn ngữ từ CDN công khai khi cần; lần đầu phải có mạng, chưa đóng gói để bảo đảm offline. Văn bản của phần người dùng tạo giọng vẫn gửi backend/Azure như trước. OCR có thể sai dấu/thứ tự/cột; chưa hỗ trợ camera scan chuyên dụng, chữ viết tay, bảng biểu phức tạp hoặc tự OCR phần ảnh trong trang PDF đã có lớp chữ. Chất lượng thực tế cần người dùng duyệt.
+
+`shared/documents.ts`, `shared/browser-document.ts`, `shared/submissions.ts` chứa logic dùng chung web/app; kiểm thử trong `app/tests/documents-shared.test.ts`. Mỗi submit cloud gửi `Idempotency-Key` ngẫu nhiên; giữ key khi chưa rõ kết quả, lưu hash payload/cấu hình và jobId trong localStorage/AsyncStorage, không lưu text/token trong ledger. Chờ lưu key thành công trước khi gửi request. Việc đồng bộ key giữa nhiều tab/thiết bị chưa được bảo đảm.
+
+Đã thử OCR ảnh tiếng Việt/Anh, PDF chữ/PDF scan, DOCX 18.000 từ và WebView bundle/iframe bằng Chrome local. Build/export Android/iOS không thay thử WebView trên điện thoại thật. Giấy phép Tesseract Apache-2.0 nằm trong `web/public/licenses/` và `app/licenses/`.
 
 Icon Framework7 Icons và Glisse trên web dùng MIT; thông báo trong web/public/licenses. Kính app dùng expo-glass-effect khi iOS hỗ trợ, BlurView dự phòng; phần tab tham khảo expo-glass-tabs có giấy phép ở app/licenses. Đây là giao diện tùy biến, không phải UITabBar gốc.
 
