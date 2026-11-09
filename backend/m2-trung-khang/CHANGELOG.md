@@ -17,6 +17,13 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 
 ## NHẬT KÝ
 
+### 2026-11-10: Test quyền file key Translator bỏ qua trên Windows
+
+- Sau khi merge PR #12, chạy lại toàn bộ test trên `main`: `test_key_stays_in_ssm_not_state_or_output` hỏng trên Windows vì Windows không có quyền file kiểu POSIX (`0o600`). Thêm điều kiện `os.name != "nt"` như test token trong `test_azure.py`; trên Linux/CloudShell vẫn kiểm quyền.
+- Test M2: 89 test, OK (skipped=1). M1 31, M3 49, M5 90, web 90/90, app 44/44 đều đạt.
+- Chưa sửa: `deployment/local` còn 2 lỗi chỉ trên Windows (`test_dev` cần `termios`, `test_connection` lỗi phân giải tên miền), thuộc phần dùng chung từ commit `638a58c`.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+
 ### 2026-11-10: Sửa chữ tiếng Việt bị tách dấu khi nhập PDF
 
 - Bối cảnh: Nguyên Khang (M4) báo nhập PDF ra chữ đúng nhưng dấu bị tách, ví dụ "thuy ế t minh d ự án".
