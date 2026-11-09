@@ -81,6 +81,8 @@ Resources:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
                 - TLSv1.2
+              # Chờ router (40s) trả kết quả khi stats quét gần giới hạn.
+              OriginReadTimeout: 45
         DefaultCacheBehavior:
           TargetOriginId: web
           ViewerProtocolPolicy: redirect-to-https

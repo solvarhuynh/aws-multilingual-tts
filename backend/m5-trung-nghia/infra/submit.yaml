@@ -41,6 +41,43 @@ Parameters:
     Type: String
     Default: eastasia
     AllowedPattern: '[a-z][a-z0-9]{1,39}'
+  GeminiTypoEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  GeminiApiParameterName:
+    Type: String
+    Default: ''
+    Description: SSM SecureString parameter name; never pass its value here
+  GeminiModel:
+    Type: String
+    Default: ''
+    Description: Gemini model ID verified for the selected API key
+  GeminiTimeoutSeconds:
+    Type: Number
+    Default: 6
+    MinValue: 1
+    MaxValue: 8
+  TypoCheckMaxChars:
+    Type: Number
+    Default: 1000
+    MinValue: 1
+    MaxValue: 5000
+  TypoMaxChanges:
+    Type: Number
+    Default: 5
+    MinValue: 1
+    MaxValue: 20
+  TypoDailyCallLimit:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    MaxValue: 10000
+  StatsScanMaxJobs:
+    Type: Number
+    Default: 200
+    MinValue: 1
+    MaxValue: 5000
 
 Resources:
   SubmitFunction:
@@ -66,6 +103,13 @@ Resources:
           DAILY_CHAR_LIMIT: !Ref DailyCharLimit
           TTS_PROVIDER: !Ref TtsProvider
           AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
+          GEMINI_TYPO_ENABLED: !Ref GeminiTypoEnabled
+          GEMINI_API_PARAMETER_NAME: !Ref GeminiApiParameterName
+          GEMINI_MODEL: !Ref GeminiModel
+          GEMINI_TIMEOUT_SECONDS: !Ref GeminiTimeoutSeconds
+          TYPO_CHECK_MAX_CHARS: !Ref TypoCheckMaxChars
+          TYPO_MAX_CHANGES: !Ref TypoMaxChanges
+          TYPO_DAILY_CALL_LIMIT: !Ref TypoDailyCallLimit
 
   StatsFunction:
     Type: AWS::Serverless::Function
@@ -75,7 +119,12 @@ Resources:
       Handler: app.handler
       Runtime: python3.12
       Role: !Ref LabRoleArn
-      Timeout: 5
-      MemorySize: 128
+      Timeout: 30
+      MemorySize: 256
       Layers:
         - !Ref CommonLayerArn
+      Environment:
+        Variables:
+          JOBS_BUCKET: !Ref JobsBucket
+          JOBS_PREFIX: !Ref JobsPrefix
+          STATS_SCAN_MAX_JOBS: !Ref StatsScanMaxJobs

@@ -26,7 +26,8 @@ Resources:
       CodeUri: ../http
       Handler: app.handler
       Runtime: python3.12
-      Timeout: 15
+      # M5 stats có thể chạy 30 giây; router cần đủ thời gian nhận response.
+      Timeout: 40
       MemorySize: 256
       Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
       Environment:

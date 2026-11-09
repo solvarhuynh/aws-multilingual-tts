@@ -30,6 +30,35 @@ Parameters:
     Type: String
     Default: eastasia
     AllowedPattern: '[a-z][a-z0-9]{1,39}'
+  JobsPrefix:
+    Type: String
+    Default: jobs/
+    AllowedPattern: '[a-z0-9-]+/'
+  DailyCharLimit:
+    Type: Number
+    Default: 6000
+    MinValue: 1
+  StatsScanMaxJobs:
+    Type: Number
+    Default: 200
+    MinValue: 1
+    MaxValue: 5000
+  GeminiTypoEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  GeminiApiParameterName:
+    Type: String
+    Default: ''
+    Description: Name of an SSM SecureString; never pass the API key itself
+  GeminiModel:
+    Type: String
+    Default: ''
+  TypoDailyCallLimit:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    MaxValue: 10000
 
 Resources:
   Storage:
@@ -39,6 +68,7 @@ Resources:
       Parameters:
         Env: !Ref Env
         LabRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        JobsPrefix: !Ref JobsPrefix
 
   TtsCore:
     Type: AWS::Serverless::Application
@@ -49,7 +79,7 @@ Resources:
         LabRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
         CommonLayerArn: !GetAtt Storage.Outputs.CommonLayerArn
         JobsBucket: !GetAtt Storage.Outputs.JobsBucketName
-        JobsPrefix: jobs/
+        JobsPrefix: !Ref JobsPrefix
         AudioBucket: !GetAtt Storage.Outputs.AudioBucketName
         TtsApiParameterName: !Ref TtsApiParameterName
         TtsProvider: !Ref TtsProvider
@@ -64,10 +94,17 @@ Resources:
         LabRoleArn: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
         CommonLayerArn: !GetAtt Storage.Outputs.CommonLayerArn
         JobsBucket: !GetAtt Storage.Outputs.JobsBucketName
+        JobsPrefix: !Ref JobsPrefix
         AudioBucket: !GetAtt Storage.Outputs.AudioBucketName
         SynthFunctionName: !GetAtt TtsCore.Outputs.SynthesizeFunctionName
         TtsProvider: !Ref TtsProvider
         AzureSpeechRegion: !Ref AzureSpeechRegion
+        GeminiTypoEnabled: !Ref GeminiTypoEnabled
+        GeminiApiParameterName: !Ref GeminiApiParameterName
+        GeminiModel: !Ref GeminiModel
+        TypoDailyCallLimit: !Ref TypoDailyCallLimit
+        DailyCharLimit: !Ref DailyCharLimit
+        StatsScanMaxJobs: !Ref StatsScanMaxJobs
 
   Api:
     Type: AWS::Serverless::Application
