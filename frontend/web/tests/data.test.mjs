@@ -48,6 +48,18 @@ test("API frontend: nội dung sửa và phản hồi không hợp lệ", async 
       response({ ...valid, changes: [{ from: "a", to: "b", start: 0, end: 999 }] });
       await assert.rejects(api.correct(original, "vi-VN"), { code: "INVALID_RESPONSE" });
     });
+    await suite.test("dịch gửi đúng đoạn/ngữ cảnh và từ chối phản hồi sai", async () => {
+      let sent;
+      globalThis.fetch = async (url, init) => {
+        sent = { url, body: JSON.parse(init.body) };
+        return { ok: true, json: async () => ({ sourceLang: "vi-VN", targetLang: "en-US", translatedText: "Hello." }) };
+      };
+      assert.equal((await api.translate("Xin chào.", "vi-VN", "en-US", "Đoạn trước.")).translatedText, "Hello.");
+      assert.equal(sent.url, "https://tts.test/text/translate");
+      assert.deepEqual(sent.body, { text: "Xin chào.", sourceLang: "vi-VN", targetLang: "en-US", context: "Đoạn trước." });
+      response({ sourceLang: "vi-VN", targetLang: "ja-JP", translatedText: "Hello." });
+      await assert.rejects(api.translate("Xin chào.", "vi-VN", "en-US"), { code: "INVALID_RESPONSE" });
+    });
     await suite.test("không hiện TODO của backend cho người dùng", async () => {
       response({ error: { code: "NOT_IMPLEMENTED", message: "TODO" } }, 501);
       await assert.rejects(api.synthesize({ text: original, lang: "vi-VN", voice: "Linh", speed: 1, translateTo: null }),

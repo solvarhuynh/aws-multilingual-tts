@@ -51,11 +51,25 @@ Parameters:
     Description: SSM SecureString parameter name; never pass its value here
   GeminiModel:
     Type: String
-    Default: ''
+    Default: gemini-3.6-flash
     Description: Gemini model ID verified for the selected API key
+  GeminiTranslationEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  GeminiTranslationTimeoutSeconds:
+    Type: Number
+    Default: 20
+    MinValue: 1
+    MaxValue: 30
+  TranslationDailyCallLimit:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    MaxValue: 10000
   GeminiTimeoutSeconds:
     Type: Number
-    Default: 6
+    Default: 8
     MinValue: 1
     MaxValue: 8
   TypoCheckMaxChars:
@@ -88,7 +102,7 @@ Resources:
       Handler: app.handler
       Runtime: python3.12
       Role: !Ref LabRoleArn
-      Timeout: 15
+      Timeout: 30
       MemorySize: 256
       Layers:
         - !Ref CommonLayerArn
@@ -106,6 +120,9 @@ Resources:
           GEMINI_TYPO_ENABLED: !Ref GeminiTypoEnabled
           GEMINI_API_PARAMETER_NAME: !Ref GeminiApiParameterName
           GEMINI_MODEL: !Ref GeminiModel
+          GEMINI_TRANSLATION_ENABLED: !Ref GeminiTranslationEnabled
+          GEMINI_TRANSLATION_TIMEOUT_SECONDS: !Ref GeminiTranslationTimeoutSeconds
+          TRANSLATION_DAILY_CALL_LIMIT: !Ref TranslationDailyCallLimit
           GEMINI_TIMEOUT_SECONDS: !Ref GeminiTimeoutSeconds
           TYPO_CHECK_MAX_CHARS: !Ref TypoCheckMaxChars
           TYPO_MAX_CHANGES: !Ref TypoMaxChanges

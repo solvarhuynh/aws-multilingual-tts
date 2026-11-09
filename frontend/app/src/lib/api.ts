@@ -51,6 +51,15 @@ export const api = {
       data.correctedText.length > MAX_CHARS || typeof data.hasTypos !== 'boolean') return null;
     return data.hasTypos && data.correctedText !== text ? data : null;
   },
+  async translate(text: string, sourceLang: string, targetLang: string, context = '') {
+    if (DEMO) throw new ApiError('Hãy kết nối backend để dịch tài liệu trên app.', 'FEATURE_NOT_ENABLED');
+    const result = await request<{ sourceLang: string; targetLang: string; translatedText: string }>(
+      '/text/translate', { method: 'POST', body: JSON.stringify({ text, sourceLang, targetLang, context }) });
+    if (result?.sourceLang !== sourceLang || result.targetLang !== targetLang ||
+        typeof result.translatedText !== 'string' || !result.translatedText.trim() || result.translatedText.length > 6000)
+      throw new ApiError('Bản dịch trả về không hợp lệ.', 'INVALID_RESPONSE');
+    return result;
+  },
   async synthesize(input: Input, context = '') {
     const digest = sha256Hex(JSON.stringify([API_BASE, demoToken, context, input]));
     const key = await submissions.reserve(digest);

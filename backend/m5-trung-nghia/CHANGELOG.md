@@ -115,3 +115,21 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 - Bổ sung trạng thái tải, dữ liệu rỗng, lỗi `503` và nút thử lại cho Dashboard dùng `/stats`; API adapter giữ HTTP status để phân biệt `503`. Thêm `.env.example` cho URL CloudFront công khai và hướng dẫn `.env.local`, mock mode và thời điểm Vite đọc cấu hình trong README frontend.
 - Thêm test DOM cho Dashboard và test API/Studio cho URL thật, Stats, key retry, correction `skipped` và fallback. Web test UI **85/85** và production build/typecheck đạt; `git diff --check` sạch. Đây là kiểm thử local bằng fake API, chưa kiểm trên AWS/Gemini/Azure thật.
 - M4 cần review các thay đổi `frontend/web/`, `frontend/README.md` và `frontend/.gitignore`. M1 cần xác nhận CloudFront forward `Idempotency-Key` cùng API URL của stack mới. Gemini cần backend bật và cấu hình provider; Stats cần bucket/Layer/quyền đúng; quy trình tạo MP3 qua CloudFront còn cần nghiệm thu Sandbox. Không deploy, commit hoặc push trong task này.
+
+### 2026-11-09 — Gemini 3.6 Flash và dịch tài liệu theo ngữ cảnh
+
+- Đặt model Gemini mặc định `gemini-3.6-flash` trong root/M5 SAM, giữ cả typo và dịch tắt mặc định trên AWS. Thêm `POST /text/translate` vào M1 router và M5 submit; một request dịch tối đa 2.000 ký tự, nhận 600 ký tự ngữ cảnh nguồn, dùng Interactions API với structured JSON và `store=false`. Counter CAS `translation-usage/` riêng (100 call/ngày mặc định) không trừ quota TTS/typo. Chưa triển khai hoặc kiểm model/key/quota trên Sandbox.
+- Thêm server `scripts/local_ai.py` chỉ bind 127.0.0.1, key nhập trong terminal, cho web Vite dev gọi typo/dịch khi TTS vẫn ở mock mode. Frontend web/app nhập tài liệu vào màn dịch, dịch tuần tự, dừng/tiếp tục sau phần hiện tại hoặc lỗi, cho xem bản dịch trước khi chuyển sang TTS. Web cho tải TXT; app chuyển bản dịch sang màn tạo giọng. Không đưa key vào bundle/env frontend.
+- Kiểm thử mock: M1 20/20, M2 67/67, M3 49/49, M5 87/87, web UI 89/89, app 37/37; web build, app typecheck/lint và Expo export Android/iOS đạt. M1 review router/root SAM; M4 review web/app; M3 review quyền S3 cho counter riêng. `deployment/scripts/azure.py plan` chưa có flag bật Gemini, nên cần wiring thao tác deploy riêng nếu nhóm quyết định bật trên AWS. Không gọi AWS/Gemini/Azure thật, không commit/push/deploy trong lượt này.
+
+### 2026-11-09 — Gộp lệnh chuẩn bị demo trên CloudShell
+
+- Thêm `deployment/scripts/demo.sh` để gọi lại quy trình Azure configure (nếu chưa có cấu hình) → plan → review `APPLY` → apply → status → upload web → chờ CloudFront → smoke HTTP, rồi in URL và nhắc kiểm luồng M5 trên giao diện. `--check` chỉ đọc stack/smoke, không deploy; `--daily-char-limit N` chỉ dùng khi nhóm đã thống nhất quota.
+- Không tự nhập/bật Gemini: key SSM và feature flags cần chủ lab cấu hình riêng; script không in token, chỉ hướng dẫn lấy mã demo bằng lệnh riêng. Cần M1/M4 review thao tác root stack/hosting; yêu cầu checkout CloudShell đã có code mới.
+- Kiểm tra local: `bash -n deployment/scripts/demo.sh` và `bash deployment/scripts/demo.sh --help` đạt. Chưa chạy script trên AWS, không gọi Azure/Gemini, không deploy, commit hoặc push.
+
+### 2026-11-09 — Rà soát diff nhỏ và giới hạn 150 dòng theo yêu cầu team
+
+- Đếm source trước/sau đợt cải tiến từ `4e8294b`, ghi các file cũ quá 150 dòng và nội dung gửi riêng từng owner trong `docs/reports/GUI-TEAM-THAY-DOI-M5.md`. Source mới của đợt này trong 150 dòng; chưa refactor hàng loạt file cũ. Tách bridge tests khỏi translation tests và tách ledger tests khỏi document tests, giữ assertions.
+- Sửa ba vấn đề có bằng chứng: bridge local nhận lang list/dict gây TypeError (đã tái hiện bằng test); demo smoke vô tình gọi Gemini (thêm cờ skip chỉ cho demo); web test nhận env local của người dùng (cô lập env, thêm regression cho local bridge, giữ assertions cloud/mock).
+- Kết quả cuối: M1 20/20, M2 67/67, M3 49/49, M5 88/88, web UI 90/90, app 37/37; tổng 351 pass, 0 fail. Web build/typecheck, app typecheck, Bash syntax đạt; smoke routing hai chế độ đạt bằng mock. Lần web suite đầu có 4 fail do env local, đã sửa nguyên nhân và chạy lại đạt. Không gọi AWS/provider, không deploy, commit hoặc push.

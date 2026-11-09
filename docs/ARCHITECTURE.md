@@ -20,7 +20,7 @@ flowchart LR
     J["M3 S3 JSON jobs"]
     A["M3 S3 audio MP3"]
     T["M5 stats MR"]
-    G["M5 Gemini typo MR ngoài AWS"]
+    G["M5 Gemini typo / dịch MR ngoài AWS"]
     M["M1 CloudWatch dashboard / SNS"]
     U --> CF
     CF -->|"static default"| W
@@ -60,7 +60,7 @@ Cam M1, xanh dương M2, xanh lá M3, tím M4, đỏ M5, viền đứt ngoài AW
 
 Chọn async cho mọi job mới: submit tạo PENDING, invoke worker bằng Event rồi trả 202; worker PROCESSING→DONE/FAILED và UI GET /jobs/{id}. Lambda Event dùng hàng đợi nội bộ của dịch vụ, không SQS/DLQ quản lý được. Worker chống event trùng bằng ETag/CAS, tức chỉ ghi khi metadata đã đọc chưa đổi.
 
-Một router M1 xử lý 7 paths từ payload v2.0 rồi RequestResponse invoke đúng Lambda owner. Function URL không tự có API routes. M1 sở hữu URL/resource policy và existing-role wiring; M4 sở hữu CloudFront distribution/OAC associations/behaviors. Multiple URL origins là phương án thay routing cần review riêng, không tự thêm API Gateway.
+Một router M1 xử lý 8 paths từ payload v2.0 rồi RequestResponse invoke đúng Lambda owner. Function URL không tự có API routes. M1 sở hữu URL/resource policy và existing-role wiring; M4 sở hữu CloudFront distribution/OAC associations/behaviors. Multiple URL origins là phương án thay routing cần review riêng, không tự thêm API Gateway.
 
 Default static behavior → S3 REST origin private; /synthesize, /text/*, /voices, /jobs/*, /history, /history/*, /stats → router URL với OriginPath rỗng. Forward query/app headers cần thiết, không viewer Host; API cache disabled, POST/DELETE/OPTIONS được phép. Không rewrite API errors thành static index.html.
 
@@ -72,9 +72,11 @@ Nhập tệp/OCR là bước trước API, chạy cục bộ trên web/WebView b
 
 ## Typo/language sau MVP
 
-Workflow đã thống nhất được giữ: bấm Chuyển giọng → POST /text/correct một lần → nếu có typo suggestion thì người dùng chọn → POST /synthesize đúng một lần. Không key/timeout/không chắc thì skipped original, không tạo job trong correct. Gemini ngoài AWS là MR, chỉ typo, không grammar/style.
+Workflow đã thống nhất được giữ: bấm Chuyển giọng → POST /text/correct một lần → nếu có typo suggestion thì người dùng chọn → POST /synthesize đúng một lần. Không key/timeout/không chắc thì skipped original, không tạo job trong correct. Nhánh sửa chính tả Gemini là MR chỉ sửa typo, không grammar/style; nhánh dịch tài liệu bên dưới là thao tác riêng do người dùng chọn.
 
 Baseline yêu cầu chọn lang rõ từ registry provider đã kiểm vi/en/ja; auto/local detection cần review riêng; không dịch ngầm. Comprehend/Translate không baseline.
+
+Phần mở rộng `POST /text/translate` dùng Gemini `gemini-3.6-flash` mặc định trong source, tắt mặc định trên AWS. Web/app gửi từng đoạn tối đa 2.000 ký tự và tối đa 600 ký tự ngữ cảnh trước đó; Gemini chỉ trả văn bản dịch, không tạo job hay gọi Azure. Người dùng xem bản dịch rồi mới chuyển sang màn tạo giọng với ngôn ngữ đích. Web có server local chỉ bind loopback để thử bằng key nhập ở terminal; không dùng AWS cho thử nghiệm này. Tài liệu có thể vượt quota dịch riêng, nên giao diện dừng ở phần lỗi và cho tiếp tục.
 
 ## Capability gates và fallback
 

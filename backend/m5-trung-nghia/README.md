@@ -1,6 +1,6 @@
 # M5 — Trung Nghĩa: Submit, điều phối async, ngôn ngữ và kiểm thử
 
-**Cập nhật 2026-11-08.** Submit và test M5 đã có code trên main qua commit tích hợp của M2; M5 cần review và nhận bàn giao. Gemini typo, stats, `Idempotency-Key`, recovery và đường tích hợp M1→M5→M3/M2 đã có code/test local trong working tree; chưa kiểm chứng Sandbox hoặc deploy. Gemini vẫn tắt mặc định. Task chỉ tick khi owner kiểm kết quả theo acceptance.
+**Cập nhật 2026-11-09.** Submit và test M5 đã có code trên main qua commit tích hợp của M2; M5 cần review và nhận bàn giao. Gemini typo/dịch, stats, `Idempotency-Key`, recovery và đường tích hợp M1→M5→M3/M2 đã có code/test local trong working tree; chưa kiểm chứng Sandbox hoặc deploy. Gemini vẫn tắt mặc định trên AWS. Task chỉ tick khi owner kiểm kết quả theo acceptance.
 
 **Cần chốt với giảng viên:** đề yêu cầu API Gateway/Polly/DynamoDB, còn bản Sandbox đang dùng dịch vụ thay thế. Xem [đối chiếu yêu cầu](../../AGENTS.md#3-yêu-cầu-đề-bài-và-trạng-thái-phải-diễn-đạt-đúng); không tự đổi hạ tầng khi chưa có môi trường/quyền và phân công mới.
 
@@ -10,11 +10,12 @@ Nhận common/schema/CAS từ M3, registry/worker/limits từ M2, auth context/r
 
 | File/thư mục trong module | Làm việc gì |
 |---|---|
-| `submit/` | POST /synthesize: validation, PENDING, keyed idempotency và Invoke Event; /text/correct dùng `correction.py` khi bật Gemini, lỗi trả skipped nguyên bản. |
+| `submit/` | POST /synthesize: validation, PENDING, keyed idempotency và Invoke Event; `/text/correct` dùng `correction.py`, `/text/translate` dùng `translation.py` khi bật Gemini. |
 | `stats/` | GET /stats: quét job M3 trong scope demo có giới hạn, vượt cap trả 503. |
 | `recovery/` | CLI nội bộ quét job và idempotency mapping có giới hạn; mặc định chỉ báo cáo, `--apply` chỉ sửa mapping terminal có bằng chứng worker đã claim. |
 | `infra/submit.yaml` | Submit/stats Lambda, bucket/worker/Layer references và giới hạn runtime. |
-| `tests/` | Contract và luồng mock router → submit → worker → history; correction, stats, validation không gọi AWS/provider thật. |
+| `scripts/local_ai.py` | Cầu nối Gemini cho web local, hỏi key ở terminal; không lưu key trong frontend. |
+| `tests/` | Contract và luồng mock router → submit → worker → history; correction, translation, stats, validation không gọi AWS/provider thật. |
 
 Đọc [AGENTS.md](../../AGENTS.md), [kiến trúc](../../docs/ARCHITECTURE.md) và [API/dữ liệu](../../docs/CONVENTIONS.md) trước khi sửa. Quyền AWS, secret và gate triển khai được quy định một lần ở AGENTS; không tự thêm dịch vụ ngoài baseline.
 
@@ -27,6 +28,7 @@ Checkbox bên dưới giữ trạng thái bàn giao trước khi tổ chức l�
 - [ ] SB-M5-03 — Recovery policy, credit guard và telemetry.
 - [ ] SB-M5-04 — Backend testing matrix và bàn giao E2E.
 - [ ] SB-M5-05 — MR Gemini typo và stats bounded scan.
+- [ ] SB-M5-06 — MR Gemini dịch văn bản/tài liệu theo ngữ cảnh.
 
 ## Nhiệm vụ chi tiết
 
@@ -37,7 +39,7 @@ Thực hiện theo gate trong AGENTS. Các kiểm thử AWS/provider, deploy và
 - **Phụ trách:** M5 Trung Nghĩa. **Giai đoạn:** Gate 1.
 - **Cần có trước:** Contract sign-off, SB-M2-04 registry, M1 context. **Mã nguồn:** backend/m5-trung-nghia/submit/app.py, backend/m5-trung-nghia/infra/submit.yaml, tests/ fixtures dự kiến.
 - **Cách làm:** Explicit lang vi/en/ja theo registry, text/speed limits đo từ provider, translateTo chưa bật reject rõ, typo mặc định skipped original; không tạo job ở correction. **CLI/test khi được duyệt:** Validation mocks empty/malformed/too-long/auto/translation/speed/typo fallback.
-- **Đầu ra:** Request hợp lệ không đổi ý nghĩa, errors theo schema, 7 paths giữ. **Bằng chứng:** Contract test responses, Lambda config khi deploy. Tách local mock với sandbox verified.
+- **Đầu ra:** Request hợp lệ không đổi ý nghĩa, errors theo schema, 8 paths giữ (dịch là MR). **Bằng chứng:** Contract test responses, Lambda config khi deploy. Tách local mock với sandbox verified.
 - **Rủi ro / khôi phục:** Không tự nhận diện/dịch bằng service ngoài baseline; input invalid không tiêu credits.
 - **Nghiệm thu:** Không tạo job khi typo, explicit lang validation pass, no false success. **Làm local được không:** Có. **Trạng thái:** Submit đã có validation inline; M5 cần review acceptance và validation cần owner nghiệm thu
 
@@ -54,7 +56,7 @@ Thực hiện theo gate trong AGENTS. Các kiểm thử AWS/provider, deploy và
 
 **Đối soát local/được giao vận hành:** `python backend/m5-trung-nghia/recovery/reconcile.py --max-objects 200 --max-pages 20` (cần `JOBS_BUCKET` và `JOBS_PREFIX` trong môi trường được phép). Mặc định dry-run; chỉ khi được giao thao tác tài nguyên mới dùng `--apply`. Output JSON từng dòng chỉ có jobId, trạng thái, lý do, quyết định và kết quả; không in text/key. Quét cả `jobs/<scope>/` và `idempotency/<scope>/`; nếu vượt giới hạn thì dừng, không sửa một phần. Ngưỡng `--review-after-seconds` mặc định 900 chỉ đánh dấu để kiểm tra. Job `PENDING` lâu, `PROCESSING` hết lease, mapping thiếu job/quota đã reserve và Event không chắc chắn đều cần người vận hành đối soát; công cụ không gọi lại Lambda/Azure, refund quota hoặc đổi job sang FAILED. Job terminal có `attempt > 0` và mapping chưa `DISPATCHED` được sửa mapping bằng ETag CAS sau khi đọc lại. Polling M3 không tự đánh FAILED chỉ vì job cũ. M3 cần review thay đổi history và common trước khi deploy.
 
-**Đường deploy đang dùng:** `deployment/template.yaml` gọi `infra/submit.yaml` và truyền cùng `JobsPrefix` cho M3, M2, M5; Submit/Stats đều dùng jobs bucket và common Layer do M3 xuất. Root cho chỉnh `DailyCharLimit`, `StatsScanMaxJobs`, `TypoDailyCallLimit`; Gemini vẫn tắt mặc định và chỉ nhận **tên** SSM parameter/model. M1 router chuyển nguyên headers, cho phép `Idempotency-Key` trong CORS; M4 CloudFront dùng origin policy chuyển viewer headers. Timeout router 40 giây và CloudFront origin read 45 giây để chờ Stats tối đa 30 giây; M1/M4 review các thay đổi hạ tầng này. Không có Lambda, route hoặc lịch chạy recovery công khai.
+**Đường deploy đang dùng:** `deployment/template.yaml` gọi `infra/submit.yaml` và truyền cùng `JobsPrefix` cho M3, M2, M5; Submit/Stats đều dùng jobs bucket và common Layer do M3 xuất. Root cho chỉnh `DailyCharLimit`, `StatsScanMaxJobs`, `TypoDailyCallLimit`, `TranslationDailyCallLimit`; Gemini typo/dịch vẫn tắt mặc định và chỉ nhận **tên** SSM parameter/model. M1 router chuyển nguyên headers, cho phép `Idempotency-Key` trong CORS; M4 CloudFront dùng origin policy chuyển viewer headers. Timeout router 40 giây và CloudFront origin read 45 giây để chờ Stats tối đa 30 giây; M1/M4 review các thay đổi hạ tầng này. Không có Lambda, route hoặc lịch chạy recovery công khai.
 
 CLI recovery chạy thủ công từ repo trong Lab IDE/CloudShell được phép, cùng `JOBS_BUCKET`, `JOBS_PREFIX` và vùng `us-east-1` của stack; nếu Python môi trường thiếu boto3 thì dùng `recovery/requirements.txt`. Không chạy CLI bằng credentials xuất ra máy ngoài Lab. `--apply` là thao tác ghi S3 và chỉ dùng khi được giao rõ.
 
@@ -87,12 +89,22 @@ CLI recovery chạy thủ công từ repo trong Lab IDE/CloudShell được phé
 - **Rủi ro / khôi phục:** MR thiếu secret→skipped; stats cap→503, không quét vô hạn.
 - **Nghiệm thu:** User chọn trước synthesize; no grammar rewrite; no job trong correct; stats status honest. **Làm local được không:** Có mocks; Gemini thật cần approval. **Trạng thái:** Coded + locally tested, Gemini tắt mặc định; chưa sandbox verified hoặc deployed
 
+### SB-M5-06 — MR Gemini dịch văn bản/tài liệu theo ngữ cảnh
+
+- **Phụ trách:** M5 Trung Nghĩa. **Cần có trước:** M1 route, M4 màn dịch, secret/model/quota đã được duyệt khi lên Sandbox. **Mã nguồn:** `submit/translation.py`, `submit/app.py`, `infra/submit.yaml`, `scripts/local_ai.py`, `tests/test_translation.py`.
+- **Cách làm:** Dịch đoạn tối đa 2.000 ký tự với tối đa 600 ký tự ngữ cảnh nguồn, trả văn bản để người dùng duyệt. Counter Gemini riêng; không tạo job hay gọi worker từ endpoint dịch. `translateTo` trong synthesize vẫn reject để tránh dịch ngầm. Cờ AWS mặc định tắt; local bridge hỏi key ở terminal.
+- **Nghiệm thu:** Input sai/chưa bật/provider lỗi có response rõ; bản dịch không tự tạo job/trừ quota TTS; tài liệu nhiều phần được tiếp tục sau lỗi trong phiên và người dùng chọn trước TTS. **Bằng chứng:** Unit/integration/UI mock và kiểm thử model/live riêng nếu được giao. **Trạng thái:** Coded + locally tested; chưa sandbox verified/deployed, M1/M3/M4 review.
+
 ### Bật Gemini trong Sandbox sau khi được giao triển khai
 
 1. Tạo SSM SecureString chứa API key trong `us-east-1` bằng môi trường Lab được phép; chỉ đưa **tên** parameter vào root SAM `GeminiApiParameterName`. Không đưa value vào template, Git hoặc frontend.
-2. Chọn model Gemini hỗ trợ Interactions API và structured JSON, rồi đặt `GeminiModel`. Đặt `GeminiTypoEnabled=true` sau khi đã xác minh `LabRole` đọc được parameter, HTTPS egress và quota thật.
-3. Mặc định: tối đa 1.000 ký tự/lần, 5 thay đổi/lần, 6 giây/call, 100 call/ngày trong counter S3 riêng `typo-usage/`. TTS quota `usage/` không bị dùng bởi `/text/correct`. Có thể điều chỉnh trong template M5; mọi request Gemini đặt `store=false`.
-4. `/stats` quét tối đa 200 object job trong scope demo; vượt trần, listing không đủ hoặc S3 lỗi trả `503 STATS_UNAVAILABLE`. `cacheHits=0` vì luồng hiện tại chưa có cache. M1 cần chuyển tên SSM/model qua root SAM (đã cập nhật local), M3 cần xác nhận prefix `typo-usage/` cùng quyền S3; chưa có xác minh Sandbox.
+2. Model mặc định `gemini-3.6-flash` dùng Interactions API/structured JSON. Kiểm key có quyền dùng model này; nếu provider trả 404, chọn model ID được key hỗ trợ qua `GeminiModel`. Bật `GeminiTypoEnabled=true` và/hoặc `GeminiTranslationEnabled=true` sau khi đã xác minh `LabRole` đọc được parameter, HTTPS egress và quota thật. `deployment/scripts/azure.py plan` hiện chưa có flag bật Gemini; không coi việc chạy plan Azure là đã bật tính năng.
+3. Mặc định: tối đa 1.000 ký tự/lần, 5 thay đổi/lần, 8 giây/call, 100 call/ngày trong counter S3 riêng `typo-usage/`. TTS quota `usage/` không bị dùng bởi `/text/correct`. Có thể điều chỉnh trong template M5; mọi request Gemini đặt `store=false`.
+4. Dịch mỗi đoạn tối đa 2.000 ký tự với ngữ cảnh nguồn tối đa 600 ký tự; default timeout 20 giây và 100 call/ngày qua counter riêng `translation-usage/`. Sai input trả 400, chưa bật/provider lỗi/quota trả 503. Không tạo job hay trừ quota TTS; frontend duyệt bản dịch rồi submit bằng ngôn ngữ đích. `/stats` quét tối đa 200 object job trong scope demo; vượt trần, listing không đủ hoặc S3 lỗi trả `503 STATS_UNAVAILABLE`. `cacheHits=0` vì luồng hiện tại chưa có cache. M1 review root SAM/router, M3 xác nhận hai prefix quota cùng quyền S3; chưa có xác minh Sandbox.
+
+### Thử Gemini local cho web
+
+Từ gốc repo chạy `python backend/m5-trung-nghia/scripts/local_ai.py --model gemini-3.6-flash`, nhập key ở terminal. Script chỉ bind `127.0.0.1:8765`, không cần SSM/S3/AWS. Trong `frontend/web/.env.local`, để `VITE_API_BASE_URL=` và đặt `VITE_LOCAL_AI_BASE_URL=http://127.0.0.1:8765`; chạy lại Vite. Dịch tài liệu và typo dùng Gemini qua cầu nối này, còn TTS dùng mock local. Không đưa key vào frontend/env/Git. Chi tiết giao diện ở [README frontend](../../frontend/README.md#thử-gemini-trên-web-local-không-cần-aws).
 
 ## Kiểm tra local
 

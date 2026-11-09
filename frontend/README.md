@@ -1,6 +1,6 @@
 # M4 — Nguyên Khang: Frontend hiện có, CloudFront hosting và tái triển khai
 
-**Cập nhật 2026-11-08.** M4 có web/app, hosting CloudFront và log cập nhật một stack/web hiện có sang Azure Speech. M4 phụ trách tích hợp giao diện và hosting; adapter/worker TTS vẫn do M2 sở hữu. Kiểm lại khả năng tạo stack mới, OAC, app native và reset trước khi tick thêm task.
+**Cập nhật 2026-11-09.** M4 có web/app, hosting CloudFront và log cập nhật một stack/web hiện có sang Azure Speech. M4 phụ trách tích hợp giao diện và hosting; adapter/worker TTS vẫn do M2 sở hữu. Màn dịch tài liệu mới đã có code local, cần M4 review và thử với backend/thiết bị thật. Kiểm lại khả năng tạo stack mới, OAC, app native và reset trước khi tick thêm task.
 
 **Cần chốt với giảng viên:** đề yêu cầu API Gateway/Polly/DynamoDB, còn bản Sandbox đang dùng dịch vụ thay thế. Xem [đối chiếu yêu cầu](../AGENTS.md#3-yêu-cầu-đề-bài-và-trạng-thái-phải-diễn-đạt-đúng); không tự đổi hạ tầng khi chưa có môi trường/quyền và phân công mới.
 
@@ -36,6 +36,7 @@ Checkbox bên dưới giữ trạng thái bàn giao trước khi tổ chức l�
 - [ ] SB-M4-02 — Hosting private và CloudFront/OAC.
 - [ ] SB-M4-03 — Tích hợp API/token/voices/async vào UI sẵn có.
 - [ ] SB-M4-04 — Manual web deploy và reset/rebind.
+- [ ] SB-M4-05 — Tích hợp dịch tài liệu vào web/app hiện có.
 
 ## Nhiệm vụ chi tiết
 
@@ -66,7 +67,7 @@ Thực hiện theo gate trong AGENTS. Các kiểm thử AWS/provider, deploy và
 - **Cách làm:** X-Demo-Token do người dùng nhập lúc chạy, API base URL, exact POST hash nếu OAC, verified voice registry; 202 polling/history/typo skipped; reject translate/auto rõ. **CLI/test khi được duyệt:** Existing frontend tests + mock contract; sandbox E2E khi được duyệt.
 - **Đầu ra:** TTS flow không submit trùng, token không bundle, không key browser. **Bằng chứng:** Network sanitized + UI polling/playback video từ AWS thật. Tách local mock với sandbox verified.
 - **Rủi ro / khôi phục:** SigV4 Authorization conflict→custom header; token demo hiện lưu localStorage/AsyncStorage; cần chốt cách phát và thu hồi trước khi mở công khai.
-- **Nghiệm thu:** 7 routes compatible, user thấy lỗi tính năng chưa bật, không xây lại UI cơ bản. **Làm local được không:** Có mock frontend. **Trạng thái:** Web/app đã có tích hợp; cần E2E Azure và xác nhận 7 routes
+- **Nghiệm thu:** 8 routes compatible (gồm dịch MR), user thấy lỗi tính năng chưa bật, không xây lại UI cơ bản. **Làm local được không:** Có mock frontend. **Trạng thái:** Web/app đã có tích hợp; cần E2E Azure và xác nhận route mới
 
 ### SB-M4-04 — Manual web deploy và reset/rebind
 
@@ -76,6 +77,12 @@ Thực hiện theo gate trong AGENTS. Các kiểm thử AWS/provider, deploy và
 - **Đầu ra:** Repeatable manual deploy không OIDC/key dài hạn/GitHub credentials. **Bằng chứng:** CloudFront URL và artifact/version trước/sau phiên. Tách local mock với sandbox verified.
 - **Rủi ro / khôi phục:** URL stale khi reset→rebuild/rebind, rollback static artifact chỉ từ source tin cậy.
 - **Nghiệm thu:** Phiên mới web trỏ API mới, key/token không trong artifact. **Làm local được không:** Có runbook/build offline; upload cần account. **Trạng thái:** Đã có quy trình upload; CREATE mới/reset/rebind còn cần rehearsal
+
+### SB-M4-05 — Tích hợp dịch tài liệu vào web/app hiện có
+
+- **Phụ trách:** M4 Nguyên Khang review giao diện; M5 bàn giao endpoint `/text/translate` và luồng. **Cần có trước:** API M5, import/OCR hiện có và voice registry cho ngôn ngữ đích.
+- **Cách làm:** Cho nhập tài liệu ngay ở màn Dịch và đọc, gửi từng phần theo thứ tự với ngữ cảnh nguồn, hiển thị tiến độ/bản dịch, dừng và tiếp tục sau lỗi, rồi chuyển bản dịch sang màn tạo giọng. Web cho tải TXT; key Gemini không vào bundle.
+- **Nghiệm thu:** Dịch không tự tạo job TTS; người dùng kiểm bản dịch trước khi chọn giọng; bản gốc và phần đã dịch không mất khi request lỗi. **Trạng thái:** Coded + locally tested bằng mock; M4 cần review và thử trên thiết bị/backend thật.
 
 ## Kiểm tra local
 
@@ -97,7 +104,30 @@ npm run dev
 
 Web cần Node ≥20.19. `npm run build` tạo dist; `npm run test:ui` chạy kiểm thử local. Upload từ CloudShell bằng `bash deployment/scripts/sandbox.sh web` ở gốc repo, script tự lấy domain/bucket từ Outputs; không cần quy trình ZIP hosting riêng.
 
-Vite đọc `VITE_API_BASE_URL` lúc khởi động dev server và lúc build. Sau khi đổi `.env.local`, khởi động lại `npm run dev` hoặc build lại trước khi upload. Có URL thì web gọi bảy API qua CloudFront thật, gồm `/text/correct`, `/synthesize` và `/stats`; thiếu URL thì chạy dữ liệu mẫu và không gọi backend AWS. URL CloudFront cũng phải trỏ đúng API của stack đang triển khai; các chức năng Gemini/Stats chỉ hoạt động khi backend tương ứng được bật và có dữ liệu/quyền phù hợp.
+Vite đọc `VITE_API_BASE_URL` lúc khởi động dev server và lúc build. Sau khi đổi `.env.local`, khởi động lại `npm run dev` hoặc build lại trước khi upload. Có URL thì web gọi tám API qua CloudFront thật, gồm `/text/correct`, `/text/translate`, `/synthesize` và `/stats`; thiếu URL thì TTS dùng dữ liệu mẫu. URL CloudFront cũng phải trỏ đúng API của stack đang triển khai; Gemini typo/dịch chỉ hoạt động khi backend tương ứng được bật và có dữ liệu/quyền phù hợp.
+
+### Thử Gemini trên web local, không cần AWS
+
+Mở PowerShell ở gốc repo. Terminal thứ nhất chạy:
+
+```powershell
+python backend/m5-trung-nghia/scripts/local_ai.py --model gemini-3.6-flash
+```
+
+Nhập Gemini API key khi terminal hỏi; không dán vào `.env.local`, `VITE_*` hoặc mã nguồn. Cầu nối chỉ lắng nghe `127.0.0.1:8765`; để thử model khác nếu key chưa dùng được 3.6 Flash, truyền `--model` với model ID được key hỗ trợ. Lỗi HTTP 404 thường cần kiểm lại model ID/quyền truy cập model trên tài khoản đang dùng.
+
+Tạo `frontend/web/.env.local` với đúng hai dòng sau, rồi chạy ở terminal thứ hai:
+
+```dotenv
+VITE_API_BASE_URL=
+VITE_LOCAL_AI_BASE_URL=http://127.0.0.1:8765
+```
+
+```powershell
+npm --prefix frontend/web run dev
+```
+
+Mở `http://127.0.0.1:5173` → **Dịch và đọc** → nhập nội dung hoặc chọn PDF/Word/TXT/ảnh scan → chọn ngôn ngữ gốc/đích → **Dịch toàn bộ tài liệu**. Xem bản dịch, tải TXT hoặc chọn **Dùng bản dịch để tạo giọng**. Màn tạo giọng trong cấu hình này vẫn là chế độ nghe thử local; muốn MP3 thật phải kết nối backend AWS/Azure. Nếu Gemini lỗi ở một phần, giao diện giữ phần đã dịch trong phiên để tiếp tục. Tài liệu trích chữ/OCR được gửi theo phần tới Gemini khi bấm dịch; tệp gốc không được upload. Cầu nối local chỉ dùng cho Vite dev trên cùng máy, app Expo vẫn cần backend API để dịch.
 
 ### App iOS/Android
 
@@ -155,7 +185,7 @@ Kiểm ít nhất 320/390/768/1440/2560 px, nội dung/tên giọng dài, sáng/
 
 ### Kiểm kê frontend
 
-Web giữ các màn tổng quan, tạo giọng, dịch (chưa bật backend), đọc tài liệu, giọng đọc, bản thu, cài đặt và hướng dẫn. App gồm bốn tab Trang chủ/Giọng đọc/Công cụ/Bản thu, nút tạo mới và các màn compose/settings/recording/help. Không xây lại UI cơ bản khi chỉ tích hợp AWS.
+Web giữ các màn tổng quan, tạo giọng, dịch theo phần (Gemini cần bật hoặc cầu nối local), đọc tài liệu, giọng đọc, bản thu, cài đặt và hướng dẫn. App gồm bốn tab Trang chủ/Giọng đọc/Công cụ/Bản thu, nút tạo mới và các màn compose/settings/recording/help. Không xây lại UI cơ bản khi chỉ tích hợp AWS.
 
 Hosting dùng template trong infra; root SAM tham chiếu template này. Azure rollout trên một stack/web hiện có ngày 08/11 đã được ghi trong CHANGELOG; cần kiểm lại CREATE mới và app native riêng. Không lấy việc có nút trên UI làm bằng chứng chức năng backend đã bật.
 

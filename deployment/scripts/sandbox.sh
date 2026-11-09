@@ -32,7 +32,7 @@ step_web() {
 
 step_http() {
   [ -s "$TOKEN_FILE" ] || { echo "FAIL thiếu mã demo của chủ lab"; exit 1; }
-  DOMAIN=$(stack_output WebDomain) TOKEN=$(cat "$TOKEN_FILE") python3 - <<'PY'
+  DOMAIN=$(stack_output WebDomain) TOKEN=$(cat "$TOKEN_FILE") TTS_SMOKE_SKIP_AI="${TTS_SMOKE_SKIP_AI:-0}" python3 - <<'PY'
 import hashlib
 import json
 import os
@@ -46,12 +46,14 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 opener = urllib.request.build_opener(NoRedirect)
 failed = False
-for method, path, body, access, expected in [
+checks = [
     ("GET", "/", None, "", 200),
     ("GET", "/voices", None, "sai", 401),
     ("GET", "/voices", None, token, 200),
-    ("POST", "/text/correct", {"text": "Xin chào", "lang": "vi-VN"}, token, 200),
-]:
+]
+if os.environ["TTS_SMOKE_SKIP_AI"] != "1":
+    checks.append(("POST", "/text/correct", {"text": "Xin chào", "lang": "vi-VN"}, token, 200))
+for method, path, body, access, expected in checks:
     data = json.dumps(body).encode("utf-8") if body is not None else None
     headers = {"X-Demo-Token": access} if access else {}
     if data:

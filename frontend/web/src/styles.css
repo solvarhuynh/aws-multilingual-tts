@@ -75,6 +75,8 @@ button, a, input, select { transition: background-color .18s, color .18s, border
 .document-tools p, .document-tools details { flex-basis: 100%; margin: 0; }
 .document-tools select { max-width: 100%; padding: 6px; color: inherit; background: var(--surface); }
 .part-preview { white-space: pre-wrap; max-height: 180px; overflow: auto; padding: 10px 0; }
+.translation-result { border-top: 1px solid var(--border); }
+.translation-result textarea { flex-basis: 100%; width: 100%; min-height: 150px; max-height: 320px; padding: 12px; resize: vertical; color: var(--text); background: var(--surface); }
 .sidebar-brand .brand-logo { grid-column: 1; grid-row: 1; justify-self: center; width: 36px; height: 28px; }
 .product-name { grid-column: 2; grid-row: 1; font-size: 14px; font-weight: 600; letter-spacing: -.4px; white-space: nowrap; color: var(--text); }
 /* Giữ chữ trong DOM: nở khung trước, chữ hiện sau; khi đóng thì chữ mờ trước. */

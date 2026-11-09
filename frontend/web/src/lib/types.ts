@@ -27,6 +27,11 @@ export interface TextCorrection {
   correctedText: string;
   changes: { from: string; to: string; start: number; end: number }[];
 }
+export interface Translation {
+  sourceLang: string;
+  targetLang: string;
+  translatedText: string;
+}
 export interface Job {
   jobId: string;
   status: JobStatus;

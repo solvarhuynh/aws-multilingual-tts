@@ -1,6 +1,6 @@
 # Quy ước chung — API và dữ liệu TTS
 
-**Cập nhật 2026-11-08.** Giữ bảy public paths và các field chính. Code backend và root SAM đã có, Azure Speech là provider mặc định. Những mục ghi “đề xuất” hoặc “MR” chưa mặc nhiên được triển khai/kiểm chứng; xem code, task và log để xác nhận trạng thái từng phần.
+**Cập nhật 2026-11-09.** Giữ tám public paths và các field chính; `/text/translate` là phần mở rộng mặc định tắt trên AWS. Code backend và root SAM đã có, Azure Speech là provider mặc định. Những mục ghi “đề xuất” hoặc “MR” chưa mặc nhiên được triển khai/kiểm chứng; xem code, task và log để xác nhận trạng thái từng phần.
 
 **Cấu hình runtime:** `deployment/samconfig.toml`/`deployment/config/settings.json` dùng `us-east-1`; root SAM đã ghép hosting M4. M2 có thử riêng trên Sandbox; M4 ghi đã cập nhật stack/web hiện có sang Azure. Tạo stack mới và E2E từng phiên cần kiểm riêng. Xem [kiến trúc](ARCHITECTURE.md), [hướng dẫn Azure](./AZURE-SPEECH.md) và [ma trận Sandbox](../backend/m1-minh-ly/reference/SANDBOX-PERMISSIONS.md).
 
@@ -51,8 +51,11 @@ Root SAM đã nối Parameters/Outputs cho các Lambda. Tên parameter là cấu
 | TTS_API_PARAMETER_NAME | Reference parameter secret provider nếu cơ chế được duyệt, M2 | Worker |
 | GEMINI_API_PARAMETER_NAME | Reference secret MR nếu được duyệt, M5 | Submit |
 | DEMO_TOKEN | Token demo truyền vào router qua root SAM parameter `DemoToken`, M1 | Router |
-| GEMINI_MODEL | Model đã chọn sau kiểm chứng, M5/M1 | Submit MR |
-| GEMINI_TIMEOUT_SECONDS | Mặc định 6 giây, tối đa 8 giây; cần kiểm với model thật | Submit M5 |
+| GEMINI_MODEL | Mặc định `gemini-3.6-flash`; key cần quyền dùng model, M5/M1 | Submit MR |
+| GEMINI_TRANSLATION_ENABLED | Mặc định false; bật dịch khi đã kiểm key/quota, M5 | Submit MR |
+| GEMINI_TRANSLATION_TIMEOUT_SECONDS | Mặc định 20 giây; tối đa 30 giây | Submit MR |
+| TRANSLATION_DAILY_CALL_LIMIT | Mặc định 100 lần/ngày, counter S3 riêng `translation-usage/` | Submit MR |
+| GEMINI_TIMEOUT_SECONDS | Mặc định 8 giây, tối đa 8 giây; cần kiểm với model thật | Submit M5 |
 | TYPO_CHECK_MAX_CHARS | Mặc định 1000 ký tự, tối đa cấu hình 5000 | Submit M5 |
 | GEMINI_TYPO_ENABLED | Mặc định false; chỉ bật sau khi có key/model và nghiệm thu Sandbox | Submit M5 |
 | TYPO_MAX_CHANGES | Tối đa 5 thay đổi/lần theo cấu hình M5 | Submit M5 |
@@ -65,7 +68,7 @@ Root SAM đã nối Parameters/Outputs cho các Lambda. Tên parameter là cấu
 | VITE_API_BASE_URL | URL HTTP/CloudFront công khai, M4 | Web |
 | EXPO_PUBLIC_API_BASE_URL | URL API công khai, M4 | App |
 
-`JOBS_BUCKET`, `JOBS_PREFIX`, `AUDIO_BUCKET`, `SYNTH_FUNCTION_NAME`, `TTS_API_PARAMETER_NAME` và `DEMO_TOKEN` đã được nối trong stack hiện tại. Root truyền một `JobsPrefix` cho M3/M2/M5 và cho phép chỉnh `DailyCharLimit`, `StatsScanMaxJobs`, `TypoDailyCallLimit`. `GEMINI_*` đã có code/wiring local nhưng `GeminiTypoEnabled=false` mặc định; chưa gọi API thật hoặc deploy. `JOBS_TABLE`, `QUEUE_URL`, `EXTERNAL_TTS_SECRET_NAME`, `GEMINI_API_SECRET_NAME` và `SYNC_MAX_CHARS` còn trong config cũ để tương thích; không dùng làm bằng chứng DynamoDB/SQS đang chạy.
+`JOBS_BUCKET`, `JOBS_PREFIX`, `AUDIO_BUCKET`, `SYNTH_FUNCTION_NAME`, `TTS_API_PARAMETER_NAME` và `DEMO_TOKEN` đã được nối trong stack hiện tại. Root truyền một `JobsPrefix` cho M3/M2/M5 và cho phép chỉnh `DailyCharLimit`, `StatsScanMaxJobs`, `TypoDailyCallLimit`, `TranslationDailyCallLimit`. Gemini typo và dịch đã có code/wiring local nhưng `GeminiTypoEnabled=false` và `GeminiTranslationEnabled=false` mặc định trên AWS; chưa xác minh trên Sandbox. `JOBS_TABLE`, `QUEUE_URL`, `EXTERNAL_TTS_SECRET_NAME`, `GEMINI_API_SECRET_NAME` và `SYNC_MAX_CHARS` còn trong config cũ để tương thích; không dùng làm bằng chứng DynamoDB/SQS đang chạy.
 
 ### Giới hạn nhập tài liệu ở frontend
 
@@ -75,13 +78,14 @@ Frontend chia văn bản thành nhiều phần tối đa 2.000 đơn vị UTF-16
 
 `DailyCharLimit` mặc định vẫn 6.000 ký tự/ngày cho scope demo, độc lập giới hạn tài liệu. Công cụ deploy có `plan --daily-char-limit N` để đưa quota đã thống nhất vào changeset; không tự apply hoặc tăng quota Azure. Các giới hạn này khác quota theo tháng/tốc độ của Azure.
 
-## 4. API bảy route
+## 4. API tám route
 
 Mọi route auth như mục 2; OPTIONS là preflight. Response JSON và headers HTTP/CORS do adapter thống nhất.
 
 | Method/path | Owner handler | Request | Success | Errors đặc trưng |
 |---|---|---|---|---|
 | POST /text/correct | M5, MR | text, lang | 200 checked/skipped với original/corrected/changes | 400 input; provider lỗi → 200 skipped |
+| POST /text/translate | M5, MR | text, sourceLang, targetLang, context? | 200 sourceLang/targetLang/translatedText | 400 input; 503 chưa bật/provider/quota |
 | POST /synthesize | M5 | text, lang, voice?, speed?, translateTo?; Idempotency-Key? | 202 job mới; 200 DONE replay có kết quả | 400/409/429/503 |
 | GET /voices | M2 | Không | 200 languages | 503 chưa có registry thật |
 | GET /jobs/{id} | M3 | ID path | 200 job/status/progress/audioUrl/error | 404 missing/expired |
@@ -132,6 +136,12 @@ Mặc định tắt, thiếu key, timeout/provider lỗi, kết quả không ch�
 ~~~
 
 Transport/auth/input JSON hỏng vẫn trả 4xx theo contract; fail-open không bỏ qua kiểm soát truy cập. M4 dùng bản gốc nếu bước typo không dùng được, nhưng synthesize vẫn cần lang rõ và token hợp lệ.
+
+### POST /text/translate — dịch theo ngữ cảnh, tách khỏi TTS
+
+Request gồm `text` không rỗng tối đa 2.000 ký tự UTF-16, `sourceLang`, `targetLang` khác nhau và `context` tùy chọn tối đa 600 ký tự từ phần trước. Response `200` gồm `sourceLang`, `targetLang`, `translatedText` không rỗng (tối đa 6.000 ký tự). Sai input trả `400`; chưa bật trả `503 FEATURE_NOT_ENABLED`; Gemini lỗi, output sai hoặc hết quota riêng trả `503 TRANSLATION_UNAVAILABLE`. Không tạo job, không trừ quota TTS, không tự gọi Azure. Gemini typo và dịch cùng dùng tên SSM parameter/model `gemini-3.6-flash` mặc định, nhưng có cờ bật và counter S3 riêng; request đặt `store=false`.
+
+Web/app chia tài liệu thành các phần và dịch tuần tự, truyền tối đa 600 ký tự của văn bản nguồn ngay trước phần đang dịch để giữ ngữ cảnh. UI giữ các phần đã dịch trong phiên màn hình để tiếp tục sau lỗi và cho người dùng xem lại toàn bộ trước khi tạo giọng. Khi duyệt, frontend gửi **bản dịch** tới `/synthesize` bằng ngôn ngữ đích, với `translateTo:null`; backend vẫn từ chối `translateTo` khác null để không dịch ngầm trong job. Tệp gốc/OCR xử lý trên thiết bị; văn bản trích xuất được gửi tới Gemini khi người dùng bấm dịch. Dịch dài tốn một API call cho mỗi phần và phụ thuộc quota/ngữ cảnh có giới hạn; chưa có manifest dịch bền vững sau reload.
 
 ### GET /voices
 

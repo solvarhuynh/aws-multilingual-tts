@@ -106,6 +106,31 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       }
       await click(env.mount.querySelector('[aria-label="Hướng dẫn"]'));
     });
+    await suite.test("màn dịch cho chọn tài liệu, xem bản dịch và chỉ tạo giọng sau khi chọn", async () => {
+      await click(env.mount.querySelector('.sidebar a[href="#translation"]'));
+      assert.ok(env.mount.querySelector('.document-drop'));
+      const originalTranslate = api.translate, originalSynthesize = api.synthesize;
+      const calls = [];
+      api.translate = async (...args) => { calls.push(args); return { sourceLang: args[1], targetLang: args[2], translatedText: 'Hello, this is a document.' }; };
+      api.synthesize = async () => { throw new Error('Không được tạo job khi chỉ dịch'); };
+      try {
+        const form = env.mount.querySelector('.composer');
+        const editor = form.querySelector('textarea');
+        await act(() => {
+          Object.getOwnPropertyDescriptor(env.win.HTMLTextAreaElement.prototype, 'value').set.call(editor, 'Xin chào, đây là tài liệu.');
+          editor.dispatchEvent(new env.win.Event('input', { bubbles: true }));
+        });
+        await click(form.querySelector('button[type="submit"]'));
+        assert.equal(calls.length, 1);
+        assert.equal(calls[0][1], 'vi-VN');
+        assert.equal(calls[0][2], 'en-US');
+        assert.equal(env.mount.querySelector('#translated-document').value, 'Hello, this is a document.');
+        const useTranslation = [...env.mount.querySelectorAll('.translation-result button')].find(button => button.textContent.includes('Dùng bản dịch'));
+        await click(useTranslation);
+        assert.equal(env.mount.querySelector('h1').textContent, 'Tạo giọng đọc');
+        assert.equal(env.mount.querySelector('.composer textarea').value, 'Hello, this is a document.');
+      } finally { api.translate = originalTranslate; api.synthesize = originalSynthesize; }
+    });
     await suite.test("sidebar thu gọn được và lưu lựa chọn", async () => {
       await click(env.mount.querySelector('[aria-label="Thu gọn thanh bên"]'));
       assert.ok(env.mount.querySelector(".app-shell.sidebar-collapsed"));

@@ -51,8 +51,8 @@ Repository được tổ chức theo trách nhiệm của năm thành viên. Fro
 | Lịch sử bản thu | Có danh sách, phân trang, phát lại và xóa bản thu đã kết thúc. Dữ liệu hiện dùng chung cho scope demo. |
 | Giao diện | Tiếng Việt, sáng/tối/theo hệ thống, giảm chuyển động và tăng tương phản; thiết kế kính trên web và app. |
 | Nghe thử không có backend | Dùng giọng có sẵn trên thiết bị. Chế độ này không tạo tệp MP3 trên AWS. |
-| Dịch tự động | Có giao diện; backend chưa bật chức năng dịch. |
-| Sửa lỗi đánh máy bằng Gemini | M5 đã có code và test mock; mặc định tắt, chưa gọi Gemini thật hoặc deploy. |
+| Dịch văn bản/tài liệu bằng Gemini | Có code web/app và API `/text/translate` dịch theo phần với ngữ cảnh; mặc định tắt trên AWS. Web có cầu nối local để thử bằng key nhập trong terminal. Người dùng xem bản dịch trước khi tạo giọng. |
+| Sửa lỗi đánh máy bằng Gemini | M5 đã có code và test mock; mặc định tắt trên AWS. Model mặc định trong source là `gemini-3.6-flash`; key cần quyền dùng model này. |
 | Thống kê đầy đủ | M5 đã có code quét job S3 có giới hạn; chưa xác minh trên bucket Sandbox thật. |
 
 Code, kiểm thử local và demo trong một phiên là các mức bằng chứng khác nhau. Khả năng tạo mới toàn bộ stack, dựng lại sau reset và hoạt động trên thiết bị thật cần được kiểm riêng. Trạng thái và tiêu chí nghiệm thu của từng phần nằm trong README/CHANGELOG của thành viên.
@@ -84,6 +84,7 @@ flowchart LR
     ROUTER --> SUBMIT[Lambda submit · M5]
     ROUTER --> VOICES[Lambda voices · M2]
     ROUTER --> HISTORY[Lambda history · M3]
+    SUBMIT -.->|Sửa typo / dịch khi bật| GEMINI[Gemini 3.6 Flash]
     SUBMIT -->|Invoke Event| WORKER[Lambda worker · M2]
     WORKER --> AZURE[Azure Speech]
     WORKER --> AUDIO[S3 audio]
@@ -101,6 +102,8 @@ flowchart LR
 
 Tài liệu dài được chia ở frontend thành nhiều request theo API này; mỗi phần có job và MP3 riêng. Tệp gốc không tải lên AWS để OCR. Bộ nhận dạng cần mạng để tải mã lõi/dữ liệu ngôn ngữ; người dùng kiểm tra và sửa chữ trước khi tạo giọng. PDF tối đa 200 trang, trong đó không quá 30 trang cần OCR/lần nhập. Chọn **Tạo các phần còn lại · bản gốc** để tạo lần lượt; phần đã thành công được bỏ qua trong phiên màn hình hiện tại. Tải lại trang/mở lại màn hình cần đối chiếu Lịch sử trước khi chạy cả tài liệu lần nữa.
 
+Ở màn **Dịch và đọc**, người dùng có thể nhập cùng loại tài liệu, chọn ngôn ngữ và dịch từng phần qua Gemini; mỗi request mang thêm ngữ cảnh của phần trước. Xem hoặc tải bản dịch TXT, sau đó chọn đưa bản dịch sang màn Tạo giọng. Dịch không tự tạo MP3 hoặc tự chạy khi chỉ nhập tài liệu. Gemini trên AWS mặc định tắt; web có cầu nối để thử local.
+
 S3 web, jobs và audio là ba bucket riêng. Metadata không lưu presigned URL. S3 conditional write/lease giúp kiểm soát cập nhật đồng thời, nhưng không tạo giao dịch nhiều object hoặc bảo đảm provider chỉ bị tính phí đúng một lần.
 
 Chi tiết routing, quyền, timeout và recovery: [ARCHITECTURE.md](docs/ARCHITECTURE.md) và [CONVENTIONS.md](docs/CONVENTIONS.md).
@@ -115,6 +118,7 @@ Chi tiết routing, quyền, timeout và recovery: [ARCHITECTURE.md](docs/ARCHIT
 | Dữ liệu | S3 jobs JSON, S3 audio private, Common Lambda Layer |
 | Hạ tầng | AWS SAM/CloudFormation, CloudFront/OAC, SSM SecureString, CloudWatch/SNS theo template |
 | TTS mặc định | Azure Speech; adapter ElevenLabs được giữ cho tương thích và kiểm thử cũ |
+| Sửa typo và dịch theo ngữ cảnh | Gemini 3.6 Flash qua backend M5; mặc định tắt trên AWS, web thử được qua cầu nối local |
 | Triển khai | Thủ công trong CloudShell/Lab IDE; review changeset trước khi áp dụng |
 
 Phiên bản cài đặt được khóa tại `package-lock.json` của từng frontend. Giữ lockfile khi làm việc nhóm.
@@ -222,6 +226,8 @@ VITE_API_BASE_URL=https://TEN-MIEN-CUA-NHOM.cloudfront.net
 
 Chỉ dùng domain CloudFront đang hoạt động của lab. Dừng và chạy lại dev server sau khi đổi env. Mã demo nhập trong **Cài đặt → Kết nối**, không đặt trong file env.
 
+Để thử **Gemini 3.6 Flash trên máy** mà chưa dùng AWS, xem [lệnh cầu nối local và nhập tài liệu để dịch](frontend/README.md#thử-gemini-trên-web-local-không-cần-aws). Key được hỏi ở terminal Python; `.env.local` chỉ chứa URL `127.0.0.1`. Giao diện cho xem/tải bản dịch rồi mới chọn tạo giọng.
+
 ### App iOS/Android
 
 Mở terminal khác, từ gốc repository:
@@ -263,6 +269,7 @@ Các đường dẫn được giữ thống nhất giữa web, app và router. R
 | GET | `/history` | Lịch sử với `limit`/`cursor` | M3 |
 | DELETE | `/history/{id}` | Xóa bản thu đã kết thúc; job bận trả `409` | M3 |
 | POST | `/text/correct` | Gemini đề xuất lỗi đánh máy khi bật, lỗi trả nguyên văn bản | M5 |
+| POST | `/text/translate` | Dịch một đoạn theo ngữ cảnh khi bật; không tự tạo job TTS | M5 |
 | GET | `/stats` | Thống kê job trong S3; vượt giới hạn trả 503 | M5 |
 
 Trạng thái job: `PENDING → PROCESSING → DONE | FAILED`. Lỗi dùng cùng cấu trúc:
@@ -283,6 +290,14 @@ Mẫu request/response, replay, paging, schema dữ liệu và giới hạn chí
 Quy trình này dành cho **phương án Azure hiện tại**, chạy thủ công trong CloudShell/Lab IDE của phiên Academy được giao. Không chạy các lệnh AWS từ laptop bằng credentials xuất từ lab. Đọc [AZURE-SPEECH.md](docs/AZURE-SPEECH.md) trước khi thực hiện, gồm tạo Speech F0, kiểm vùng Students, cấu hình key, dựng stack và xử lý lỗi.
 
 AWS regional resources dùng `us-east-1`. Azure dùng đúng vùng Speech resource, ví dụ `eastasia`; hai giá trị này độc lập.
+
+**Lệnh gọn để chuẩn bị demo** trên CloudShell, từ gốc repo đã có đầy đủ code mới:
+
+```bash
+bash deployment/scripts/demo.sh
+```
+
+Script dùng lại cấu hình Azure nếu đã có; lần đầu sẽ hỏi Azure Key 1. Nó tạo changeset, chờ bạn xem và gõ `APPLY`, cập nhật stack, upload web, đợi CloudFront và smoke HTTP, rồi in URL. Nếu Azure resource không ở `eastasia`, chạy `bash deployment/scripts/demo.sh --azure-region VUNG_AZURE`. Có thể thêm `--daily-char-limit N` khi nhóm đã chốt quota cho tài liệu dài. Ngày demo, nếu stack/web đã chuẩn bị, chỉ cần `bash deployment/scripts/demo.sh --check` để kiểm và lấy URL; chế độ này không deploy. Gemini key và cờ bật Gemini vẫn được cấu hình riêng; script không hỏi key Gemini. Các bước thủ công bên dưới giải thích từng thao tác khi cần xử lý lỗi.
 
 ### 1. Cấu hình provider và chuẩn bị thay đổi
 

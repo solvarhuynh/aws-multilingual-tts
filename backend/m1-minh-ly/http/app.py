@@ -23,6 +23,7 @@ ROUTE_PATTERNS = [
     {"pattern": re.compile(path), "allowed_methods": [method], "target_function": target, "name": name}
     for path, method, target, name in [
         (r"^/text/correct$", "POST", SUBMIT_FUNCTION_NAME, "text_correct"),
+        (r"^/text/translate$", "POST", SUBMIT_FUNCTION_NAME, "text_translate"),
         (r"^/synthesize$", "POST", SUBMIT_FUNCTION_NAME, "synthesize"),
         (r"^/voices$", "GET", VOICES_FUNCTION_NAME, "voices"),
         (r"^/jobs/(?P<id>[a-zA-Z0-9_\-]+)$", "GET", HISTORY_FUNCTION_NAME, "get_job"),

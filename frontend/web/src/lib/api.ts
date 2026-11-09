@@ -1,9 +1,10 @@
 import { demoLanguages, MAX_CHARS, readStored, storeValue } from "./data";
-import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, Stats, TextCorrection } from "./types";
+import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, Stats, TextCorrection, Translation } from "./types";
 import { SubmissionLedger } from '../../../shared/submissions';
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
 export const DEMO = !API_BASE;
+const AI_BASE = (import.meta.env.DEV ? import.meta.env.VITE_LOCAL_AI_BASE_URL || API_BASE : API_BASE).trim().replace(/\/+$/, "");
 const HISTORY_KEY = "voxa.demo.history.v1";
 const TOKEN_KEY = "voxa.demoToken.v1";
 const submissions = new SubmissionLedger();
@@ -90,13 +91,13 @@ function checkedJob(value: unknown): Job {
   return value;
 }
 
-async function request<T>(path: string, init?: RequestInit, timeout = 45000): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeout = 45000, base = API_BASE): Promise<T> {
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeout);
   try {
     const token = getDemoToken();
     const hash = typeof init?.body === "string" ? await bodyHash(init.body) : null;
-    const response = await fetch(`${API_BASE}${path}`, {
+    const response = await fetch(`${base}${path}`, {
       ...init,
       signal: controller.signal,
       headers: {
@@ -135,10 +136,10 @@ function getDemoHistory(): HistoryItem[] {
 }
 export const api = {
   async correct(text: string, lang: string): Promise<TextCorrection> {
-    if (DEMO) return { status: "skipped", language: lang, hasTypos: false, originalText: text, correctedText: text, changes: [] };
+    if (!AI_BASE) return { status: "skipped", language: lang, hasTypos: false, originalText: text, correctedText: text, changes: [] };
     const result = await request<TextCorrection>("/text/correct", {
       method: "POST", body: JSON.stringify({ text, lang }),
-    }, 12000);
+    }, 12000, AI_BASE);
     if (!result || !["checked", "skipped"].includes(result.status) || typeof result.language !== "string" || result.originalText !== text ||
       typeof result.hasTypos !== "boolean" || typeof result.correctedText !== "string" ||
       !result.correctedText.trim() || result.correctedText.length > MAX_CHARS || !Array.isArray(result.changes) ||
@@ -146,6 +147,16 @@ export const api = {
         Number.isInteger(change.start) && Number.isInteger(change.end) && change.start >= 0 &&
         change.end > change.start && change.end <= result.correctedText.length))
       throw new ApiError("Chưa kiểm tra được nội dung.", "INVALID_RESPONSE");
+    return result;
+  },
+  async translate(text: string, sourceLang: string, targetLang: string, context = ""): Promise<Translation> {
+    if (!AI_BASE) throw new ApiError("Hãy bật máy chủ Gemini local hoặc kết nối backend để dịch.", "FEATURE_NOT_ENABLED");
+    const result = await request<Translation>("/text/translate", {
+      method: "POST", body: JSON.stringify({ text, sourceLang, targetLang, context }),
+    }, 35000, AI_BASE);
+    if (!result || result.sourceLang !== sourceLang || result.targetLang !== targetLang ||
+      typeof result.translatedText !== "string" || !result.translatedText.trim() || result.translatedText.length > 6000)
+      throw new ApiError("Bản dịch trả về không hợp lệ.", "INVALID_RESPONSE");
     return result;
   },
   async stats(): Promise<Stats> {

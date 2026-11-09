@@ -9,6 +9,7 @@ trả skipped nguyên bản khi không khả dụng. Module sở hữu: M5.
 import json
 
 import correction
+import translation
 import idempotency
 
 from tts_common import aws, config, db
@@ -176,11 +177,33 @@ def _correct(event):
     return json_response(200, payload)
 
 
+def _translate(event):
+    """Translate a bounded passage; the client keeps the source document and reviews the result."""
+    body = _parse_body(event)
+    try:
+        text, source, target, context = translation.validate_input(body)
+    except ValueError as error:
+        code = str(error)
+        message = "Đoạn dịch tối đa 2.000 ký tự." if code == "TEXT_TOO_LONG" else "Nội dung hoặc ngôn ngữ dịch không hợp lệ."
+        raise InvalidRequest(400, code, message) from None
+    cfg = translation.settings()
+    if cfg is None:
+        return error_response(503, "FEATURE_NOT_ENABLED", "Tính năng dịch chưa được bật.")
+    try:
+        translated = translation.translate(text, source, target, context, cfg)
+    except Exception as error:
+        log_json(module="M5", operation="translate", status="UNAVAILABLE", errorCode=type(error).__name__)
+        return error_response(503, "TRANSLATION_UNAVAILABLE", "Chưa dịch được đoạn này. Vui lòng thử lại.")
+    return json_response(200, {"sourceLang": source, "targetLang": target, "translatedText": translated})
+
+
 def handler(event, context):
     """Chọn thao tác theo path; lỗi không lường trước trả 500 đã làm sạch."""
     try:
         if event.get("path") == "/text/correct":
             return _correct(event)
+        if event.get("path") == "/text/translate":
+            return _translate(event)
         return _synthesize(event)
     except InvalidRequest as error:
         return error.response

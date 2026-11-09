@@ -1,7 +1,7 @@
 import { Window } from "happy-dom";
 import { createServer } from "vite";
 
-export async function environment({ demo = false } = {}) {
+export async function environment({ demo = false, localAi = "" } = {}) {
   const win = new Window({ url: "http://localhost/#studio" });
   const globals = ["document", "location", "localStorage", "navigator", "HTMLElement", "HTMLInputElement", "HTMLSelectElement",
     "HTMLFormElement", "HTMLButtonElement", "HTMLOptionElement", "HTMLMediaElement", "SVGElement", "ShadowRoot", "Document",
@@ -16,8 +16,9 @@ export async function environment({ demo = false } = {}) {
   win.HTMLElement.prototype.scrollIntoView = () => {};
   win.scrollTo = () => {};
   const { createRoot } = await import("react-dom/client");
-  const server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom", logLevel: "silent",
-    define: { "import.meta.env.VITE_API_BASE_URL": JSON.stringify(demo ? "" : "https://tts.test") } });
+  const server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: "custom", logLevel: "silent", envFile: false,
+    define: { "import.meta.env.VITE_API_BASE_URL": JSON.stringify(demo ? "" : "https://tts.test"),
+      "import.meta.env.VITE_LOCAL_AI_BASE_URL": JSON.stringify(localAi) } });
   const mount = document.createElement("div");
   document.body.append(mount);
   const root = createRoot(mount);

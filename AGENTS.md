@@ -80,7 +80,7 @@ Các gate dưới đây là thứ tự thực hiện, không phải thông báo 
 | 3 — Tích hợp giao diện | M1 xác minh HTTP/URL/policy; M4 nối API/token/polling/history và CloudFront | Web/app tạo, phát, tải, xóa bản thu; API không cache, lỗi JSON không bị đổi thành trang HTML. |
 | 4 — Độ ổn định | M5 recovery/quota/idempotency/telemetry; M2 retry; M3 retention; M1 alarm; M4 trạng thái lỗi | Duplicate/timeout/stale job/link hết hạn được xử lý; không gọi provider vô hạn; kiểm thử thất bại có kết quả rõ. |
 | 5 — Dựng lại và bàn giao | M1 phối hợp M4 chạy phiên mới được giao, mỗi owner nghiệm thu phần mình | Hướng dẫn Azure tái thực hiện được; bind lại Outputs/env/token; evidence đã che dữ liệu và demo lại. |
-| Sau MVP | M5 đề xuất Gemini typo/stats; M4 nối màn review hiện có | Chỉ bật sau MP3 MVP và khi có phê duyệt, quota, secret và test riêng. |
+| Sau MVP | M5 đề xuất Gemini typo/dịch và stats; M4 nối màn review, dịch tài liệu | Chỉ bật trên AWS sau MP3 MVP và khi có phê duyệt, quota, secret và test riêng. |
 
 Ranh giới phải giữ:
 
@@ -106,11 +106,12 @@ Chỉ chạy AWS read/mutation, provider live, deploy/reset khi được giao r�
 
 ## 6. Hợp đồng không được làm hỏng
 
-Giữ bảy public paths:
+Giữ tám public paths (đường dịch Gemini là phần mở rộng mặc định tắt):
 
 | Method | Path | Owner |
 |---|---|---|
 | POST | `/text/correct` | M5, typo MR |
+| POST | `/text/translate` | M5, dịch theo ngữ cảnh MR |
 | POST | `/synthesize` | M5 |
 | GET | `/voices` | M2 |
 | GET | `/jobs/{id}` | M3 |
@@ -124,7 +125,7 @@ Giữ bảy public paths:
 - Giữ `JOBS_BUCKET`, `JOBS_PREFIX`, `AUDIO_BUCKET`, `SYNTH_FUNCTION_NAME`, `TTS_API_PARAMETER_NAME`; root SAM truyền từ Parameters/Outputs. Kiểm giá trị thực sau mỗi lab.
 - S3 conditional write bằng ETag/CAS, lease và retry có giới hạn. Không hứa exactly-once provider billing; crash giữa create/invoke hoặc provider/store cần reconciliation của owner.
 - Chọn ngôn ngữ rõ từ registry đã xác minh; không dịch ngầm hoặc bỏ qua speed không hỗ trợ. Giới hạn trong catalog/runtime là nguồn chuẩn cho frontend.
-- Gemini typo có code/test local nhưng mặc định tắt, chỉ sửa lỗi đánh máy, người dùng duyệt, provider lỗi dùng nguyên bản, offsets UTF-16; `/text/correct` không tạo job/MP3. Stats có code quét S3 có giới hạn: bucket rỗng trả 0, quét không đủ trả 503 thay vì số thiếu. Chưa gọi Gemini hoặc xác minh Stats trên Sandbox thật.
+- Gemini typo và dịch theo ngữ cảnh có code/test local, mặc định tắt trên AWS; typo chỉ sửa lỗi đánh máy, người dùng duyệt, provider lỗi dùng nguyên bản, offsets UTF-16; `/text/correct` và `/text/translate` không tạo job/MP3. Dịch tài liệu theo phần, người dùng duyệt bản dịch rồi mới tạo giọng. Stats quét S3 có giới hạn: bucket rỗng trả 0, quét không đủ trả 503 thay vì số thiếu. Chưa xác minh Gemini/Stats trên Sandbox thật.
 - API CloudFront không cache; giữ method/path/query/body và header cần thiết, không forward viewer Host. Không áp SPA fallback lên JSON lỗi API.
 
 ## 7. Quy tắc code và tổ chức file

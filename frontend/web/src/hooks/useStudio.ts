@@ -6,6 +6,7 @@ import type { HistoryItem, Job, Language, SynthesizeInput, TextCorrection } from
 import { MAX_DOCUMENT_CHARS, checkedDocument, splitDocument } from '../../../shared/documents';
 
 type Review = { input: SynthesizeInput; correction: TextCorrection; documentText: string; partIndex: number };
+type TranslationDraft = { source: string; sourceLang: string; targetLang: string; sourceParts: string[]; translatedParts: string[] };
 
 export function useStudio(
   notify: (message: string, error?: boolean) => void,
@@ -29,6 +30,11 @@ export function useStudio(
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [review, setReview] = useState<Review | null>(null);
+  const [translationDraft, setTranslationDraft] = useState<TranslationDraft | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [translationProgress, setTranslationProgress] = useState<{ done: number; total: number } | null>(null);
+  const translationLock = useRef(false);
+  const stopTranslation = useRef(false);
   const reviewRef = useRef<Review | null>(null);
   const revision = useRef(0);
   const [readingFile, setReadingFile] = useState(false);
@@ -58,6 +64,7 @@ export function useStudio(
     return () => {
       mounted.current = false;
       stopBatch.current = true;
+      stopTranslation.current = true;
       importController.current?.abort();
     };
   }, []);
@@ -126,6 +133,8 @@ export function useStudio(
     revision.current++;
     cancelReview();
     setText(value);
+    setTranslationDraft(null);
+    setTranslationProgress(null);
     setError("");
   }
   function useSample() {
@@ -149,8 +158,64 @@ export function useStudio(
       pending.speed !== speed || pending.translateTo !== translateTo)) cancelReview();
   }, [text, lang, voice, speed, translateTo]);
 
+  useEffect(() => {
+    setTranslationDraft(previous => previous &&
+      (previous.source !== text || previous.sourceLang !== lang || previous.targetLang !== translateTo) ? null : previous);
+    setTranslationProgress(null);
+  }, [text, lang, translateTo]);
+
+  async function translateDocument() {
+    if (!translateTo || translationLock.current || submitLock.current || fileLock.current || batchLock.current) return;
+    try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
+    if (lang === translateTo) { setError("Hãy chọn ngôn ngữ đích khác ngôn ngữ gốc."); return; }
+    const sourceParts = splitDocument(text);
+    const previous = translationDraft?.source === text && translationDraft.sourceLang === lang &&
+      translationDraft.targetLang === translateTo ? translationDraft : null;
+    const translatedParts = [...(previous?.translatedParts ?? [])];
+    const requestRevision = revision.current;
+    translationLock.current = true;
+    stopTranslation.current = false;
+    setTranslating(true);
+    setError("");
+    setTranslationProgress({ done: translatedParts.length, total: sourceParts.length });
+    try {
+      for (let index = translatedParts.length; index < sourceParts.length; index++) {
+        if (!mounted.current || stopTranslation.current || requestRevision !== revision.current) break;
+        const part = sourceParts[index];
+        const offset = sourceParts.slice(0, index).reduce((count, item) => count + item.length, 0);
+        const translated = part.trim()
+          ? (await api.translate(part, lang, translateTo, text.slice(Math.max(0, offset - 600), offset))).translatedText
+          : part;
+        if (!mounted.current || requestRevision !== revision.current) return;
+        translatedParts.push(translated);
+        if (translatedParts.join("\n\n").length > MAX_DOCUMENT_CHARS)
+          throw new Error("Bản dịch vượt 200.000 ký tự. Hãy chia nhỏ tài liệu.");
+        setTranslationDraft({ source: text, sourceLang: lang, targetLang: translateTo, sourceParts, translatedParts: [...translatedParts] });
+        setTranslationProgress({ done: translatedParts.length, total: sourceParts.length });
+      }
+      if (mounted.current && translatedParts.length === sourceParts.length) notify("Đã dịch xong. Xem lại bản dịch trước khi tạo giọng.");
+    } catch (reason) {
+      if (mounted.current) setError((reason as Error).message);
+    } finally {
+      translationLock.current = false;
+      if (mounted.current) setTranslating(false);
+    }
+  }
+
+  function applyTranslation() {
+    if (!translationDraft || translationDraft.translatedParts.length !== translationDraft.sourceParts.length || translating) return false;
+    const translated = translationDraft.translatedParts.join("\n\n");
+    try { checkedDocument(translated); } catch (reason) { setError((reason as Error).message); return false; }
+    updateText(translated);
+    setLang(translationDraft.targetLang);
+    setPartIndex(0);
+    setTranslationDraft(null);
+    return true;
+  }
+
   async function generate() {
-    if (submitLock.current || fileLock.current || reviewRef.current || batchLock.current) return;
+    if (translateTo) return translateDocument();
+    if (submitLock.current || fileLock.current || reviewRef.current || batchLock.current || translationLock.current) return;
     try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
     const part = parts[selectedPart] ?? '';
     const invalid = validateInput(part, speed);
@@ -269,7 +334,7 @@ export function useStudio(
   }
 
   async function importFile(file?: File) {
-    if (!file || submitLock.current || fileLock.current || batchLock.current) return;
+    if (!file || submitLock.current || fileLock.current || batchLock.current || translationLock.current) return;
     fileLock.current = true;
     setReadingFile(true);
     setError("");
@@ -348,7 +413,7 @@ export function useStudio(
     historyError,
     loadHistory,
     currentAudio,
-    busy: busy || !!batch,
+    busy: busy || !!batch || translating,
     batch,
     generateAll,
     stopBatch: () => { stopBatch.current = true; },
@@ -368,6 +433,12 @@ export function useStudio(
     job,
     draftSaved,
     generate,
+    translateDocument,
+    translationDraft,
+    translationProgress,
+    translating,
+    stopTranslation: () => { stopTranslation.current = true; },
+    applyTranslation,
     importFile,
     openRecording,
     deleteRecording,

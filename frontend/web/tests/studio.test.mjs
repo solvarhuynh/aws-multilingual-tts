@@ -12,15 +12,15 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
   let studio, revision = 0, checked = [], submitted = [];
   const correction = (text) => ({ status: "checked", language: "vi-VN", hasTypos: true, originalText: text,
     correctedText: "tôi muốn nghe", changes: [{ from: "toi", to: "tôi", start: 0, end: 3 }] });
-  function Harness() { studio = useStudio(() => {}); return null; }
-  async function mount(text = "toi muon nghe") {
+  function Harness({ target = null }) { studio = useStudio(() => {}, target); return null; }
+  async function mount(text = "toi muon nghe", target = null) {
     checked = []; submitted = [];
     api.voices = async () => languages;
     api.history = async () => ({ items: [], nextCursor: null });
     api.synthesize = async (input) => { submitted.push(input); return recording(); };
     api.correct = async (text, lang) => { checked.push({ text, lang }); return { ...correction(text), hasTypos: false, correctedText: text }; };
     localStorage.clear();
-    await act(async () => { env.root.render(React.createElement(Harness, { key: ++revision })); await settle(); });
+    await act(async () => { env.root.render(React.createElement(Harness, { key: ++revision, target })); await settle(); });
     await act(() => studio.updateText(text));
   }
   try {
@@ -136,6 +136,46 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
       api.synthesize = async (input, context) => { contexts.push(context); return recording(); };
       await act(async () => { await studio.generateAll(); });
       assert.deepEqual(contexts, ['part-0', 'part-3']);
+    });
+    await suite.test("dịch tài liệu theo phần, dùng ngữ cảnh, dừng rồi tiếp tục và duyệt trước TTS", async () => {
+      const source = 'a'.repeat(2000) + 'b'.repeat(2000) + 'tail';
+      await mount(source, 'en-US');
+      const calls = [];
+      api.translate = async (text, from, to, context) => {
+        calls.push({ text, from, to, context });
+        if (calls.length === 1) studio.stopTranslation();
+        return { sourceLang: from, targetLang: to, translatedText: text.toUpperCase() };
+      };
+      await act(async () => { await studio.generate(); });
+      assert.equal(calls.length, 1);
+      assert.equal(studio.translationProgress.done, 1);
+      assert.equal(studio.text, source);
+      assert.equal(submitted.length, 0);
+      await act(async () => { await studio.generate(); });
+      assert.equal(calls.length, 3);
+      assert.equal(calls[1].context, 'a'.repeat(600));
+      assert.equal(studio.translationProgress.done, 3);
+      await act(() => { assert.equal(studio.applyTranslation(), true); });
+      assert.equal(studio.lang, 'en-US');
+      assert.equal(studio.text, 'A'.repeat(2000) + '\n\n' + 'B'.repeat(2000) + '\n\nTAIL');
+      assert.equal(submitted.length, 0);
+    });
+    await suite.test("lỗi dịch giữ phần đã xong để tiếp tục; đổi tài liệu xóa bản dịch cũ", async () => {
+      await mount('a'.repeat(2000) + 'tail', 'en-US');
+      let count = 0;
+      api.translate = async (text, from, to) => {
+        if (++count === 2) throw new Error('Gemini tạm lỗi');
+        return { sourceLang: from, targetLang: to, translatedText: text.toUpperCase() };
+      };
+      await act(async () => { await studio.translateDocument(); });
+      assert.match(studio.error, /Gemini tạm lỗi/);
+      assert.equal(studio.translationDraft.translatedParts.length, 1);
+      await act(async () => { await studio.translateDocument(); });
+      assert.equal(count, 3);
+      assert.equal(studio.translationProgress.done, 2);
+      await act(() => studio.updateText('Tài liệu khác'));
+      assert.equal(studio.translationDraft, null);
+      assert.equal(studio.translationProgress, null);
     });
   } finally { await act(() => env.root.unmount()); await env.close(); }
 });
