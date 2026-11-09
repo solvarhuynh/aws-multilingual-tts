@@ -51,7 +51,7 @@ def _clean_text(body):
 
 def _find_entry(lang):
     """Tìm ngôn ngữ trong registry đã kiểm chứng."""
-    if lang in AUTO_LANGS:
+    if lang is None or (isinstance(lang, str) and lang in AUTO_LANGS):
         raise InvalidRequest(400, "LANG_REQUIRED", "Vui lòng chọn ngôn ngữ trước khi chuyển giọng.")
     try:
         registry = load_registry()
@@ -127,17 +127,18 @@ def _synthesize(event):
         job = db.create_job(
             user_id, text, body["lang"], voice, speed, provider=entry.get("provider"), engine=entry.get("engine")
         )
-    except Exception:
-        db.refund_chars(len(text))
-        raise
+    except Exception as error:
+        # S3 can persist the job before a connection error hides the response.
+        log_json(module="M5", operation="create_job", status="UNCERTAIN", errorCode=type(error).__name__)
+        return error_response(503, "SUBMIT_UNCERTAIN", idempotency.UNCERTAIN_MESSAGE)
     job_id = job["jobId"]
     try:
-        _dispatch(user_id, job_id)
+        response = _dispatch(user_id, job_id)
+        if not isinstance(response, dict) or response.get("StatusCode") != 202:
+            raise RuntimeError("Lambda Event acceptance not confirmed")
     except Exception as error:
-        log_json(module="M5", operation="dispatch", status="FAILED", jobId=job_id, errorCode=type(error).__name__)
-        db.update_job(user_id, job_id, status="FAILED", errorMessage="Chưa gửi được yêu cầu, vui lòng thử lại.")
-        db.refund_chars(len(text))
-        return error_response(503, "DISPATCH_FAILED", "Chưa gửi được yêu cầu, vui lòng thử lại.")
+        log_json(module="M5", operation="dispatch", status="UNCERTAIN", jobId=job_id, errorCode=type(error).__name__)
+        return error_response(503, "SUBMIT_UNCERTAIN", idempotency.UNCERTAIN_MESSAGE)
     log_json(module="M5", operation="submit", status="ACCEPTED", jobId=job_id, charCount=len(text))
     return json_response(202, {"jobId": job_id, "status": "PENDING", "audioUrl": None, "cached": False})
 
@@ -151,6 +152,8 @@ def _correct(event):
     if len(text) > config.MAX_CHARS:
         raise InvalidRequest(400, "TEXT_TOO_LONG", "Nội dung kiểm tra quá dài.")
     lang = body.get("lang")
+    if lang is not None and not isinstance(lang, str):
+        raise InvalidRequest(400, "INVALID_INPUT", "Ngôn ngữ không hợp lệ.")
     payload = {
         "status": "skipped",
         "language": lang if isinstance(lang, str) and lang not in AUTO_LANGS else "und",

@@ -45,7 +45,7 @@ Thực hiện theo gate trong AGENTS. Các kiểm thử AWS/provider, deploy và
 
 - **Phụ trách:** M5 Trung Nghĩa. **Giai đoạn:** Gate 1.
 - **Cần có trước:** SB-M3-01/03, SB-M2-03, Invoke runtime T2-05. **Mã nguồn:** backend/m5-trung-nghia/submit/app.py, backend/m5-trung-nghia/infra/submit.yaml, tests/.
-- **Cách làm:** Create PENDING qua common, mapping Idempotency-Key, Invoke Event IDs-only, 202 khi accepted; keyed Invoke không xác định trả 503 và giữ job để đối soát, replay không tạo job mới. Luồng không key giữ xử lý lỗi cũ. **CLI/test khi được duyệt:** Event mocks accepted/refused/crash gap/replay/conflict; T2-05.
+- **Cách làm:** Create PENDING qua common, mapping Idempotency-Key, Invoke Event IDs-only, 202 khi accepted; Invoke không xác định trả 503 và giữ job/quota để đối soát. Replay có key không tạo job mới. Luồng không key vẫn nhận submit độc lập nhưng không tự refund/đánh FAILED khi ghi S3 hoặc Event chưa chắc kết quả. **CLI/test khi được duyệt:** Event mocks accepted/refused/crash gap/replay/conflict; T2-05.
 - **Đầu ra:** Async-all MVP không threshold 2500 giả, payload không text/key. **Bằng chứng:** 202 response, IDs event/log, state transitions. Tách local mock với sandbox verified.
 - **Rủi ro / khôi phục:** No transaction create/invoke→dispatchState/recovery; exactly-once không hứa.
 - **Nghiệm thu:** Accepted→202, rejected→sanitized 503, replay same key bounded. **Làm local được không:** Có mocks. **Trạng thái:** Keyed idempotency coded + locally tested; crash recovery cần đối soát thủ công, chưa sandbox verified
@@ -105,6 +105,8 @@ python3.12 -m unittest discover -s backend/m5-trung-nghia/tests
 Suite dùng mocks, không cần AWS credentials hoặc provider key. Khi sửa interface dùng chung, chạy thêm suite M2/M3/M5 và router theo AGENTS. Khi sửa template, chạy `cfn-lint` cho root và các template con liên quan. Không đánh đồng mock pass với quyền/runtime Sandbox.
 
 ## Việc tiếp theo và nghiệm thu
+
+Đợt cải tiến 09/11 thêm nhập tài liệu dài/OCR ở frontend và sửa lỗi tích hợp M1/M3/M5; giữ worker và schema. Giới hạn nhập tệp độc lập với quota 6.000 ký tự/ngày. Xem [cách dùng frontend](../../frontend/README.md#nhập-tài-liệu-scan-và-tạo-nhiều-bản-thu) và [rà soát cùng việc còn lại](REVIEW.md). Khi được giao triển khai, `python3 deployment/scripts/azure.py plan --daily-char-limit N` đưa hạn mức đã thống nhất vào changeset; không tự apply. M1/M4/M3 cần review những thay đổi thuộc owner tương ứng.
 
 Review SB-M5-01/02 trên code đã tích hợp; hoàn tất idempotency/replay/recovery/quota/telemetry theo acceptance. Gemini chỉ bật sau MP3 MVP và khi secret/quota/Sandbox được kiểm thực tế; stats cần xác minh hiệu năng trên bucket thật.
 

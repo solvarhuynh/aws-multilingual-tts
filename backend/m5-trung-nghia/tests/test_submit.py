@@ -148,12 +148,12 @@ class SubmitTest(FlowTestCase):
             response = submit.handler({"path": "/synthesize", "body": body}, None)
             self.assertEqual(response["statusCode"], 400)
 
-    def test_dispatch_failure_marks_job_failed(self):
+    def test_dispatch_failure_keeps_job_for_reconciliation(self):
         self.lambda_client.invoke = mock.Mock(side_effect=RuntimeError("bi mat"))
         status, body = self.post(**self.good())
-        self.assertEqual((status, body["error"]["code"]), (503, "DISPATCH_FAILED"))
+        self.assertEqual((status, body["error"]["code"]), (503, "SUBMIT_UNCERTAIN"))
         job = json.loads(next(data for (_, key), (data, _) in self.s3.objects.items() if key.startswith("jobs/")))
-        self.assertEqual(job["status"], "FAILED")
+        self.assertEqual(job["status"], "PENDING")
         self.assertNotIn("bi mat", json.dumps(body))
 
     def test_registry_failure_is_503(self):
@@ -163,7 +163,7 @@ class SubmitTest(FlowTestCase):
     def test_internal_error_is_clean(self):
         with mock.patch.object(submit.db, "create_job", side_effect=RuntimeError("bi mat")):
             status, body = self.post(**self.good())
-        self.assertEqual((status, body["error"]["code"]), (500, "INTERNAL"))
+        self.assertEqual((status, body["error"]["code"]), (503, "SUBMIT_UNCERTAIN"))
         self.assertNotIn("bi mat", json.dumps(body))
 
     def test_logs_never_contain_text(self):
@@ -178,18 +178,38 @@ class SubmitTest(FlowTestCase):
         self.assertEqual((status, body["error"]["code"]), (429, "TOO_MANY_REQUESTS"))
         self.assertEqual(len(self.events), 1)
 
-    def test_refund_when_dispatch_fails(self):
+    def test_unknown_dispatch_does_not_refund_quota(self):
         with mock.patch.object(config, "DAILY_CHAR_LIMIT", 10):
             self.lambda_client.invoke = mock.Mock(side_effect=RuntimeError)
             self.assertEqual(self.post(**self.good(text="a" * 8))[0], 503)
             self.lambda_client.invoke = self.invoke
-            self.assertEqual(self.post(**self.good(text="a" * 8))[0], 202)
+            self.assertEqual(self.post(**self.good(text="a" * 8))[0], 429)
 
-    def test_refund_when_create_fails(self):
+    def test_unknown_job_write_does_not_refund_quota(self):
         with mock.patch.object(config, "DAILY_CHAR_LIMIT", 10):
             with mock.patch.object(submit.db, "create_job", side_effect=RuntimeError):
-                self.assertEqual(self.post(**self.good(text="a" * 8))[0], 500)
-            self.assertEqual(self.post(**self.good(text="a" * 8))[0], 202)
+                self.assertEqual(self.post(**self.good(text="a" * 8))[0], 503)
+            self.assertEqual(self.post(**self.good(text="a" * 8))[0], 429)
+
+    def test_unkeyed_invoke_lost_after_worker_completed_keeps_done(self):
+        def lost(FunctionName, InvocationType, Payload):
+            worker.handler(json.loads(Payload), Context())
+            raise TimeoutError("response lost")
+        self.lambda_client.invoke = lost
+        self.assertEqual(self.post(**self.good())[1]["error"]["code"], "SUBMIT_UNCERTAIN")
+        job = json.loads(next(data for (_, key), (data, _) in self.s3.objects.items() if key.startswith("jobs/")))
+        self.assertEqual(job["status"], "DONE")
+        self.synthesize.assert_called_once()
+
+    def test_unexpected_event_response_is_not_reported_accepted(self):
+        self.lambda_client.invoke = mock.Mock(return_value={"StatusCode": 500})
+        self.assertEqual(self.post(**self.good())[1]["error"]["code"], "SUBMIT_UNCERTAIN")
+
+    def test_invalid_language_types_are_client_errors(self):
+        for lang in ([], {}, True, 42):
+            with self.subTest(lang=lang):
+                self.assertEqual(self.post(**self.good(lang=lang))[0], 400)
+                self.assertEqual(self.post('/text/correct', text='Xin chào', lang=lang)[0], 400)
 
     def test_concurrent_reservation_is_not_lost(self):
         first = submit.db.reserve_chars
