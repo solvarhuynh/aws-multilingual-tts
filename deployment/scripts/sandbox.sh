@@ -27,6 +27,8 @@ step_web() {
   )
   aws cloudfront create-invalidation --distribution-id "$distribution" --paths '/*' >/dev/null
   echo "PASS web da len: https://$domain"
+  echo "Chạy web và Expo Go cùng API AWS trên máy cá nhân:"
+  echo "npm run dev -- --api-url https://$domain"
   echo "Lay ma truy cap bang: bash deployment/scripts/sandbox.sh ma"
 }
 

@@ -109,6 +109,8 @@ Khi được giao thao tác lab, theo [hướng dẫn Azure](../../docs/AZURE-SP
 
 `providers/translation.py` gọi Azure Translator bằng key SSM riêng; worker checkpoint bản dịch rồi chọn giọng đích từ registry. `providers/mp3.py` ghép MPEG Layer III cùng cấu hình và cập nhật duration/seek; đoạn 1.500 ký tự được lưu private, dùng lại khi retry, xóa sau DONE/xóa lịch sử. Worker timeout mặc định 600 giây, một EventInvokeConfig giữ nguyên. Hạn mức là 10.000 ký tự nguồn và tối đa 10.000 ký tự sau dịch; bản dịch dài hơn báo FAILED, không cắt chữ. Các thay đổi cần nghiệm thu riêng trên Sandbox, không kế thừa kết quả 23/23 cũ.
 
+Mỗi request tới provider dùng tối đa 60 giây, đồng thời chừa 10 giây trong ngân sách worker để cập nhật trạng thái; 600 giây là ngân sách toàn job nhiều đoạn. Lỗi timeout trả `PROVIDER_TIMEOUT` đã làm sạch. Local gọi worker với `final_attempt=True` ở lượt thứ hai để hoàn tất DONE từ MP3 đã lưu hoặc FAILED bằng ETag đang giữ, không để PROCESSING sau khi hết retry. Lambda mặc định không bật cờ này vì không biết chắc lượt retry cuối; policy async/recovery trên AWS không đổi. Cách chẩn đoán local: [README local](../../deployment/local/README.md#lỗi-https-dns-và-kết-nối).
+
 Bộ nghiệm thu mới `scripts/languages.py` dùng câu mẫu bản ngữ cho 35 locale, lấy **voice ID thật** từ catalog. Mặc định chỉ in kế hoạch, không gọi mạng. `--live` chạy tuần tự có giới hạn lượt/ký tự; kết quả và MP3 lưu ngoài repo, không ghi token/presigned URL. Khi bị lỗi thì dừng, giữ request key/jobId để chạy lại cùng thư mục output mà không tạo lại job thành công. Kiểm MP3 tự động không thay nghe và đánh giá phát âm của người có khả năng ngôn ngữ đó.
 
 ```bash

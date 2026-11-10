@@ -261,11 +261,14 @@ class Runtime:
         try:
             for attempt in range(2):
                 try:
-                    self.worker.handler(event, LocalContext())
+                    print(json.dumps({'module': 'M2', 'operation': 'local_worker', 'jobId': event.get('jobId'),
+                                      'status': 'STARTED', 'attempt': attempt + 1}), flush=True)
+                    self.worker.handler(event, LocalContext(), final_attempt=attempt == 1)
                     return
                 except Exception as error:
                     if attempt:
-                        print(json.dumps({'operation': 'local_worker', 'status': 'RETRY_EXHAUSTED', 'errorCode': type(error).__name__}))
+                        print(json.dumps({'module': 'M2', 'operation': 'local_worker', 'jobId': event.get('jobId'),
+                                          'status': 'RETRY_EXHAUSTED', 'errorCode': type(error).__name__}), flush=True)
                     else:
                         time.sleep(1)
         finally:

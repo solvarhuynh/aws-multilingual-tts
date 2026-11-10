@@ -6,6 +6,50 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 **Người phụ trách:** Nguyên Khang
 **Danh sách việc:** [README](README.md)
 
+## 2026-11-10 — Bàn giao giao diện và API chung lên các nhánh
+
+- Theo yêu cầu người dùng: commit tiếng Việt và push bản hiện có lên main cùng M1–M5. Phạm vi gồm giao diện responsive/player/sóng 3D, xử lý timeout local, Expo login, API chung web/app và đồng bộ catalog/lịch sử; giữ các commit đã merge của M2/M3.
+- Đối chiếu bằng chứng kiểm thử/build/export ở các mục phía dưới; không gọi lại provider hoặc AWS. Fetch và kiểm ancestry trước push, chỉ cập nhật fast-forward/atomic, không force-push. Giữ ba stash, env thật, dữ liệu dev và tài nguyên sinh ngoài Git. Mã commit và kết quả remote được báo sau khi thao tác hoàn tất; không triển khai Sandbox.
+
+## 2026-11-10 — Web/app dùng chung API và tự cập nhật giọng, bản thu
+
+- Người dùng chốt đồng bộ giọng và bản thu trước; bản nháp/file gốc/theme vẫn riêng trên mỗi thiết bị. Giữ API paths, provider, scope demo và hạ tầng hiện có.
+- Launcher giữ `npm run dev` cho API Python + web + Expo; thêm `--api-url https://DOMAIN.cloudfront.net` để web/Expo dùng cùng API AWS đang triển khai, không khởi động Python API, đọc key env backend hoặc lấy catalog Azure riêng. URL HTTPS được kiểm tra; lỗi không in thông tin credential/query. Giữ lọc secret, LAN, mã nhập trên từng UI và cleanup tiến trình. Script upload web in lệnh Expo theo cùng WebDomain, không tự triển khai native.
+- Web/app cập nhật catalog khi trở lại foreground, cập nhật trang lịch sử mới nhất mỗi 15 giây khi đang mở; không polling lúc ẩn hoặc chồng request. `shared/history.ts` dùng thứ tự jobId/cursor M3 để giữ các trang cũ đã tải thêm, loại bản đã xóa khỏi vùng trang mới quét và không trùng ID. Làm mới chủ động/kéo xuống tải lại từ đầu. Version request chặn snapshot trước khi đổi mã/xóa/lưu bản thu ghi đè dữ liệu mới.
+- App thêm nút Kết nối và trạng thái/lỗi thật trong Cài đặt, chỉ áp mã sau khi bấm; đổi/xóa mã vô hiệu phản hồi cũ và xóa catalog/lịch sử hiện tại. Xóa nội dung trường mã rồi bấm Xóa mã truy cập để bỏ mã đã lưu. Không gửi mã qua QR hoặc EXPO_PUBLIC env; lỗi API không chuyển sang nghe trên máy.
+- **156 kiểm thử local PASS:** web 92, app 49, launcher/runtime/TLS 15. App typecheck/lint, web production build và Expo export iOS/Android/web bằng Node 22 PASS; bash syntax và diff whitespace sạch. Test bổ sung URL chung/không đọc env ở cloud mode, API app HTTPS, merge phân trang, foreground/ẩn và chống request nền chồng nhau.
+- Chrome/WebKit cùng mở web production + bản Expo web export, dùng một API fixture: tạo từ web xuất hiện ở app, tạo từ app xuất hiện ở web, polling nền nhận bản mới/xóa, mã sai không giữ lịch sử cũ và xóa mã đã lưu đạt; không pageerror. Kiểm màn Kết nối ở 320/390/820 px trên hai engine, không che nút. Ảnh/script/report QA ngoài repo tại `/tmp/tts-responsive-qa`. Đây là kiểm browser/Expo web và đóng gói native, chưa chạy trên iPhone/Android thật hoặc Sandbox.
+- Cập nhật README gốc/frontend/local, hướng dẫn Azure và AGENTS về hai môi trường, foreground sync và app native dùng backend AWS. Không gọi AWS/provider thật, sửa env người dùng, commit/push hoặc tắt dịch vụ dev của người dùng; chỉ dừng server QA do agent mở. Giữ toàn bộ thay đổi trước đó trong working tree.
+
+## 2026-11-10 — Sửa launcher cho Expo Go trên iPhone cần đăng nhập
+
+- Người dùng báo Expo Go đã đăng nhập nhưng CLI chưa đăng nhập. Đối chiếu tài liệu Expo và code `getUserAsync` trong CLI đang cài: chế độ offline bỏ qua lấy actor tài khoản, trong khi iPhone thật yêu cầu CLI/Expo Go cùng tài khoản. Bỏ cờ `--offline` đang ép cứng trong launcher; giữ LAN, `--go`, API base, lọc secret và cleanup tiến trình.
+- Hướng dẫn `npx expo login`/`whoami` cùng tài khoản, khởi động lại phiên offline cũ và quét QR trong README local; frontend README trỏ đến cùng hướng dẫn. Không tự đăng nhập, đọc credential Expo, sửa env hoặc tắt dev server của người dùng.
+- Kiểm local: **13/13** runtime/launcher/TLS tests PASS, `git diff --check` sạch. Không khởi động Expo online hoặc xác minh trên iPhone thật; người dùng cần hoàn tất đăng nhập trên máy. Nguồn: [Expo Go sign-in required](https://docs.expo.dev/troubleshooting/expo-go-sign-in-required/).
+
+## 2026-11-10 — Sửa local tạo giọng chờ mãi ở 0%
+
+- Đọc trạng thái job người dùng báo từ API local: PROCESSING, 0/1, chưa có lỗi. Stack tiến trình đang chạy chờ SSL handshake; phép kiểm TLS riêng tới Speech East Asia timeout sau 8 giây, không gửi HTTP, key hoặc văn bản. Người dùng xác nhận dùng Wi-Fi trường; cần thử mạng khác để xác định bộ lọc/đường truyền, chưa kết luận key sai hoặc hết quota.
+- Sửa M2 giới hạn timeout mỗi request provider ở 60 giây và vẫn chừa ngân sách cleanup; job nhiều đoạn giữ ngân sách 600 giây. Timeout trực tiếp hoặc bọc trong URLError có mã PROVIDER_TIMEOUT và lời nhắn an toàn. Local gọi lượt hai bằng cờ `final_attempt`: dùng ETag đang giữ để FAILED sau lỗi thực, hoặc hoàn tất DONE từ MP3 đã lưu; không gọi provider thêm, không ghi đè chủ lease mới. Không bật cờ ở Lambda hoặc đổi async/recovery policy AWS.
+- Log local thêm STARTED/attempt/jobId; không ghi key, văn bản hoặc URL âm thanh. Web chờ không xác định khi chưa có checkpoint, hiện phần trăm khi đã có phần hoàn tất; nhận FAILED thì dừng busy, hiển thị lỗi và giữ bản nháp.
+- **229 kiểm thử local PASS:** M2 94, router M1 31, runtime/launcher/TLS 13, web 91; TypeScript/Vite production build PASS. Regression gồm timeout hai lần → FAILED qua router/submit/worker/Moto/history và xóa được; timeout rồi thành công trên cùng job; khôi phục MP3 đã lưu; CAS đổi chủ; không lộ lỗi thô; UI chờ → 33% → lỗi giữ nội dung. Provider HTTP được mock, không dùng key/env thật hoặc tiêu quota.
+- Chưa xác minh tạo MP3 thật sau khi đổi mạng; giữ nguyên tiến trình dev và dữ liệu RAM người dùng. Cần Ctrl+C rồi `npm run dev` để Python nạp bản sửa; tài liệu xử lý ở README local. Không deploy, commit/push hoặc sửa CHANGELOG owner khác; giữ toàn bộ thay đổi UI trước đó.
+
+## 2026-11-10 — Đồng bộ sóng 3D của trình phát với trang chủ
+
+- Bỏ nền vuông, viền và phần cắt quanh biểu tượng trong thanh phát. Thu nhỏ nguyên mẫu `ToolArt` để giữ đúng tỷ lệ nét, ánh kính và bóng; dùng chung chuyển động lên xuống/nhịp sóng của trang chủ, không cần đợi phát âm thanh. Giữ cơ chế dừng khi khuất, giảm chuyển động và kích thước thanh phát gọn.
+- Kiểm local: Chrome/WebKit **28 cấu hình** (320–2560 px, sáng/tối) không cắt sóng, lấn tên hoặc tràn ngang; tám animation dùng đúng nhịp trang chủ, giảm chuyển động của hệ điều hành và trong app đều dừng sóng. **90/90 web tests PASS**, build TypeScript/Vite PASS. Dùng API fixture, không gọi provider/AWS; chưa kiểm thiết bị thật, không commit/push.
+
+## 2026-11-10 — Sửa reflow web, thanh phát nổi và thu gọn nhập tài liệu
+
+- Tái hiện cửa sổ 1163 × 556: `.composer` chỉ cao 179 px trong khi nội dung cao 358 px; hàng tạo giọng nằm ngoài khung và bị `overflow: hidden` cắt. Bỏ ép chiều cao, giữ vùng nội dung cuộn được; lưới chuyển một/hai cột theo chiều rộng thực sau sidebar. Header thu gọn khi cửa sổ rất thấp. Tên giọng dài, form kết nối và nút trong modal được co/xuống dòng; cài đặt giọng nằm cùng vùng cuộn, không có scrollbar con che chức năng.
+- Gỡ sóng trang trí khỏi ô nhập và CSS không còn dùng; giữ sóng/chuyển động ở Tổng quan và ảnh bìa bản thu. Viền composer tối/focus dùng cùng màu ở cả bốn cạnh, bỏ nét focus riêng bên trái. Giữ keyframes, sidebar motion, kính, theme, giảm chuyển động và tương phản cao.
+- Thanh phát theo ảnh tham chiếu Apple Music: điều khiển ở trái, bìa/tên/tiến độ giữa, thư viện/âm lượng/tải MP3 bên phải. Kính trong và bóng nổi, cao 64 px trên desktop, rộng tối đa 760 px, đặt nổi bằng absolute trong workspace; không còn một hàng footer riêng. Mobile chia hai hàng dưới 105 px. Khoảng cuộn cuối bảo đảm có thể đưa nút thao tác ra khỏi vùng thanh phát; timeline tiếp tục dùng đồng hồ MP3 thật.
+- Bỏ ô tải tệp lớn trùng lặp và dòng hướng dẫn thường trực; gom nhập tệp/chụp ảnh vào toolbar. Form nhận kéo thả tệp nhưng giữ hành vi kéo chữ thông thường; busy/OCR không nhận tệp mới. Hiện một dòng tên tệp sau khi nhập, xóa nội dung thì xóa cả tên tệp. Không đổi parser/OCR, giới hạn 50 MiB, API, env hoặc backend.
+- Kiểm thử: **90/90 web tests PASS**, gồm nhập TXT qua input, kéo thả tệp, không chặn kéo chữ và xóa tên tệp; build production TypeScript/Vite đạt. Chrome và WebKit kiểm **560 cấu hình**: bảy trang × 20 kích thước (320–2560 px, gồm cửa sổ 320 px chiều cao và ngang) × sáng/tối; không tràn ngang hoặc composer cắt nội dung, nút tạo giọng đưa vào vùng nhìn thấy được. Thêm **48 lượt trạng thái** tài liệu dài/lỗi, chọn giọng/modal, theme/focus, sidebar/mobile menu và Cài đặt; viền focus đủ bốn cạnh, không pageerror.
+- Player trên Chrome/WebKit: **28 cấu hình** đều gọn dưới 105 px, các nút không chồng nhau; MP3 mẫu local 6 giây phát/tạm dừng, click timeline tua thực, lặp, mute/unmute, tải, đổi bản thu và mở thư viện đạt. Thêm **10 cấu hình nhập tệp** kiểm chooser, tên dài, file drop/text drop, capture input và vị trí player nổi; không overflow/pageerror. QA dùng API/MP3 fixture riêng, script/ảnh/báo cáo ở `/tmp/tts-responsive-qa`, không thêm dependency hay e2e vào repo.
+- Mức bằng chứng: coded + locally tested trên browser engine; chưa kiểm bàn phím/Safari iPhone hoặc Android thật, chưa đo FPS thiết bị. Không gọi AWS/Azure/Gemini, deploy, commit/push hoặc sửa lịch sử các owner khác; năm commit đã có trên nhánh và các stash được giữ.
+
 ## 2026-11-09 — Bàn giao bản sửa lỗi dịch cho các nhánh
 
 - Người dùng yêu cầu commit/push bản sửa lỗi Azure/Gemini lên main và các nhánh M1–M5. Phạm vi gồm 10 file source/test/tài liệu của đợt chẩn đoán phía dưới; giữ nguyên env thật, key, tiến trình dev và ba stash.

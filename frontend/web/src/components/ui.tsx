@@ -19,6 +19,7 @@ import ArrowDownToLine from "framework7-icons/react/esm/ArrowDownToLine.js";
 import ArrowRight from "framework7-icons/react/esm/ArrowRight.js";
 import BackwardEndFill from "framework7-icons/react/esm/BackwardEndFill.js";
 import BookFill from "framework7-icons/react/esm/BookFill.js";
+import Camera from "framework7-icons/react/esm/Camera.js";
 import Checkmark from "framework7-icons/react/esm/Checkmark.js";
 import ChevronDown from "framework7-icons/react/esm/ChevronDown.js";
 import Clock from "framework7-icons/react/esm/Clock.js";
@@ -51,6 +52,7 @@ const icons: Record<string, typeof Waveform> = {
   dashboard: SquareGrid2x2Fill,
   translate: TextBubbleFill,
   book: BookFill,
+  camera: Camera,
   wave: Waveform,
   arrow: ArrowRight,
   check: Checkmark,

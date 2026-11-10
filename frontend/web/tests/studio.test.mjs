@@ -183,3 +183,40 @@ test("Tạo giọng đọc và Dịch và đọc giữ nội dung, tài liệu v
     assert.equal(JSON.parse(localStorage.getItem(DRAFT_KEYS.translation)), "Nội dung cần dịch.");
   } finally { await act(() => env.root.unmount()); await env.close(); }
 });
+
+test("Đồng bộ lịch sử khi trở lại web; polling nền không chồng request hoặc chạy khi ẩn", async () => {
+  const env = await environment();
+  const { api } = await env.load('lib/api.ts');
+  const { useSession } = await env.load('hooks/useStudio.ts');
+  let session, tick, calls = 0, release;
+  let items = [recording('old')];
+  const originalInterval = env.win.setInterval;
+  env.win.setInterval = (callback, delay, ...args) => {
+    if (delay === 15000) tick = callback;
+    return originalInterval.call(env.win, callback, delay, ...args);
+  };
+  api.voices = async () => [{ lang: 'vi-VN', provider: 'azure', voices: [{ id: 'verified', gender: 'F' }] }];
+  api.history = async () => { calls++; return { items, nextCursor: null }; };
+  function Harness() { session = useSession(() => {}); return null; }
+  try {
+    await act(async () => { env.root.render(React.createElement(Harness)); await settle(); });
+    assert.equal(session.history[0].jobId, 'old');
+    items = [recording('new')];
+    await act(async () => { env.win.dispatchEvent(new env.win.Event('focus')); await settle(); });
+    assert.deepEqual(session.history.map(item => item.jobId), ['new']);
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+    const previous = calls;
+    await act(async () => { tick(); await settle(); });
+    assert.equal(calls, previous);
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+    api.history = () => { calls++; return new Promise(resolve => { release = resolve; }); };
+    await act(async () => { tick(); await settle(); tick(); await settle(); });
+    assert.equal(calls, previous + 1);
+    assert.equal(session.loadingHistory, false);
+    await act(async () => { release({ items: [], nextCursor: null }); await settle(); });
+    assert.deepEqual(session.history, []);
+  } finally {
+    env.win.setInterval = originalInterval;
+    await act(() => env.root.unmount()); await env.close();
+  }
+});

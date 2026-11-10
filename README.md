@@ -218,6 +218,14 @@ npm run dev
 
 Lệnh mở API Python, web tại `http://127.0.0.1:5173` và QR Expo Go. Tự nhận IP LAN cho điện thoại/các URL MP3, không sửa env hay đưa key vào frontend; **Ctrl+C dừng cả ba**. Điện thoại và máy cùng Wi-Fi, nhập `DEMO_TOKEN` tại Cài đặt web/app. Catalog thiếu/khác vùng được lấy từ Azure nếu đã có Speech key; `--no-voices` bỏ bước gọi catalog, `--refresh-voices` lấy lại. Không cần mở Sandbox hoặc AWS credentials.
 
+Khi muốn dùng backend AWS của web đã triển khai, chạy từ máy cá nhân:
+
+```bash
+npm run dev -- --api-url https://TEN-MIEN-CUA-PHIEN.cloudfront.net
+```
+
+Web local và Expo Go cùng gọi CloudFront; không chạy Python API hoặc đọc key Azure local. Nhập cùng mã demo của stack trên hai giao diện. Giọng và bản thu dùng chung, tự làm mới khi trở lại giao diện và mỗi 15 giây đang mở; bản nháp giữ riêng. Dữ liệu Moto local và AWS là hai môi trường riêng. Chi tiết: [web/app cùng backend AWS](deployment/local/README.md#web-và-app-dùng-chung-backend-aws).
+
 Nếu chỉ muốn chạy backend riêng:
 
 ```bash

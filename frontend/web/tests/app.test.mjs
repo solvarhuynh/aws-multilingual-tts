@@ -107,9 +107,64 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       }
       await click(env.mount.querySelector('[aria-label="Hướng dẫn"]'));
     });
+    await suite.test("đợi Speech không hiện 0% giả; lỗi polling dừng trạng thái bận và giữ nội dung", async () => {
+      await click(env.mount.querySelector('.sidebar a[href="#studio"]'));
+      const originalCorrect = api.correct, originalSynthesize = api.synthesize, originalJob = api.job;
+      const originalTimeout = env.win.setTimeout;
+      let resolveJob;
+      const pending = { ...recording('waiting'), status: 'PROCESSING', audioUrl: null, progress: { done: 0, total: 1 } };
+      api.correct = async () => ({ status: 'skipped' });
+      api.synthesize = async () => pending;
+      api.job = () => new Promise(resolve => { resolveJob = resolve; });
+      env.win.setTimeout = (callback, delay, ...args) => originalTimeout.call(env.win, callback, delay === 2500 ? 0 : delay, ...args);
+      try {
+        const form = env.mount.querySelector('.composer'), editor = form.querySelector('textarea');
+        await act(() => {
+          Object.getOwnPropertyDescriptor(env.win.HTMLTextAreaElement.prototype, 'value').set.call(editor, 'Nội dung cần giữ lại.');
+          editor.dispatchEvent(new env.win.Event('input', { bubbles: true }));
+        });
+        await click(form.querySelector('button[type="submit"]'));
+        await act(async () => { for (let i = 0; i < 20 && !resolveJob; i++) await settle(); });
+        const progress = form.querySelector('progress');
+        assert.ok(progress);
+        assert.equal(progress.hasAttribute('value'), false);
+        assert.doesNotMatch(form.querySelector('.job-progress').textContent, /0%/);
+        assert.equal(editor.readOnly, true);
+        await act(async () => { resolveJob({ ...pending, progress: { done: 1, total: 3 } }); await settle(); });
+        assert.equal(form.querySelector('progress').value, 33);
+        assert.match(form.querySelector('.job-progress').textContent, /33%/);
+        await act(async () => { resolveJob({ ...pending, status: 'FAILED', error: 'Kết nối Azure Speech quá thời gian chờ.' }); await settle(); });
+        assert.match(form.querySelector('[role="alert"]').textContent, /thời gian chờ/);
+        assert.equal(form.querySelector('.job-progress'), null);
+        assert.equal(editor.value, 'Nội dung cần giữ lại.');
+        assert.equal(editor.readOnly, false);
+        assert.equal(form.querySelector('button[type="submit"]').disabled, false);
+      } finally {
+        api.correct = originalCorrect; api.synthesize = originalSynthesize; api.job = originalJob;
+        env.win.setTimeout = originalTimeout;
+      }
+    });
     await suite.test("màn dịch dùng Azure, có nhập tài liệu và không còn lựa chọn Gemini", async () => {
       await click(env.mount.querySelector('.sidebar a[href="#translation"]'));
-      assert.ok(env.mount.querySelector('.document-drop'));
+      const fileInput = env.mount.querySelector('input[aria-label="Chọn tài liệu văn bản"]');
+      await act(async () => {
+        Object.defineProperty(fileInput, 'files', { configurable: true, value: [new env.win.File(['Nội dung tài liệu.'], 'bai-hoc.txt', { type: 'text/plain' })] });
+        fileInput.dispatchEvent(new env.win.Event('change', { bubbles: true }));
+        await settle();
+      });
+      assert.equal(env.mount.querySelector('#editor').value, 'Nội dung tài liệu.');
+      assert.equal(env.mount.querySelector('.imported-file').textContent, 'bai-hoc.txt');
+      const textDrop = new env.win.Event('drop', { bubbles: true, cancelable: true });
+      Object.defineProperty(textDrop, 'dataTransfer', { value: { files: [] } });
+      env.mount.querySelector('.composer').dispatchEvent(textDrop);
+      assert.equal(textDrop.defaultPrevented, false);
+      const fileDrop = new env.win.Event('drop', { bubbles: true, cancelable: true });
+      Object.defineProperty(fileDrop, 'dataTransfer', { value: { files: [new env.win.File(['Văn bản kéo thả.'], 'tai-lieu.txt', { type: 'text/plain' })] } });
+      await act(async () => { env.mount.querySelector('.composer').dispatchEvent(fileDrop); await settle(); });
+      assert.equal(fileDrop.defaultPrevented, true);
+      assert.equal(env.mount.querySelector('#editor').value, 'Văn bản kéo thả.');
+      await click(env.mount.querySelector('[aria-label="Xóa nội dung văn bản"]'));
+      assert.equal(env.mount.querySelector('.imported-file'), null);
       assert.equal(env.mount.querySelector('#translation-mode'), null);
       assert.doesNotMatch(env.mount.textContent, /Gemini/);
       const originalTranslate = api.translate, originalSynthesize = api.synthesize;

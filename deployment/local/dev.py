@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 import termios
+from urllib.parse import urlsplit
 from urllib.error import URLError
 from urllib.request import ProxyHandler, build_opener
 
@@ -43,7 +44,7 @@ def choose_ip(interfaces, requested=None):
     return sorted(physical or addresses)[0][1] if addresses else '127.0.0.1'
 
 
-def check_dependencies():
+def check_dependencies(local=True):
     if not shutil.which('node'):
         raise ValueError('Cần Node 22.13+ trong PATH.')
     version = subprocess.check_output(['node', '--version'], text=True).strip()
@@ -51,7 +52,7 @@ def check_dependencies():
     if not (major == 22 and minor >= 13 or major == 24 and minor >= 3 or major >= 26):
         raise ValueError('Node hiện tại không phù hợp; dùng Node 22.13+ theo frontend/app/package.json.')
     try:
-        for module in ['moto', 'dotenv', 'boto3', 'certifi']:
+        for module in ['moto', 'dotenv', 'boto3', 'certifi'] if local else []:
             __import__(module)
     except ImportError:
         raise ValueError('Cài backend local: .venv/bin/python -m pip install -r deployment/local/requirements.txt') from None
@@ -88,10 +89,24 @@ def frontend_env(base, api_url, ip):
            if not name.startswith(('AWS_', 'AZURE_', 'TTS_'))
            and not name.endswith(('_KEY', '_SECRET', '_TOKEN', '_PASSWORD', '_CREDENTIALS'))}
     env.pop('EXPO_PACKAGER_PROXY_URL', None)
+    app_url = api_url if api_url.startswith('https://') else f'http://{ip}:{urlsplit(api_url).port}'
     env.update(VITE_API_BASE_URL='/api', VITE_LOCAL_AI_BASE_URL='', LOCAL_API_TARGET=api_url,
-               EXPO_PUBLIC_API_BASE_URL=f'http://{ip}:{api_url.rsplit(":", 1)[1]}',
+               EXPO_PUBLIC_API_BASE_URL=app_url,
                REACT_NATIVE_PACKAGER_HOSTNAME=ip, EXPO_NO_TELEMETRY='1', EXPO_NO_DOTENV='1')
     return env
+
+
+def cloud_api(value):
+    try:
+        url = urlsplit(value.strip())
+        if (url.scheme != 'https' or not url.hostname or '.' not in url.hostname
+                or url.username or url.password or url.port not in {None, 443}
+                or url.path not in {'', '/'} or url.query or url.fragment
+                or any(character.isspace() for character in value)):
+            raise ValueError
+    except ValueError:
+        raise argparse.ArgumentTypeError('--api-url phải là URL HTTPS gốc của CloudFront, không kèm mã truy cập, path hoặc query.') from None
+    return f'https://{url.hostname}'
 
 
 class Services:
@@ -165,6 +180,7 @@ def main():
     parser.add_argument('--env-file', type=Path, default=server.ENV_FILE)
     parser.add_argument('--no-voices', action='store_true', help='Không gọi Azure lấy catalog lúc mở.')
     parser.add_argument('--refresh-voices', action='store_true', help='Lấy lại catalog Azure theo resource/vùng hiện tại.')
+    parser.add_argument('--api-url', type=cloud_api, help='Web/app dùng chung API CloudFront; không chạy backend Python hoặc đọc key local.')
     args = parser.parse_args()
     services = Services()
     terminal = termios.tcgetattr(sys.stdin) if sys.stdin.isatty() else None
@@ -172,40 +188,47 @@ def main():
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupt)
     try:
-        check_dependencies()
-        server.configure_tls()
+        check_dependencies(local=not args.api_url)
         ip = choose_ip(node_interfaces(), args.ip)
-        values = server.settings(args.env_file, host='127.0.0.1', public_url='')
-        port = int(values['LOCAL_PORT'])
-        public_url = f'http://{ip}:{port}'
-        values = server.settings(args.env_file, host='0.0.0.0' if ip != '127.0.0.1' else ip, public_url=public_url)
-        check_ports([port, 5173, 8081])
         if args.no_voices and args.refresh_voices:
             raise ValueError('Chọn --no-voices hoặc --refresh-voices, không dùng cả hai.')
-        catalog = server.DATA / 'voices.azure.json'
-        try:
-            region = json.loads(catalog.read_text()).get('_region')
-        except (OSError, ValueError):
-            region = None
-        if not args.no_voices and (args.refresh_voices or region != values['AZURE_SPEECH_REGION']):
-            if values['AZURE_SPEECH_KEY']:
-                print('Đang lấy catalog Azure Speech; không gọi AWS, chưa tạo MP3.', flush=True)
-                server.fetch_voices(values)
-            elif args.refresh_voices:
-                raise ValueError('Điền AZURE_SPEECH_KEY trong env backend trước khi lấy catalog.')
-            else:
-                print('Chưa có Speech key/catalog. Có thể xem UI; tạo MP3 cần điền key rồi mở lại.', flush=True)
-        env = frontend_env(os.environ, f'http://127.0.0.1:{port}', ip)
-        print(f'Web: http://127.0.0.1:5173 | API: {public_url}', flush=True)
-        print('Quét QR Expo Go bên dưới. Nhập DEMO_TOKEN tại Cài đặt của web/app. Ctrl+C dừng cả ba.', flush=True)
+        if args.api_url:
+            if args.no_voices or args.refresh_voices:
+                raise ValueError('--api-url lấy giọng từ AWS; không dùng cùng --no-voices/--refresh-voices.')
+            check_ports([5173, 8081])
+            api_url = args.api_url
+        else:
+            server.configure_tls()
+            values = server.settings(args.env_file, host='127.0.0.1', public_url='')
+            port = int(values['LOCAL_PORT'])
+            public_url = f'http://{ip}:{port}'
+            values = server.settings(args.env_file, host='0.0.0.0' if ip != '127.0.0.1' else ip, public_url=public_url)
+            check_ports([port, 5173, 8081])
+            catalog = server.DATA / 'voices.azure.json'
+            try:
+                region = json.loads(catalog.read_text()).get('_region')
+            except (OSError, ValueError):
+                region = None
+            if not args.no_voices and (args.refresh_voices or region != values['AZURE_SPEECH_REGION']):
+                if values['AZURE_SPEECH_KEY']:
+                    print('Đang lấy catalog Azure Speech; không gọi AWS, chưa tạo MP3.', flush=True)
+                    server.fetch_voices(values)
+                elif args.refresh_voices:
+                    raise ValueError('Điền AZURE_SPEECH_KEY trong env backend trước khi lấy catalog.')
+                else:
+                    print('Chưa có Speech key/catalog. Có thể xem UI; tạo MP3 cần điền key rồi mở lại.', flush=True)
+            api_url = f'http://127.0.0.1:{port}'
+            services.start('API', [sys.executable, '-u', str(server.HERE / 'server.py'), '--env-file',
+                                   str(args.env_file.resolve()), '--host', values['LOCAL_HOST'], '--public-url', public_url])
+            services.ready(api_url + '/health')
+        env = frontend_env(os.environ, api_url, ip)
+        print(f'Web: http://127.0.0.1:5173 | App API: {env["EXPO_PUBLIC_API_BASE_URL"]}', flush=True)
+        print('Quét QR Expo Go bên dưới. Nhập cùng mã truy cập tại Cài đặt web/app. Ctrl+C dừng cả nhóm.', flush=True)
         if ip == '127.0.0.1':
             print('Chỉ dùng simulator trên máy này; cần IP LAN và cùng Wi-Fi để mở trên điện thoại.', flush=True)
-        services.start('API', [sys.executable, '-u', str(server.HERE / 'server.py'), '--env-file',
-                               str(args.env_file.resolve()), '--host', values['LOCAL_HOST'], '--public-url', public_url])
-        services.ready(f'http://127.0.0.1:{port}/health')
         services.start('WEB', ['node', 'node_modules/vite/bin/vite.js', '--host', '127.0.0.1'], cwd=WEB, env=env)
         services.ready('http://127.0.0.1:5173')
-        services.start('EXPO', ['node', 'node_modules/expo/bin/cli', 'start', '--go', '--offline', '--clear', '--port', '8081'],
+        services.start('EXPO', ['node', 'node_modules/expo/bin/cli', 'start', '--go', '--clear', '--port', '8081'],
                        cwd=APP, env=env, terminal=True)
         services.ready('http://127.0.0.1:8081/status', timeout=90)
         while True:

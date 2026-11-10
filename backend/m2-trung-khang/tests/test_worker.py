@@ -69,12 +69,12 @@ class WorkerTest(unittest.TestCase):
     def saved(self):
         return json.loads(self.s3.objects["jobs", JOB_KEY][0])
 
-    def run_worker(self, provider=None, context=None, event=EVENT):
+    def run_worker(self, provider=None, context=None, event=EVENT, final_attempt=False):
         self.provider = provider or mock.Mock(**{"synthesize.return_value": b"mp3"})
         self.factory = mock.Mock(return_value=self.provider)
         self.output = io.StringIO()
         with mock.patch.object(app, "get_provider", self.factory), contextlib.redirect_stdout(self.output):
-            return app.handler(event, context or Context())
+            return app.handler(event, context or Context(), final_attempt=final_attempt)
 
     def test_success(self):
         self.seed()
@@ -116,9 +116,12 @@ class WorkerTest(unittest.TestCase):
         claim.assert_called_once_with("demo", JOB_ID, 130)
 
     def test_provider_timeout_leaves_cleanup_time(self):
-        self.seed()
-        self.run_worker(context=Context(100))
-        self.assertEqual(self.factory.call_args.args[1], 90)
+        for remaining, expected in [(600, 60), (100, 60), (35, 25)]:
+            with self.subTest(remaining=remaining):
+                self.seed()
+                self.s3.objects.pop(("audio", AUDIO_KEY), None)
+                self.run_worker(context=Context(remaining))
+                self.assertEqual(self.factory.call_args.args[1], expected)
 
     def test_duplicate_event_after_done_never_calls_provider(self):
         self.seed()
@@ -159,6 +162,49 @@ class WorkerTest(unittest.TestCase):
         self.assertIsNone(self.saved()["leaseUntil"])
         self.assertEqual(self.run_worker()["status"], "DONE")
         self.assertEqual(self.saved()["attempt"], 2)
+
+    def test_explicit_final_attempt_fails_job_with_safe_provider_message(self):
+        self.seed()
+        error = TransientProviderError("PROVIDER_TIMEOUT", "Kết nối Azure Speech quá thời gian chờ.")
+        with self.assertRaises(TransientProviderError):
+            self.run_worker(failing(error))
+        self.assertEqual(self.run_worker(failing(error), final_attempt=True)["status"], "FAILED")
+        self.assertEqual(self.saved()["attempt"], 2)
+        self.assertIsNone(self.saved()["leaseUntil"])
+        self.assertEqual(self.saved()["errorMessage"], error.message)
+
+    def test_final_attempt_does_not_expose_unexpected_exception(self):
+        self.seed()
+        self.assertEqual(self.run_worker(failing(OSError("PRIVATE-KEY-TEXT")), final_attempt=True)["status"], "FAILED")
+        self.assertNotIn("PRIVATE-KEY-TEXT", self.saved()["errorMessage"])
+        self.assertNotIn("PRIVATE-KEY-TEXT", self.output.getvalue())
+
+    def test_final_attempt_reconciles_saved_audio_without_calling_provider_again(self):
+        self.seed()
+        complete = db.complete_job
+        calls = 0
+        def complete_after_error(*args):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise OSError("response lost")
+            return complete(*args)
+        with mock.patch.object(db, "complete_job", side_effect=complete_after_error):
+            self.assertEqual(self.run_worker(final_attempt=True)["status"], "DONE")
+        self.provider.synthesize.assert_called_once()
+        self.assertEqual(self.saved()["status"], "DONE")
+
+    def test_final_attempt_never_overwrites_new_lease_owner(self):
+        self.seed()
+        lease = int(time.time()) + 900
+        def replaced(*args):
+            db.update_job("demo", JOB_ID, leaseUntil=lease, attempt=99)
+            raise TransientProviderError("PROVIDER_BUSY", "Bận")
+        result = self.run_worker(mock.Mock(synthesize=mock.Mock(side_effect=replaced)), final_attempt=True)
+        self.assertEqual(result["status"], "SKIPPED")
+        self.assertEqual(self.saved()["leaseUntil"], lease)
+        self.assertEqual(self.saved()["attempt"], 99)
+        self.assertEqual(self.saved()["status"], "PROCESSING")
 
     def test_release_failure_still_raises_original(self):
         self.seed()

@@ -1,13 +1,16 @@
 import { Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { useState } from 'react';
 import { router } from 'expo-router';
-import { Icon, Label, Section, type IconName } from '../components/ui';
+import { Action, Icon, Label, Section, type IconName } from '../components/ui';
 import { Page } from '../components/layout';
 import { useStudio } from '../state/Studio';
 import { type ThemeMode } from '../lib/model';
 import { API_BASE, DEMO } from '../lib/api';
 
 export default function Settings() {
-  const { colors, preferences, updatePreferences, reloadVoices, refresh } = useStudio();
+  const { colors, preferences, updatePreferences, reloadVoices, refresh, loadingVoices, voiceError } = useStudio();
+  const [accessCode, setAccessCode] = useState(preferences.demoToken);
+  const code = accessCode.trim();
   const options: { title: string; value: ThemeMode; icon: IconName }[] = [
     { title: 'Hệ thống', value: 'system', icon: 'phone' }, { title: 'Sáng', value: 'light', icon: 'sun' }, { title: 'Tối', value: 'dark', icon: 'moon' },
   ];
@@ -29,12 +32,19 @@ export default function Settings() {
       </View>
       <Section title="Kết nối" />
       <View style={[styles.connection, { backgroundColor: colors.surface, borderColor: colors.line }]}><Icon name={DEMO ? 'phone' : 'globe'} color={colors.blue} size={27} />
-        <View style={{ flex: 1, gap: 7 }}><Label weight="600">{DEMO ? 'Nghe trên thiết bị' : 'Máy chủ đã cấu hình'}</Label>
+        <View style={{ flex: 1, gap: 7 }}><Label weight="600">{DEMO ? 'Nghe trên thiết bị' : loadingVoices ? 'Đang kết nối…' : voiceError ? 'Chưa kết nối' : 'Đã kết nối'}</Label>
           <Label size={13} muted style={{ lineHeight: 20 }}>{DEMO ? 'Chưa có dịch tự động và MP3.' : API_BASE}</Label></View></View>
-      {!DEMO && <TextInput accessibilityLabel="Mã truy cập" placeholder="Mã truy cập" placeholderTextColor={colors.secondary} secureTextEntry
-        autoCapitalize="none" autoCorrect={false} value={preferences.demoToken} onChangeText={demoToken => updatePreferences({ demoToken })}
-        onEndEditing={() => { void reloadVoices(); void refresh(); }}
-        style={{ color: colors.text, borderColor: colors.line, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 }} />}
+      {!DEMO && <>
+        <TextInput accessibilityLabel="Mã truy cập" placeholder="Mã truy cập" placeholderTextColor={colors.secondary} secureTextEntry
+          autoCapitalize="none" autoCorrect={false} value={accessCode} onChangeText={setAccessCode}
+          style={{ color: colors.text, borderColor: colors.line, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 }} />
+        {!!voiceError && <Label size={13} style={{ color: colors.danger }}>{voiceError}</Label>}
+        <Action primary disabled={!code && !preferences.demoToken || loadingVoices && code === preferences.demoToken}
+          onPress={() => {
+            if (code === preferences.demoToken) void reloadVoices().then(ok => { if (ok) void refresh(); });
+            else updatePreferences({ demoToken: code });
+          }}>{!code && preferences.demoToken ? 'Xóa mã truy cập' : 'Kết nối'}</Action>
+      </>}
       <Pressable accessibilityRole="button" onPress={() => router.push('/help')} style={[styles.help, { borderColor: colors.line }]}><Icon name="help" color={colors.secondary} />
         <Label style={{ flex: 1 }}>Hướng dẫn sử dụng</Label><Icon name="next" size={15} color={colors.secondary} /></Pressable>
       <Label size={12} muted style={{ textAlign: 'center' }}>TTS Studio · HCMUTE | AWS</Label>

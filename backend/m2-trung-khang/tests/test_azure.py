@@ -101,6 +101,17 @@ class AzureTest(unittest.TestCase):
             adapter.synthesize("Hi", "v", 1)
         self.assertNotIn(KEY, caught.exception.message)
 
+    def test_handshake_and_response_timeouts_have_safe_specific_error(self):
+        for error in [TimeoutError(KEY), urllib.error.URLError(TimeoutError(KEY))]:
+            with self.subTest(error=type(error).__name__):
+                adapter, _ = self.adapter(error)
+                with self.assertRaises(TransientProviderError) as caught:
+                    adapter.synthesize("private-text", "v", 1)
+                self.assertEqual(caught.exception.code, "PROVIDER_TIMEOUT")
+                self.assertIn("thời gian chờ", caught.exception.message)
+                self.assertNotIn(KEY, caught.exception.message)
+                self.assertNotIn("private-text", caught.exception.message)
+
     def test_factory_uses_selected_provider(self):
         with mock.patch.dict(os.environ, {"AZURE_SPEECH_REGION": "eastasia"}):
             result = get_provider({"provider": "azure", "languageCode": "ja-JP"}, 11)

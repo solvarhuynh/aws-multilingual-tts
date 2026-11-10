@@ -22,6 +22,7 @@ from tts_common.utils import are_valid_ids
 LEASE_MARGIN_SECONDS = 30
 # Dành thời gian nhả lease trước khi Lambda bị cắt.
 CLEANUP_SECONDS = 10
+PROVIDER_TIMEOUT_SECONDS = 60
 
 
 def _log(job_id, context, started, status, error_code=None, attempt=None):
@@ -51,7 +52,7 @@ def _synthesize(job: dict, context) -> bytes:
     speed = float(job.get("speed") or 1.0)
     voice = job.get("voice")
     entry = find_entry(job.get("lang"), voice, speed)
-    timeout = _remaining_seconds(context) - CLEANUP_SECONDS
+    timeout = min(PROVIDER_TIMEOUT_SECONDS, _remaining_seconds(context) - CLEANUP_SECONDS)
     if timeout <= 0:
         raise TransientProviderError("WORKER_TIMEOUT", "Không đủ thời gian xử lý, hệ thống sẽ thử lại.")
     return get_provider(entry, timeout).synthesize(text, voice, speed)
@@ -106,7 +107,7 @@ def _produce_audio(job: dict, context, checkpoint) -> str:
     return storage.put_audio(user_id, job_id, join_mp3(audio))
 
 
-def _process(stored, context, started):
+def _process(stored, context, started, final_attempt=False):
     """Xử lý job đã claim; lỗi tạm thời thì nhả lease rồi raise để Lambda retry."""
     job_id, attempt = stored.data["jobId"], stored.data.get("attempt")
     def checkpoint(**fields):
@@ -131,7 +132,23 @@ def _process(stored, context, started):
     except db.JobConflict:
         status, error_code = "SKIPPED", "STATE_CONFLICT"
     except Exception as error:
-        _log(job_id, context, started, "RETRY", getattr(error, "code", type(error).__name__), attempt)
+        error_code = getattr(error, "code", type(error).__name__)
+        # Local biết chắc lượt cuối đã kết thúc; Lambda Event không có bảo đảm này.
+        if final_attempt:
+            try:
+                audio_key = storage.find_audio(stored.data["userId"], job_id)
+                if audio_key:
+                    db.complete_job(stored, audio_key)
+                    status, error_code = "DONE", None
+                else:
+                    message = error.message if isinstance(error, TransientProviderError) else "Không hoàn tất được bản thu sau khi thử lại. Vui lòng thử lại sau."
+                    db.fail_job(stored, message)
+                    status = "FAILED"
+            except db.JobConflict:
+                status, error_code = "SKIPPED", "STATE_CONFLICT"
+            _log(job_id, context, started, status, error_code, attempt)
+            return {"jobId": job_id, "status": status}
+        _log(job_id, context, started, "RETRY", error_code, attempt)
         try:
             db.release_job(stored)
         except Exception as release_error:
@@ -142,7 +159,7 @@ def _process(stored, context, started):
     return {"jobId": job_id, "status": status}
 
 
-def handler(event, context):
+def handler(event, context, *, final_attempt=False):
     """Nhận event IDs-only, claim job rồi tạo MP3."""
     started = time.monotonic()
     event = event if isinstance(event, dict) else {}
@@ -157,4 +174,4 @@ def handler(event, context):
         # Worker khác có thể đã chết khi giữ lease; job kẹt do bước kiểm tra của M5 phát hiện.
         _log(job_id, context, started, "SKIPPED", claim.reason)
         return {"jobId": job_id, "status": "SKIPPED"}
-    return _process(claim.job, context, started)
+    return _process(claim.job, context, started, final_attempt)

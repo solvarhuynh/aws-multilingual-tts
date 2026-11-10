@@ -31,7 +31,33 @@ npm run dev -- --refresh-voices
 npm run dev -- --no-voices
 ```
 
-`--refresh-voices` lấy lại catalog sau khi đổi resource/key; `--no-voices` bỏ bước gọi Azure lúc khởi động (không có nghĩa là tắt gọi Azure khi bấm tạo giọng). Expo chạy `--offline` để bỏ request mạng của **CLI**, vẫn phục vụ LAN và app vẫn gọi API; không tắt Internet của Python/Azure. Xem [Expo CLI](https://docs.expo.dev/more/expo-cli/#offline).
+`--refresh-voices` lấy lại catalog sau khi đổi resource/key; `--no-voices` bỏ bước gọi Azure lúc khởi động (không có nghĩa là tắt gọi Azure khi bấm tạo giọng). Expo chạy trên LAN, giữ kết nối tới dịch vụ Expo để xác thực tài khoản cho Expo Go trên iPhone thật; không ép `--offline`. Không truyền tài khoản/key Azure hoặc mã demo sang Expo.
+
+### Đăng nhập Expo trên iPhone thật
+
+Expo Go và Expo CLI phải đăng nhập **cùng một tài khoản Expo**. Nếu điện thoại báo đã đăng nhập nhưng CLI chưa đăng nhập, mở terminal khác tại gốc repo:
+
+```bash
+cd frontend/app
+npx expo login
+npx expo whoami
+```
+
+Đăng nhập bằng tài khoản đang hiện trên Expo Go; `whoami` phải trả đúng tên đó. Thực hiện đăng nhập trực tiếp qua giao diện của Expo, không ghi mật khẩu/token vào env dự án. Sau khi cập nhật launcher, Ctrl+C ở terminal dev cũ rồi chạy lại `npm run dev` từ gốc repo, quét QR mới. Không cần đăng xuất Expo Go trên điện thoại. Nếu chỉ vừa đăng nhập CLI đang chạy online, có thể nhấn **Try Again**; nếu đổi tài khoản hoặc phiên cũ dùng `--offline`, cần khởi động lại dev server. Xem [hướng dẫn lỗi đăng nhập Expo Go](https://docs.expo.dev/troubleshooting/expo-go-sign-in-required/).
+
+### Web và app dùng chung backend AWS
+
+Khi stack/web đã được triển khai, lấy đúng domain CloudFront của phiên lab rồi chạy **trên máy cá nhân**, từ gốc repo:
+
+```bash
+npm run dev -- --api-url https://TEN-MIEN-CUA-PHIEN.cloudfront.net
+```
+
+Lệnh mở web Vite và QR Expo Go; cả hai gọi API CloudFront đó. Web dùng proxy `/api`, app gọi HTTPS trực tiếp. Chế độ này không khởi động API Python, không đọc `.env.local` backend, không lấy catalog Azure riêng hoặc cần AWS credentials trên máy. Catalog, tạo giọng/dịch, lịch sử và xóa đều dùng stack hiện có. Không dùng `--no-voices` hoặc `--refresh-voices` trong chế độ AWS. `--ip` vẫn chọn IP LAN để điện thoại tải mã app qua Metro.
+
+Mở web/app → Cài đặt, nhập **cùng mã demo của stack**; trên app bấm **Kết nối**, trên web bấm **Lưu mã**. Mã nhập riêng trên mỗi thiết bị, không tự đưa vào bundle hoặc QR. Muốn xóa mã đã lưu trên app, xóa nội dung trường mã rồi bấm **Xóa mã truy cập**. Bản thu mới nhất được tải lại khi trở về foreground hoặc sau khoảng 15 giây đang mở. Không polling khi giao diện ẩn; tải thêm lịch sử không bị mất chỉ vì làm mới nền. Nút làm mới/kéo xuống tải lại lịch sử từ đầu khi cần kiểm các trang cũ. Bản nháp, file gốc, theme và giọng yêu thích giữ riêng trên thiết bị; không đồng bộ văn bản đang gõ.
+
+Không trộn hai môi trường: `npm run dev` dùng Moto RAM trên máy, còn `--api-url` dùng S3/Lambda trên AWS; chúng có lịch sử khác nhau. End Lab xóa dữ liệu AWS theo quy định Sandbox. Sang phiên mới cần dùng domain và mã demo mới; dừng launcher cũ rồi mở lại. App native chạy trên điện thoại, AWS phục vụ API/lưu trữ; CloudShell/Console dành cho triển khai và lấy Outputs, không phải nơi mở giao diện native.
 
 Các mục bên dưới giữ cách chạy từng dịch vụ để kiểm lỗi riêng. Không chạy đồng thời hai cách trên cùng cổng.
 
@@ -62,6 +88,8 @@ Mã model phải là ID Gemini thực được key hỗ trợ; không dùng nguy
 
 ### Lỗi HTTPS, DNS và kết nối
 
+- **Tạo giọng đứng ở 0%, log chỉ lặp `GET /jobs/...`:** đây là polling, chưa chứng minh Speech đã trả âm thanh. Xem dòng M2 cùng `jobId`: `STARTED`, `RETRY`, `FAILED`/`DONE`. Mỗi request tạo âm thanh có timeout tối đa 60 giây; local thử lại một lần. Khi lượt cuối thất bại, job chuyển FAILED với lỗi an toàn; nếu MP3 đã lưu thì đối soát DONE thay vì gọi Speech lần nữa. Worker Lambda vẫn giữ policy retry riêng, không suy lượt cuối từ tuổi job. Web chờ không xác định khi chưa hoàn tất phần nào; chỉ hiện phần trăm sau checkpoint thực.
+- **`PROVIDER_TIMEOUT`:** kết nối/đọc phản hồi Speech đã hết thời gian chờ. Nếu TLS cũng không kết nối được, kiểm tra Internet, VPN/proxy/firewall hoặc thử mạng khác; không thay key chỉ vì timeout. Sau khi cập nhật code cần Ctrl+C ở terminal dev rồi chạy lại `npm run dev`, tải lại web và thử một câu ngắn. Job/MP3 local cũ mất vì nằm trong RAM; key/env/catalog không bị xóa. Không tự gửi lại liên tục khi một job còn đang chạy.
 - **`auth_failed` cho `/voices` hoặc `/history`:** mã trong Cài đặt chưa trùng `DEMO_TOKEN` của API đang chạy. Mã được lưu riêng theo địa chỉ web; `localhost` và `127.0.0.1` có vùng lưu trữ khác nhau. `dispatching_downstream` cho cùng route chứng minh lượt đó đã qua xác thực.
 - **Azure `TRANSLATION_REJECTED`, HTTP 401:** kiểm tra **Location** của chính resource **Translator** và key ở **Keys and Endpoint**. Ví dụ **East Asia → `AZURE_TRANSLATOR_REGION=eastasia`**; để `global` với key regional sẽ thiếu header vùng. Chỉ dùng `global` khi resource thực sự ở Global. Không lấy vùng AWS hoặc đoán theo resource Speech. Sau khi sửa env cần Ctrl+C rồi chạy lại `npm run dev`; tiến trình cũ không tự đọc lại key/vùng.
 - **Gemini `GEMINI_TIMEOUT`/`GEMINI_BUSY`:** model phản hồi quá chậm hoặc dịch vụ trả 5xx. Backend giữ timeout hữu hạn và không tự gọi lại hay đổi provider/model. Có thể dùng lựa chọn Azure hoặc chờ rồi tiếp tục phần đang lỗi. `GEMINI_AUTH`, `GEMINI_MODEL`, `GEMINI_QUOTA` lần lượt yêu cầu kiểm key/quyền, model và hạn mức. API vẫn dùng `503 TRANSLATION_UNAVAILABLE` với thông báo cụ thể; không đưa raw lỗi provider vào UI/log.

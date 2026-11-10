@@ -97,75 +97,75 @@ export default function AudioPlayer({
       className={`audio-player ${item ? "has-audio" : ""} ${playing ? "is-playing" : ""}`}
       aria-label="Trình phát âm thanh"
     >
+      <div className="transport-controls">
+        <Button
+          className="icon-button"
+          aria-label="Bản thu trước"
+          disabled={switching || currentIndex <= 0}
+          onClick={() => void selectAdjacent(-1)}
+        >
+          <Icon name="previous" size={19} />
+        </Button>
+        <Button
+          className="player-play"
+          disabled={!item || switching || loading}
+          aria-busy={loading}
+          onClick={togglePlayback}
+          aria-label={playing ? "Tạm dừng âm thanh" : "Phát âm thanh"}
+        >
+          <Icon name={loading ? "clock" : playing ? "pause" : "play"} size={26} />
+        </Button>
+        <Button
+          className="icon-button"
+          aria-label="Bản thu tiếp theo"
+          disabled={switching || currentIndex < 0 || currentIndex >= recordings.length - 1}
+          onClick={() => void selectAdjacent(1)}
+        >
+          <Icon name="next" size={19} />
+        </Button>
+        <Button
+          className={`icon-button repeat-button ${repeat ? "active" : ""}`}
+          aria-label="Lặp lại bản thu"
+          aria-pressed={repeat}
+          disabled={!item}
+          onClick={() => setRepeat((value) => !value)}
+        >
+          <Icon name="repeat" size={17} />
+        </Button>
+      </div>
       <div className="player-identity">
         <div className="track-cover">
           <ToolArt />
         </div>
-        <div className="player-meta">
-          <strong title={item?.text}>{item ? item.text : "Chưa có âm thanh"}</strong>
-          <span>
-            {item ? `${voiceLabel(languages, item.voice)} · ${languageNames[item.lang] || item.lang}` : ""}
-          </span>
-        </div>
-      </div>
-      <div className="player-transport">
-        <div className="transport-controls">
-          <Button
-            className="icon-button"
-            aria-label="Bản thu trước"
-            disabled={switching || currentIndex <= 0}
-            onClick={() => void selectAdjacent(-1)}
-          >
-            <Icon name="previous" size={19} />
-          </Button>
-          <Button
-            className="player-play"
-            disabled={!item || switching || loading}
-            aria-busy={loading}
-            onClick={togglePlayback}
-            aria-label={playing ? "Tạm dừng âm thanh" : "Phát âm thanh"}
-          >
-            <Icon name={loading ? "clock" : playing ? "pause" : "play"} size={22} />
-          </Button>
-          <Button
-            className="icon-button"
-            aria-label="Bản thu tiếp theo"
-            disabled={switching || currentIndex < 0 || currentIndex >= recordings.length - 1}
-            onClick={() => void selectAdjacent(1)}
-          >
-            <Icon name="next" size={19} />
-          </Button>
-          <Button
-            className={`icon-button repeat-button ${repeat ? "active" : ""}`}
-            aria-label="Lặp lại bản thu"
-            aria-pressed={repeat}
-            disabled={!item}
-            onClick={() => setRepeat((value) => !value)}
-          >
-            <Icon name="repeat" size={17} />
-          </Button>
-        </div>
-        <div className="player-track">
-          <time>{formatTime(elapsed)}</time>
-          <div className="audio-track">
-            <span
-              className="track-fill"
-              style={{ width: `${progress * 100}%` }}
-            />
-            <input
-              type="range"
-              className="seek-range"
-              aria-label="Vị trí phát"
-              aria-valuetext={devicePlayback ? `Đã đọc ${Math.round(progress * 100)}% nội dung` : duration ? `${formatTime(elapsed)} / ${formatTime(duration)}` : "Chưa xác định thời lượng"}
-              min={0}
-              max={duration || 1}
-              step={0.1}
-              value={Math.min(duration || 1, elapsed)}
-              disabled={!item || devicePlayback || !duration}
-              onChange={(e) => seek(Number(e.target.value))}
-            />
+        <div className="player-details">
+          <div className="player-meta">
+            <strong title={item?.text}>{item ? item.text : "Chưa có âm thanh"}</strong>
+            <span>
+              {item ? `${voiceLabel(languages, item.voice)} · ${languageNames[item.lang] || item.lang}` : ""}
+            </span>
           </div>
-          <time title={devicePlayback && !duration ? "Thời lượng được xác định khi thiết bị đọc xong" : undefined}>{item && !duration ? "—:—" : formatTime(duration)}</time>
+          <div className="player-track">
+            <time>{formatTime(elapsed)}</time>
+            <div className="audio-track">
+              <span
+                className="track-fill"
+                style={{ width: `${progress * 100}%` }}
+              />
+              <input
+                type="range"
+                className="seek-range"
+                aria-label="Vị trí phát"
+                aria-valuetext={devicePlayback ? `Đã đọc ${Math.round(progress * 100)}% nội dung` : duration ? `${formatTime(elapsed)} / ${formatTime(duration)}` : "Chưa xác định thời lượng"}
+                min={0}
+                max={duration || 1}
+                step={0.1}
+                value={Math.min(duration || 1, elapsed)}
+                disabled={!item || devicePlayback || !duration}
+                onChange={(e) => seek(Number(e.target.value))}
+              />
+            </div>
+            <time title={devicePlayback && !duration ? "Thời lượng được xác định khi thiết bị đọc xong" : undefined}>{item && !duration ? "—:—" : formatTime(duration)}</time>
+          </div>
         </div>
       </div>
       <div className="player-actions">

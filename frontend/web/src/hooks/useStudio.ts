@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, DEMO } from "../lib/api";
 import { extractDocument } from "../lib/document";
 import { DEFAULT_SPEED, readStored, samples, storeValue, validateInput } from "../lib/data";
-import type { HistoryItem, Job, Language, SynthesizeInput, TextCorrection } from "../lib/types";
+import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, TextCorrection } from "../lib/types";
 import { MAX_DOCUMENT_CHARS, checkedDocument, splitDocument } from '../../../shared/documents';
+import { HISTORY_SYNC_INTERVAL, mergeHistoryPage } from '../../../shared/history';
 
 type Review = { input: SynthesizeInput; correction: TextCorrection; documentText: string; partIndex: number; partLimit?: number };
 type Notify = (message: string, error?: boolean) => void;
@@ -33,45 +34,61 @@ export function useSession(notify: Notify) {
   const historyRequest = useRef(0);
   const voiceRequest = useRef(0);
   const recordingRequest = useRef(0);
+  const historyPage = useRef<HistoryResponse>({ items: [], nextCursor: null });
+  const historyLoading = useRef(false);
+  const voicesLoading = useRef(false);
+  const connected = useRef(false);
 
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
 
-  const loadVoices = useCallback(async () => {
+  const loadVoices = useCallback(async (background = false) => {
+    if (background && voicesLoading.current) return false;
     const requestId = ++voiceRequest.current;
-    setLoadingVoices(true);
-    setVoiceError("");
+    voicesLoading.current = true;
+    if (!background) { setLoadingVoices(true); setVoiceError(""); }
     try {
       const result = await api.voices();
-      if (!mounted.current || requestId !== voiceRequest.current) return;
+      if (!mounted.current || requestId !== voiceRequest.current) return false;
       setLanguages(result);
-      if (!preferredLanguage(result)) setVoiceError("Chưa có giọng đọc khả dụng.");
+      connected.current = !!preferredLanguage(result);
+      setVoiceError(connected.current ? "" : "Chưa có giọng đọc khả dụng.");
+      return connected.current;
     } catch (error) {
-      if (mounted.current && requestId === voiceRequest.current) setVoiceError((error as Error).message);
+      if (mounted.current && requestId === voiceRequest.current) {
+        connected.current = false;
+        setVoiceError((error as Error).message);
+      }
+      return false;
     } finally {
-      if (mounted.current && requestId === voiceRequest.current) setLoadingVoices(false);
+      if (mounted.current && requestId === voiceRequest.current) {
+        voicesLoading.current = false;
+        setLoadingVoices(false);
+      }
     }
   }, []);
 
-  const loadHistory = useCallback(async (cursor?: string) => {
+  const loadHistory = useCallback(async (cursor?: string, background = false) => {
+    if (background && historyLoading.current) return;
     const requestId = ++historyRequest.current;
-    setLoadingHistory(true);
-    setHistoryError("");
+    historyLoading.current = true;
+    if (!background) { setLoadingHistory(true); setHistoryError(""); }
     try {
       const result = await api.history(cursor);
       if (!mounted.current || requestId !== historyRequest.current) return;
-      setHistory((old) =>
-        cursor
-          ? [...old, ...result.items.filter((item) => !old.some((i) => i.jobId === item.jobId))]
-          : result.items,
-      );
-      setNextCursor(result.nextCursor);
+      historyPage.current = mergeHistoryPage(historyPage.current, result, !!cursor, background);
+      setHistory(historyPage.current.items);
+      setNextCursor(historyPage.current.nextCursor);
+      setHistoryError("");
     } catch (error) {
       if (mounted.current && requestId === historyRequest.current) setHistoryError((error as Error).message);
     } finally {
-      if (mounted.current && requestId === historyRequest.current) setLoadingHistory(false);
+      if (mounted.current && requestId === historyRequest.current) {
+        historyLoading.current = false;
+        setLoadingHistory(false);
+      }
     }
   }, []);
 
@@ -79,6 +96,23 @@ export function useSession(notify: Notify) {
     void loadVoices();
     void loadHistory();
   }, [loadVoices, loadHistory]);
+
+  useEffect(() => {
+    if (DEMO) return;
+    const resume = async () => {
+      if (!document.hidden && await loadVoices(true)) await loadHistory(undefined, true);
+    };
+    const timer = window.setInterval(() => {
+      if (!document.hidden && connected.current) void loadHistory(undefined, true);
+    }, HISTORY_SYNC_INTERVAL);
+    window.addEventListener('focus', resume);
+    document.addEventListener('visibilitychange', resume);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', resume);
+      document.removeEventListener('visibilitychange', resume);
+    };
+  }, [loadHistory, loadVoices]);
 
   const showRecording = useCallback((recording: HistoryItem) => {
     setCurrentAudio(recording);
@@ -112,8 +146,10 @@ export function useSession(notify: Notify) {
     for (const [key, value] of completed.current) if (value.jobId === item.jobId) completed.current.delete(key);
     recordingRequest.current++;
     historyRequest.current++;
+    historyLoading.current = false;
     setLoadingHistory(false);
-    setHistory((old) => old.filter((i) => i.jobId !== item.jobId));
+    historyPage.current.items = historyPage.current.items.filter((i) => i.jobId !== item.jobId);
+    setHistory(historyPage.current.items);
     setCurrentAudio((old) => (old?.jobId === item.jobId ? null : old));
     notify("Đã xóa bản thu.");
   }
@@ -204,6 +240,7 @@ export function useEditor(
     revision.current++;
     cancelReview();
     setText(value);
+    if (!value.trim()) setFileName("");
     setError("");
   }
   function useSample() {

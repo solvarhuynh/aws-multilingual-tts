@@ -92,6 +92,8 @@ Cả hai giao diện có thể dùng API Python local trước, rồi chuyển s
 
 Chạy cả backend + web + app từ **gốc repo** bằng `npm run dev` sau khi cài dependency và điền `deployment/local/.env.local`. Lệnh tự nối API/IP LAN, hiển thị QR Expo Go và dừng cả ba khi Ctrl+C; xem [hướng dẫn local](../deployment/local/README.md). Các lệnh dưới đây dành cho chạy riêng từng dịch vụ.
 
+Để web/app dùng chung backend AWS đã triển khai, chạy `npm run dev -- --api-url https://TEN-MIEN.cloudfront.net` trên máy cá nhân. Chế độ này không đọc key local hoặc chạy Python API; cả hai dùng catalog/lịch sử của cùng stack. Nhập cùng mã demo trong Cài đặt từng giao diện, app bấm Kết nối. Web/app làm mới bản thu lúc trở lại foreground và mỗi 15 giây đang mở; làm mới nền giữ trang đã tải thêm và không chồng request. Xem [luồng dùng chung AWS](../deployment/local/README.md#web-và-app-dùng-chung-backend-aws). Bản nháp vẫn riêng theo thiết bị, theo phạm vi người dùng chốt ngày 10/11/2026.
+
 Trong `frontend/web`, sao chép `.env.example` thành `.env.local` để nối Python local theo [hướng dẫn](../deployment/local/README.md). API mặc định `127.0.0.1:8000`, Vite proxy `/api`. Khi chuyển Sandbox, dùng domain CloudFront của phiên lab hiện tại. Chỉ dùng URL công khai; mã demo nhập trong Cài đặt, không đặt token hoặc khóa Gemini/Azure vào biến `VITE_*`:
 
 ```dotenv
@@ -123,7 +125,7 @@ npm ci
 npm start -- --clear
 ```
 
-Dùng Expo Go tương thích SDK 58 của package.json. iPhone quét QR bằng Camera, Android dùng Expo Go; điện thoại kết nối được Metro trên máy cá nhân. Đổi env cần khởi động lại dev server.
+Dùng Expo Go tương thích SDK 58 của package.json. iPhone quét QR bằng Camera, Android dùng Expo Go; điện thoại kết nối được Metro trên máy cá nhân. Với iPhone thật, CLI và Expo Go phải đăng nhập cùng tài khoản, launcher không ép offline; xem [đăng nhập Expo](../deployment/local/README.md#đăng-nhập-expo-trên-iphone-thật). Đổi env cần khởi động lại dev server.
 
 Trong app Cài đặt → Kết nối → Mã truy cập; nhập mã do chủ lab cấp. Không đặt mã/key vào EXPO_PUBLIC_* hoặc VITE_*. Không có API base thì nghe giọng thiết bị và lưu dữ liệu mẫu cục bộ, chưa có MP3 từ AWS.
 
@@ -162,6 +164,8 @@ Icon Framework7 Icons và Glisse trên web dùng MIT; thông báo trong web/publ
 MP3 lấy thời gian từ đồng hồ tệp, chỉ cho tua khi có duration hữu hạn. Giọng thiết bị chưa biết tổng thời lượng trước khi đọc xong; tiến độ theo nội dung đọc, không dùng số giây ước tính làm thời lượng thật. Đổi bản thu hoặc URL phải dừng phiên cũ và bỏ metadata cũ.
 
 Kiểm ít nhất 320/390/768/1440/2560 px, nội dung/tên giọng dài, sáng/tối, sidebar thu/mở, modal, vùng cuộn và player dock. Native cần kiểm safe area/notch, xoay màn hình, cỡ chữ hệ thống, bàn phím và thao tác xóa/phát khi chuyển màn.
+
+Web chọn một/hai cột theo chiều rộng thật của vùng soạn thảo; nội dung dài cuộn được và không ép các nút vào khung cố định. Thanh phát kính nổi, căn giữa, tối đa 760 px; màn hình hẹp dùng hai hàng. Vùng nội dung có khoảng cuộn cuối để nút thao tác không bị thanh phát che. Nhập tệp và chụp tài liệu nằm trong thanh công cụ của ô nhập; kéo thả tệp vào ô soạn thảo, tên tệp chỉ hiện sau khi nhập. Sóng 3D giữ ở Tổng quan/trình phát, không đặt đè lên văn bản. Viền focus sáng/tối dùng đủ bốn cạnh.
 
 ### Kiểm kê frontend
 

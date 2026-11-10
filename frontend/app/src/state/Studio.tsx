@@ -4,6 +4,7 @@ import { AccessibilityInfo, Appearance, AppState, useColorScheme } from 'react-n
 import * as Haptics from 'expo-haptics';
 import { api, configureSubmissionStore, DEMO, setDemoToken } from '../lib/api';
 import { DEFAULT_SPEED, demoLanguages, isRecording, type Language, type Preferences, type Recording } from '../lib/model';
+import { HISTORY_SYNC_INTERVAL, mergeHistoryPage } from '../../../shared/history';
 
 const KEYS = { preferences: 'tts.app.preferences.v1', recordings: 'tts.app.recordings.v1', draft: 'tts.app.draft.v1', translationDraft: 'tts.app.draft.translation.v1', submissions: 'tts.app.submissions.v1' };
 const defaults: Preferences = { theme: 'system', reducedMotion: false, haptics: true, favorites: [], demoToken: '' };
@@ -44,6 +45,10 @@ function useStudioState() {
   const mounted = useRef(true);
   const loading = useRef(false);
   const historyRef = useRef(history);
+  const cursorRef = useRef<string | null>(null);
+  const historyRequest = useRef(0);
+  const voicesLoading = useRef(false);
+  const connected = useRef(false);
   const storageQueue = useRef(Promise.resolve());
   const isDark = preferences.theme === 'system' ? system === 'dark' : preferences.theme === 'dark';
   const reducedMotion = preferences.reducedMotion || systemReduce;
@@ -99,56 +104,83 @@ function useStudioState() {
     return () => clearTimeout(timer);
   }, [notice]);
 
-  const refresh = useCallback(async (more = false) => {
+  const refresh = useCallback(async (more = false, background = false) => {
     if (DEMO || loading.current) return;
-    loading.current = true; setRefreshing(true);
+    const request = ++historyRequest.current;
+    loading.current = true;
+    if (!background) setRefreshing(true);
     try {
-      const result = await api.history(more ? cursor ?? undefined : undefined);
-      if (!mounted.current) return;
-      setCursor(result.nextCursor);
-      const next = more ? [...historyRef.current, ...result.items.filter(r => !historyRef.current.some(old => old.jobId === r.jobId))] : result.items;
-      historyRef.current = next; setHistory(next);
-    } catch (error) { if (mounted.current) setNotice(error instanceof Error ? error.message : 'Chưa tải được bản thu.'); }
-    finally { loading.current = false; if (mounted.current) setRefreshing(false); }
-  }, [cursor]);
-  const reloadVoices = useCallback(async () => {
-    if (DEMO) return;
+      const result = await api.history(more ? cursorRef.current ?? undefined : undefined);
+      if (!mounted.current || request !== historyRequest.current) return;
+      const next = mergeHistoryPage({ items: historyRef.current, nextCursor: cursorRef.current }, result, more, background);
+      cursorRef.current = next.nextCursor; setCursor(next.nextCursor);
+      historyRef.current = next.items; setHistory(next.items);
+    } catch (error) {
+      if (mounted.current && request === historyRequest.current) setNotice(error instanceof Error ? error.message : 'Chưa tải được bản thu.');
+    } finally {
+      if (mounted.current && request === historyRequest.current) { loading.current = false; setRefreshing(false); }
+    }
+  }, []);
+  const reloadVoices = useCallback(async (background = false) => {
+    if (DEMO || background && voicesLoading.current) return false;
     const request = ++voiceRequest.current;
-    setLoadingVoices(true); setVoiceError('');
+    voicesLoading.current = true;
+    if (!background) { setLoadingVoices(true); setVoiceError(''); }
     try {
       const result = await api.voices();
-      if (!mounted.current || request !== voiceRequest.current) return;
-      setLanguages(result);
+      if (!mounted.current || request !== voiceRequest.current) return false;
       const first = result.find(l => l.lang === 'vi-VN' && l.voices.length) ?? result.find(l => l.voices.length);
       if (!first) throw new Error('Máy chủ chưa có giọng đọc. Hãy tải lại sau.');
+      connected.current = true;
+      setLanguages(result); setVoiceError('');
       setSelection(previous => result.some(l => l.lang === previous.lang && l.voices.some(v => v.id === previous.voice))
         ? previous : { lang: first.lang, voice: first.voices[0].id });
+      return true;
     } catch (error) {
-      if (mounted.current && request === voiceRequest.current) setVoiceError(error instanceof Error ? error.message : 'Chưa tải được giọng đọc.');
-    } finally { if (mounted.current && request === voiceRequest.current) setLoadingVoices(false); }
+      if (mounted.current && request === voiceRequest.current) {
+        connected.current = false;
+        setVoiceError(error instanceof Error ? error.message : 'Chưa tải được giọng đọc.');
+      }
+      return false;
+    } finally {
+      if (mounted.current && request === voiceRequest.current) { voicesLoading.current = false; setLoadingVoices(false); }
+    }
   }, []);
   useEffect(() => {
-    // Chờ đọc xong token đã lưu, nếu không request đầu sẽ bị từ chối.
-    if (DEMO || !ready) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void reloadVoices();
-    void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
+    if (DEMO || !ready || !active) return;
+    let cancelled = false;
+    const resume = async () => {
+      if (await reloadVoices(true) && !cancelled) await refresh(false, true);
+    };
+    void resume();
+    const timer = setInterval(() => { if (connected.current) void refresh(false, true); }, HISTORY_SYNC_INTERVAL);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [ready, active, preferences.demoToken, refresh, reloadVoices]);
   const updatePreferences = (patch: Partial<Preferences>) => {
-    if (patch.demoToken !== undefined) setDemoToken(patch.demoToken);
+    if (patch.demoToken !== undefined) {
+      patch = { ...patch, demoToken: patch.demoToken.trim() };
+      setDemoToken(patch.demoToken!);
+      if (patch.demoToken !== preferences.demoToken) {
+        voiceRequest.current++; historyRequest.current++;
+        voicesLoading.current = false; loading.current = false; connected.current = false;
+        historyRef.current = []; cursorRef.current = null;
+        setHistory([]); setCursor(null); setLanguages([]); setVoiceError(''); setLoadingVoices(true); setRefreshing(false);
+      }
+    }
     setPreferences(p => ({ ...p, ...patch }));
   };
   const selectVoice = (lang: string, voice: string) => setSelection({ lang, voice });
   const saveRecording = async (recording: Recording) => {
     const next = [recording, ...historyRef.current.filter(r => r.jobId !== recording.jobId)].slice(0, 200);
     if (DEMO && !await persist(KEYS.recordings, next)) throw new Error('Chưa lưu được bản thu. Hãy kiểm tra dung lượng máy rồi thử lại.');
+    historyRequest.current++; loading.current = false; setRefreshing(false);
     historyRef.current = next; setHistory(next);
   };
   const removeRecording = async (id: string) => {
     if (!DEMO) await api.remove(id);
     const next = historyRef.current.filter(r => r.jobId !== id);
     if (DEMO && !await persist(KEYS.recordings, next)) throw new Error('Chưa xóa được bản thu trong bộ nhớ.');
+    historyRequest.current++; loading.current = false; setRefreshing(false);
     historyRef.current = next; setHistory(next);
   };
   const haptic = () => {

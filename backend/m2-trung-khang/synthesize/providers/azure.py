@@ -56,7 +56,10 @@ class AzureSpeechProvider(TTSProvider):
             status = error.code
             error.close()
             raise error_for_status(status) from None
-        except (urllib.error.URLError, TimeoutError, OSError):
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            reason = error.reason if isinstance(error, urllib.error.URLError) else error
+            if isinstance(reason, TimeoutError):
+                raise TransientProviderError("PROVIDER_TIMEOUT", "Kết nối Azure Speech quá thời gian chờ. Kiểm tra mạng, VPN/proxy rồi thử lại.") from None
             raise TransientProviderError("PROVIDER_UNREACHABLE", "Không kết nối được Azure Speech, vui lòng thử lại sau.") from None
         if len(data) > MAX_AUDIO_BYTES or not content_type.startswith("audio/") or not is_mp3(data):
             raise PermanentProviderError("PROVIDER_INVALID_AUDIO", "Azure Speech trả về âm thanh không hợp lệ.")

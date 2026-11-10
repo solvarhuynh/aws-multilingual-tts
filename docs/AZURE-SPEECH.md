@@ -471,6 +471,16 @@ Các bước mục này chạy **trên máy cá nhân**, chỉ dùng URL công k
 
 ### 12.1. App iOS/Android bằng Expo Go
 
+**Cách khuyến nghị:** trên máy cá nhân, từ gốc repo chạy:
+
+```bash
+npm run dev -- --api-url https://TEN-MIEN-CUA-PHIEN.cloudfront.net
+```
+
+Lệnh dùng đúng một API CloudFront cho web Vite và app Expo Go; không khởi động backend Python, không đọc key env local hoặc cần AWS credentials trên máy. Sau khi upload web, `sandbox.sh web` cũng in lệnh này với domain từ Outputs. Web trên CloudFront vẫn mở bình thường; app native chạy trên điện thoại và dùng chung backend AWS, không chạy bên trong Console/CloudShell. iPhone thật cần Expo CLI và Expo Go đăng nhập cùng tài khoản; xem [hướng dẫn local](../deployment/local/README.md#đăng-nhập-expo-trên-iphone-thật).
+
+Các bước cấu hình env dưới đây chỉ cần khi muốn chạy riêng app thay cho launcher chung.
+
 Tạo `frontend/app/.env.local`, thay domain mẫu bằng domain stack hiện tại:
 
 ```dotenv
@@ -489,9 +499,11 @@ npm start -- --clear
 
 Nếu có nvm, chạy `nvm use` trong thư mục app trước; .nvmrc hiện chọn Node 22. Dùng Expo Go tương thích **SDK 58 của project hiện tại**. iPhone quét QR bằng Camera, Android dùng Expo Go. Điện thoại cần kết nối được tới Metro trên máy cá nhân; cùng Wi-Fi là cách chạy demo thông thường. Không lấy QR trong CloudShell làm mặc định cho luồng này.
 
-App → **Cài đặt → Kết nối → Mã truy cập**: nhập mã rồi kết thúc chỉnh sửa để tải lại giọng/lịch sử. Kiểm **Máy chủ đã cấu hình**. Nếu vẫn **Nghe trên thiết bị**, kiểm env đúng thư mục rồi Ctrl+C dừng Expo và chạy lại với --clear.
+App → **Cài đặt → Kết nối → Mã truy cập**: nhập cùng mã đang dùng trên web rồi bấm **Kết nối**. Kiểm nhãn **Đã kết nối** và đúng domain CloudFront. Nếu vẫn **Nghe trên thiết bị**, kiểm env đúng thư mục hoặc dùng launcher chung rồi Ctrl+C dừng Expo và chạy lại với --clear.
 
 App lấy cùng /voices, không cần key/registry riêng. Thử tạo, nghe, chia sẻ/tải, xem/xóa bản thu. App và web cùng API/scope thấy chung dữ liệu máy chủ.
+
+Web/app tự làm mới lịch sử khi trở lại foreground và mỗi 15 giây đang mở; không gọi polling khi ẩn. Kiểm một bản thu tạo trên web xuất hiện ở app, một bản thu tạo trên app xuất hiện ở web, rồi xóa và kiểm ở bên kia. Bản nháp đang soạn và file gốc vẫn riêng trên thiết bị. Không so lịch sử Moto local với AWS: chỉ cùng API và cùng mã demo mới dùng chung dữ liệu.
 
 Nếu Expo Go báo lệch SDK, đối chiếu package.json của app và Expo Go đang cài. Không nâng riêng một package trong lúc demo; M4 kiểm bộ dependency nếu Expo Go mới không mở được project.
 

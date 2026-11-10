@@ -16,7 +16,6 @@ import {
   Slider,
   Toggle,
   VoiceAvatar,
-  ToolArt,
 } from "./components/ui";
 import {
   estimateDuration,
@@ -172,9 +171,9 @@ export default function App() {
   );
   const selectedVoice = studio.language?.voices.find((v) => v.id === studio.voice);
   const progress =
-    studio.job?.progress && studio.job.progress.total > 0
+    studio.job?.progress && studio.job.progress.total > 0 && studio.job.progress.done > 0
       ? Math.min(100, Math.round((studio.job.progress.done / studio.job.progress.total) * 100))
-      : 0;
+      : undefined;
   const title =
     navigation.find((n) => n.id === page)?.title || (page === "settings" ? "Cài đặt" : "Hướng dẫn sử dụng");
 
@@ -486,31 +485,15 @@ export default function App() {
             {isStudio && (
               <div className="studio-layout">
                 <section className="editor-panel" aria-label="Soạn thảo văn bản">
-                  <Button
-                    className="document-drop surface"
-                    disabled={studio.busy || studio.readingFile}
-                    onClick={() => fileRef.current?.click()}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      void studio.importFile(event.dataTransfer.files[0]);
-                    }}
-                  >
-                    <span className="document-drop-icon">
-                      {studio.readingFile ? <Spinner /> : <Icon name="upload" size={25} />}
-                    </span>
-                    <span>
-                      <strong>
-                        {studio.readingFile
-                          ? "Đang đọc tài liệu…"
-                          : studio.fileName || "Thả tài liệu hoặc chọn tệp"}
-                      </strong>
-                      <small>PDF, DOCX, TXT, Markdown, ảnh scan · 50 MB</small>
-                    </span>
-                    <Icon name="plus" size={19} />
-                  </Button>
                   <form
                     className="composer surface"
+                    onDragOver={event => { if (event.dataTransfer.types.includes("Files")) event.preventDefault(); }}
+                    onDrop={event => {
+                      const file = event.dataTransfer.files[0];
+                      if (!file) return;
+                      event.preventDefault();
+                      if (!studio.busy && !studio.readingFile) void studio.importFile(file);
+                    }}
                     onSubmit={(e) => {
                       e.preventDefault();
                       void studio.generate();
@@ -529,17 +512,24 @@ export default function App() {
                         <strong>{selectedVoice ? voiceLabel(studio.languages, selectedVoice.id) : "Chọn giọng đọc"}</strong>
                         <Icon name="chevron" size={13} />
                       </Button>
-                      <Button
-                        className="text-button"
-                        type="button"
-                        disabled={studio.busy || studio.readingFile}
-                        onClick={() => fileRef.current?.click()}
-                      >
-                        <Icon name="upload" size={15} />
-                        {studio.readingFile ? "Đang nhập…" : "Nhập tệp"}
-                      </Button>
+                      <div className="editor-import-actions">
+                        <Button
+                          className="text-button"
+                          type="button"
+                          title="PDF, DOCX, TXT, Markdown, ảnh scan · Tối đa 50 MB. Có thể kéo thả vào ô soạn thảo."
+                          disabled={studio.busy || studio.readingFile}
+                          onClick={() => fileRef.current?.click()}
+                        >
+                          <Icon name="upload" size={15} />
+                          {studio.readingFile ? "Đang nhập…" : "Nhập tệp"}
+                        </Button>
+                        <Button type="button" className="icon-button" aria-label="Chụp tài liệu" title="Chụp hoặc chọn ảnh để nhận dạng chữ"
+                          disabled={studio.busy || studio.readingFile} onClick={() => cameraRef.current?.click()}>
+                          <Icon name="camera" size={18} />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="document-tools"><Button type="button" className="secondary-button" disabled={studio.busy || studio.readingFile} onClick={() => cameraRef.current?.click()}>Chụp tài liệu</Button><span>Kiểm tra chữ nhận dạng trước khi tạo bản thu.</span></div>
+                    {studio.fileName && <div className="imported-file" title={studio.fileName}><Icon name="file" size={14} /><span>{studio.fileName}</span></div>}
                     {studio.readingFile && <div className="document-tools" role="status">
                       <span>{studio.importProgress}</span>
                       <Button type="button" onClick={studio.cancelImport}>Hủy nhập</Button>
@@ -555,11 +545,6 @@ export default function App() {
                       <details><summary>Xem phần {studio.partIndex + 1} sẽ được đọc</summary><p className="part-preview">{studio.parts[studio.partIndex]}</p></details>
                       <p>Mỗi phần có bản thu riêng trong Lịch sử. Phần đã xong được giữ lại khi dừng hoặc gặp lỗi.</p>
                     </div>}
-                    {!studio.text && page === "studio" && (
-                      <div className="editor-emblem">
-                        <ToolArt />
-                      </div>
-                    )}
                     <label className="sr-only" htmlFor="editor">
                       Văn bản cần chuyển thành giọng nói
                     </label>
@@ -627,9 +612,9 @@ export default function App() {
                               <span>
                                 {studio.checking ? "Đang kiểm tra lỗi đánh máy…" : studio.job?.status === "PENDING" ? "Đang chuẩn bị…" : "Đang tạo giọng nói…"}
                               </span>
-                              {studio.job?.progress && <strong>{progress}%</strong>}
+                              {progress !== undefined && <strong>{progress}%</strong>}
                             </div>
-                            <progress aria-label="Tiến độ tạo giọng nói" value={studio.job?.progress ? progress : undefined} max={100} />
+                            <progress aria-label="Tiến độ tạo giọng nói" value={progress} max={100} />
                           </div>
                         )}
                       </div>
