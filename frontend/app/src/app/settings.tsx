@@ -1,5 +1,5 @@
-import { Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
-import { useState } from 'react';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { router } from 'expo-router';
 import { Action, Icon, Label, Section, type IconName } from '../components/ui';
 import { Page } from '../components/layout';
@@ -11,10 +11,21 @@ export default function Settings() {
   const { colors, preferences, updatePreferences, reloadVoices, refresh, loadingVoices, voiceError } = useStudio();
   const [accessCode, setAccessCode] = useState(preferences.demoToken);
   const code = accessCode.trim();
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
+  const [editingCode, setEditingCode] = useState(false);
+  // Ô mã nằm cuối trang modal; ScrollView không tự cuộn tới ô đang nhập. Cuộn sau keyboardDidShow,
+  // khi KeyboardAvoidingView đã co trang, nếu không lúc cuộn đủ lúc cuộn thiếu.
+  useEffect(() => {
+    if (!editingCode) return;
+    const toEnd = () => scroll.current?.scrollToEnd({ animated: true });
+    if (Keyboard.isVisible()) toEnd();
+    const shown = Keyboard.addListener('keyboardDidShow', toEnd);
+    return () => shown.remove();
+  }, [editingCode]);
   const options: { title: string; value: ThemeMode; icon: IconName }[] = [
     { title: 'Hệ thống', value: 'system', icon: 'phone' }, { title: 'Sáng', value: 'light', icon: 'sun' }, { title: 'Tối', value: 'dark', icon: 'moon' },
   ];
-  return <Page close title="Cài đặt">
+  return <Page close title="Cài đặt" ref={scroll}>
       <Section title="Giao diện" />
       <View style={styles.themes}>{options.map(item => <Pressable key={item.value} accessibilityRole="button" accessibilityLabel={`Giao diện ${item.title.toLowerCase()}`}
         accessibilityState={{ selected: preferences.theme === item.value }} onPress={() => updatePreferences({ theme: item.value })}
@@ -37,6 +48,7 @@ export default function Settings() {
       {!DEMO && <>
         <TextInput accessibilityLabel="Mã truy cập" placeholder="Mã truy cập" placeholderTextColor={colors.secondary} secureTextEntry
           autoCapitalize="none" autoCorrect={false} value={accessCode} onChangeText={setAccessCode}
+          onFocus={() => setEditingCode(true)} onBlur={() => setEditingCode(false)}
           style={{ color: colors.text, borderColor: colors.line, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 }} />
         {!!voiceError && <Label size={13} style={{ color: colors.danger }}>{voiceError}</Label>}
         <Action primary disabled={!code && !preferences.demoToken || loadingVoices && code === preferences.demoToken}

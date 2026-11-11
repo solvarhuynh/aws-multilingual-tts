@@ -28,7 +28,15 @@
         }
       ],
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Cho phép dùng camera để quét tài liệu thành văn bản.",
+          "photosPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }
