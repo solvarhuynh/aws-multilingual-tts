@@ -17,6 +17,39 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 
 ## NHẬT KÝ
 
+### 2026-11-11: App, quét và nhập ảnh nhận dạng nhanh hơn
+
+- Bối cảnh: thử Quét tài liệu trên iPhone thấy đứng lâu ở "Đang mở tài liệu…".
+- Nguyên nhân: ảnh camera khoảng 12 MP, chuỗi base64 5–8 MB đẩy nguyên vào WebView OCR; mỗi lần nhập tạo WebView và worker tesseract.js mới nên tải lại lõi OCR và dữ liệu chữ từ CDN; tesseract.js chạy WASM một luồng.
+- Đã sửa: `compose.tsx` thu ảnh (camera và ảnh JPG/PNG/WebP chọn từ tệp, trên app native) về cạnh dài 2.000 px, JPEG 0,85 bằng `expo-image-manipulator` trước khi đưa vào OCR. `PdfReader` (native và web) giữ WebView giữa các lần nhập, chỉ tạo lại khi Hủy nhập hoặc quá giờ. `scripts/pdf-entry.js` giữ worker OCR khi cùng ngôn ngữ, tạo lại sau lỗi; báo "Đang chuẩn bị ảnh…" / "Đang đọc ảnh…" sớm hơn. Ảnh vẫn chỉ xử lý trên máy.
+- Đã chạy: build lại `assets/generated/pdf.html`; app typecheck, lint, test 49/49; `expo export` iOS và Android đạt; web `test:ui` 92/92.
+- Nguyên nhân chính của việc đứng mãi ở "Đang mở tài liệu…" khi chạy Expo Go: `PdfReader` chặn mọi URL `http(s)`, mà Expo Go phục vụ `pdf.html` qua http của Metro nên iOS chặn luôn trang OCR, WebView không gửi `ready`. Sửa: chỉ cho phép đúng URL trang (`Image.resolveAssetSource`, bỏ query), các URL web khác vẫn chặn. Bản build thật đọc trang từ tệp nên không bị.
+- Chưa kiểm: đo thời gian thực trên iPhone. Lần quét đầu vẫn phải tải bộ OCR từ mạng.
+- Hướng sau (chưa làm): OCR native (Apple Vision/ML Kit) cần development build, không chạy trong Expo Go; OCR đám mây trái quy định không gửi ảnh lên API, cần nhóm duyệt.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Cần báo module khác: M4 xem lại vì thuộc frontend app và thêm dependency `expo-image-manipulator`.
+
+### 2026-11-11: App, thêm Quét tài liệu bằng camera ở Tạo giọng đọc và Dịch và đọc
+
+- Yêu cầu của Trung Khang: thêm quét tài liệu trong hai công cụ chính của app, không tạo mục mới trong tab Công cụ; web không cần.
+- `compose.tsx`: nút tải tài liệu thu gọn thành "Tải tài liệu" ở nửa trái, nửa phải là "Quét tài liệu" (ẩn khi chạy bản web của Expo). Bỏ dòng chú thích "50 MB · 200.000 ký tự…" dưới nút; trạng thái đang đọc hiện thành dòng riêng cùng nút Hủy nhập. Giới hạn 50 MB/200.000 ký tự vẫn kiểm như cũ.
+- Quét dùng `expo-image-picker` (`launchCameraAsync`, chỉ ảnh, không lưu EXIF), xin quyền camera trước khi mở. Ảnh chụp đi qua đúng đường OCR trên máy như ảnh scan (`PdfReader`), không gửi ảnh lên API. Tách `readImported`/`failImport` dùng chung cho tải tệp và quét.
+- `app.json`: thêm plugin `expo-image-picker` với lời xin quyền camera tiếng Việt, tắt quyền thư viện ảnh và micro. `ui.tsx`: thêm icon `camera` (`doc.viewfinder` / `scan-outline`).
+- Đã chạy: app typecheck, lint đạt, test 49/49; `expo export` iOS và Android đạt.
+- Chưa kiểm: chụp và nhận dạng trên iPhone thật; chưa có test tự động cho luồng camera.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Cần báo module khác: M4 xem lại vì thuộc frontend app và thêm dependency.
+
+### 2026-11-11: App, ô mã truy cập bị bàn phím iPhone che
+
+- Bối cảnh: Trung Khang mở app bằng Expo Go trên iPhone, bấm ô Mã truy cập ở Cài đặt thì bàn phím che mất ô.
+- Nguyên nhân: ô nằm cuối trang Cài đặt (modal); `ScrollView` không tự cuộn tới ô đang nhập, và `KeyboardAvoidingView` tính phần đệm theo khung tương đối nên trong modal bị thiếu.
+- Đã sửa: `settings.tsx` cuộn tới cuối trang khi ô mã được chọn, chạy sau sự kiện `keyboardDidShow` (lần đầu cuộn theo `keyboardWillShow` lúc đủ lúc thiếu vì trang chưa co xong). `layout.tsx` cho `Page`/`PageScroll` nhận `ref` của `ScrollView` (React 19 truyền `ref` như prop), không đổi hành vi các trang khác.
+- Đã chạy: app typecheck, lint đạt; test 49/49.
+- Chưa kiểm: bấm lại trên iPhone thật sau khi sửa.
+- Tài nguyên AWS đã tạo/sửa (tên, region): không.
+- Cần báo module khác: M4 xem lại vì thuộc frontend.
+
 ### 2026-11-10: Test quyền file key Translator bỏ qua trên Windows
 
 - Sau khi merge PR #12, chạy lại toàn bộ test trên `main`: `test_key_stays_in_ssm_not_state_or_output` hỏng trên Windows vì Windows không có quyền file kiểu POSIX (`0o600`). Thêm điều kiện `os.name != "nt"` như test token trong `test_azure.py`; trên Linux/CloudShell vẫn kiểm quyền.

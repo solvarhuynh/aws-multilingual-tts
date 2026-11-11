@@ -15,6 +15,7 @@ const icons = {
   search: ['magnifyingglass', 'search'], check: ['checkmark', 'checkmark'], heart: ['heart', 'heart-outline'],
   heartFill: ['heart.fill', 'heart'], book: ['book.closed.fill', 'book'], translate: ['character.bubble.fill', 'language'],
   file: ['doc.text', 'document-text-outline'], upload: ['square.and.arrow.up', 'cloud-upload-outline'],
+  camera: ['doc.viewfinder', 'scan-outline'],
   download: ['arrow.down.to.line', 'download-outline'], share: ['square.and.arrow.up', 'share-outline'],
   trash: ['trash', 'trash-outline'], more: ['ellipsis', 'ellipsis-horizontal'], mic: ['mic.fill', 'mic'],
   sun: ['sun.max.fill', 'sunny'], moon: ['moon.fill', 'moon'], phone: ['iphone', 'phone-portrait-outline'],

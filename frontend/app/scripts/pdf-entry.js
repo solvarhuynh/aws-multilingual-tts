@@ -11,14 +11,18 @@ const send = payload => {
   else window.parent.postMessage({ source: 'tts-pdf', ...payload }, '*');
 };
 let running = false;
+// Giữ worker OCR giữa các lần nhập cùng ngôn ngữ để không tải lại lõi và dữ liệu chữ mỗi lần quét.
+let ocr, ocrLang;
 window.extractPdf = async (base64, kind = 'pdf', lang = 'vi-VN') => {
   if (running) return;
   running = true;
-  let task, ocr;
+  let task;
   const progress = message => send({ progress: message });
   const recognize = async canvas => {
+    const wanted = ocrLanguage(lang);
+    if (ocr && ocrLang !== wanted) { await ocr.terminate(); ocr = undefined; }
     if (!ocr) {
-      progress('Đang tải bộ nhận dạng chữ lần đầu…');
+      progress('Đang tải bộ nhận dạng chữ…');
       let fail;
       const failed = new Promise((_, reject) => { fail = reject; });
       const loading = createWorker(ocrLanguage(lang), OEM.LSTM_ONLY, {
@@ -27,6 +31,7 @@ window.extractPdf = async (base64, kind = 'pdf', lang = 'vi-VN') => {
         logger: info => { if (info.status === 'recognizing text') progress(`Đang nhận dạng chữ ${Math.round(info.progress * 100)}%…`); },
       });
       ocr = await Promise.race([loading, failed]);
+      ocrLang = wanted;
     }
     return (await ocr.recognize(canvas)).data.text;
   };
@@ -38,6 +43,7 @@ window.extractPdf = async (base64, kind = 'pdf', lang = 'vi-VN') => {
       task = getDocument({ data: bytes, useSystemFonts: true, isEvalSupported: false, disableFontFace: true });
       text = await pdfText(await task.promise, recognize, { onProgress: progress });
     } else {
+      progress('Đang đọc ảnh…');
       const mime = kind === 'png' ? 'image/png' : kind === 'webp' ? 'image/webp' : 'image/jpeg';
       text = await imageText(`data:${mime};base64,${base64}`, recognize);
     }
@@ -47,8 +53,10 @@ window.extractPdf = async (base64, kind = 'pdf', lang = 'vi-VN') => {
       error?.name === 'InvalidPDFException' ? 'Tệp PDF bị lỗi hoặc không đúng định dạng.' :
       /^(Tài liệu|Tệp|Mỗi lần|Ảnh|Không nhận dạng được chữ ở trang)/.test(error?.message ?? '') ? error.message : 'Không nhận dạng được tài liệu. Hãy kiểm tra mạng tải bộ OCR, ngôn ngữ và chất lượng ảnh.';
     send({ error: message });
+    // Worker có thể hỏng sau lỗi; lần sau tạo lại.
+    await ocr?.terminate(); ocr = undefined;
   }
-  finally { await task?.destroy(); await ocr?.terminate(); running = false; }
+  finally { await task?.destroy(); running = false; }
 };
 window.addEventListener('message', event => {
   if (event.data?.type === 'tts-read-pdf' && typeof event.data.base64 === 'string') void window.extractPdf(event.data.base64, event.data.kind, event.data.lang);

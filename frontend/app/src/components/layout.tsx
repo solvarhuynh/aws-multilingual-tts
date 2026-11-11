@@ -1,4 +1,4 @@
-import type { PropsWithChildren, ReactNode } from 'react';
+import type { ComponentRef, PropsWithChildren, ReactNode, Ref } from 'react';
 import { KeyboardAvoidingView, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { router, useIsFocused } from 'expo-router';
@@ -31,7 +31,7 @@ export function Header({ title, left, right }: { title: string; left?: ReactNode
     <View style={styles.headerSide}>{right}</View>
   </View>;
 }
-export function PageScroll({ children, tabs = false, style, contentContainerStyle, ...props }: PropsWithChildren<ScrollViewProps & { tabs?: boolean }>) {
+export function PageScroll({ children, tabs = false, style, contentContainerStyle, ...props }: PropsWithChildren<ScrollViewProps & { tabs?: boolean; ref?: Ref<ComponentRef<typeof ScrollView>> }>) {
   const { gutter, dockClearance } = useLayout();
   const { current } = usePlayback();
   const keyboard = useKeyboardState();
@@ -43,7 +43,7 @@ export function PageScroll({ children, tabs = false, style, contentContainerStyl
   </ScrollView>;
 }
 export function Page({ children, title, tabs = false, close = false, ...scrollProps }: PropsWithChildren<ScrollViewProps & {
-  title: string; tabs?: boolean; close?: boolean;
+  title: string; tabs?: boolean; close?: boolean; ref?: Ref<ComponentRef<typeof ScrollView>>;
 }>) {
   const keyboard = useKeyboardState();
   return <ScreenFrame bottom={!tabs && !keyboard.visible}><KeyboardArea>

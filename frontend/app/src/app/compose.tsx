@@ -3,6 +3,8 @@ import { ActivityIndicator, Keyboard, Platform, Pressable, StyleSheet, TextInput
 import Slider from '@react-native-community/slider';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Clipboard from 'expo-clipboard';
 import { Action, Circle, Glass, Icon, Label } from '../components/ui';
@@ -19,6 +21,16 @@ import { base64Bytes, checkedText, extractDocument, MAX_FILE_BYTES } from '../li
 import { DEFAULT_SPEED, duration, languageNames, MAX_CHARS, MAX_SPEED, MIN_SPEED, number, samples, time, validate, type Correction, type EditorMode, type Input, type Recording } from '../lib/model';
 import { checkedDocument, MAX_DOCUMENT_CHARS, splitDocument, wordCount } from '../../../shared/documents';
 
+const IMAGE_FILE = /\.(jpg|jpeg|png|webp)$/i;
+/** OCR không cần ảnh 12 MP; thu cạnh dài về 2.000 px để truyền vào WebView và nhận dạng nhanh hơn. */
+async function shrinkImage(uri: string) {
+  const original = await ImageManipulator.manipulate(uri).renderAsync();
+  const longest = Math.max(original.width, original.height);
+  const image = longest > 2000 ? await ImageManipulator.manipulate(original).resize(original.width >= original.height ? { width: 2000 } : { height: 2000 }).renderAsync() : original;
+  const { base64 } = await image.saveAsync({ base64: true, compress: 0.85, format: SaveFormat.JPEG });
+  if (!base64) throw new Error('Không đọc được ảnh. Hãy thử lại.');
+  return base64;
+}
 export default function Compose() {
   const keyboard = useKeyboardState();
   return <ScreenFrame bottom={!keyboard.visible}><ComposeBody keyboard={keyboard} /></ScreenFrame>;
@@ -43,6 +55,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const [documentName, setDocumentName] = useState('');
   const [importing, setImporting] = useState(false);
   const [pdfData, setPdfData] = useState<string | null>(null);
+  const [readerKey, setReaderKey] = useState(0);
   const [fileKind, setFileKind] = useState('pdf');
   const [importStage, setImportStage] = useState('');
   const partLimit = languages.find(item => item.lang === (mode === 'translation' ? target : lang))?.maxChars ?? MAX_CHARS;
@@ -158,22 +171,50 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       const data = Platform.OS === 'web' ? await new Promise<string>((resolve, reject) => {
         const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = () => reject(new Error('Không mở được tệp.'));
         if (!asset.file) { reject(new Error('Chưa đọc được tệp. Hãy chọn lại.')); return; } reader.readAsDataURL(asset.file);
-      }) : await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      }) : IMAGE_FILE.test(asset.name) ? await shrinkImage(asset.uri) : await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
       if (id !== importRevision.current) return;
-      if (data.length > Math.ceil(MAX_FILE_BYTES / 3) * 4) throw new Error('Tệp tối đa 50 MB.');
-      importName.current = asset.name;
-      setPartIndex(0);
-      if (/\.(pdf|jpg|jpeg|png|webp)$/i.test(asset.name)) {
-        setFileKind(asset.name.split('.').pop()!.toLowerCase()); setImportStage('Đang mở tài liệu…');
-        setPdfData(data);
-        pdfTimer.current = setTimeout(() => { if (id !== importRevision.current) return; cancelImport(); setError('Nhận dạng quá lâu. Hãy thử ít trang hơn hoặc ảnh rõ hơn.'); }, 10 * 60 * 1000);
-      } else { setDraft(extractDocument(base64Bytes(data), asset.name)); setDocumentName(asset.name); importLock.current = false; setImporting(false); }
-    } catch (reason) { if (id === importRevision.current) { importLock.current = false; setError(reason instanceof Error ? reason.message : 'Không đọc được tài liệu.'); setImporting(false); } }
+      readImported(id, data, asset.name, Platform.OS !== 'web' && IMAGE_FILE.test(asset.name) ? 'jpg' : undefined);
+    } catch (reason) { failImport(id, reason); }
+  };
+  /** Chụp trang giấy bằng camera rồi nhận dạng chữ trên máy như ảnh scan; ảnh không gửi lên API. */
+  const scanPage = async () => {
+    if (importLock.current || locked.current) return;
+    importLock.current = true;
+    const id = ++importRevision.current;
+    setImporting(true); setError('');
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (id !== importRevision.current) return;
+      if (!permission.granted) throw new Error('Cần quyền camera để quét tài liệu. Hãy bật trong Cài đặt của điện thoại.');
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.9, exif: false });
+      if (id !== importRevision.current) return;
+      if (result.canceled || !result.assets[0]) { importLock.current = false; setImporting(false); return; }
+      setImportStage('Đang chuẩn bị ảnh…');
+      const data = await shrinkImage(result.assets[0].uri);
+      if (id !== importRevision.current) return;
+      readImported(id, data, 'Ảnh quét.jpg');
+    } catch (reason) { failImport(id, reason); }
+  };
+  const readImported = (id: number, data: string, name: string, kind = name.split('.').pop()!.toLowerCase()) => {
+    if (data.length > Math.ceil(MAX_FILE_BYTES / 3) * 4) throw new Error('Tệp tối đa 50 MB.');
+    importName.current = name;
+    setPartIndex(0);
+    if (/\.(pdf|jpg|jpeg|png|webp)$/i.test(name)) {
+      setFileKind(kind); setImportStage('Đang mở tài liệu…');
+      setReaderKey(value => value || 1); setPdfData(data);
+      pdfTimer.current = setTimeout(() => { if (id !== importRevision.current) return; cancelImport(); setError('Nhận dạng quá lâu. Hãy thử ít trang hơn hoặc ảnh rõ hơn.'); }, 10 * 60 * 1000);
+    } else { setDraft(extractDocument(base64Bytes(data), name)); setDocumentName(name); importLock.current = false; setImporting(false); }
+  };
+  const failImport = (id: number, reason: unknown) => {
+    if (id !== importRevision.current) return;
+    importLock.current = false; setError(reason instanceof Error ? reason.message : 'Không đọc được tài liệu.'); setImporting(false);
   };
   const cancelImport = () => {
     importRevision.current++;
     importLock.current = false;
     if (pdfTimer.current) clearTimeout(pdfTimer.current);
+    // Tạo lại bộ đọc để dừng hẳn lượt OCR đang chạy; lượt thành công thì giữ để dùng lại.
+    setReaderKey(value => value && value + 1);
     setPdfData(null); setImporting(false);
   };
   const pdfRevision = importRevision.current;
@@ -191,9 +232,11 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
           style={[styles.voicePill, { backgroundColor: colors.raised }]}><View style={[styles.voiceDot, { backgroundColor: colors.blueSoft }]}><Icon name="mic" color={colors.blue} size={18} /></View>
           <View style={{ flex: 1, minWidth: 0 }}><Label weight="500" size={16}>{loadingVoices ? 'Đang tải giọng đọc…' : (availableVoice?.name ?? availableVoice?.id) || 'Chọn giọng đọc'}</Label><Label size={12} muted>{languageNames[mode === 'translation' ? target : lang]}</Label></View>
           <Icon name="next" size={16} color={colors.secondary} /></Pressable>
-        <Action icon="upload" disabled={busy || importing} onPress={() => void importFile()}>{importing ? importStage || 'Đang đọc tài liệu…' : documentName || 'Chọn PDF, Word, TXT hoặc ảnh scan'}</Action>
-          <Label size={12} muted>50 MB · 200.000 ký tự · 50.000 từ. Tối đa 30 trang scan/lần; kiểm tra lại chữ trước khi tạo giọng.</Label>
-        {importing && <Action onPress={cancelImport}>Hủy nhập</Action>}
+        <View style={styles.imports}>
+          <Action icon="upload" style={{ flex: 1 }} disabled={busy || importing} accessibilityLabel="Tải tài liệu PDF, Word, TXT hoặc ảnh" onPress={() => void importFile()}>{documentName || 'Tải tài liệu'}</Action>
+          {Platform.OS !== 'web' && <Action icon="camera" style={{ flex: 1 }} disabled={busy || importing} accessibilityLabel="Quét tài liệu bằng camera" onPress={() => void scanPage()}>Quét tài liệu</Action>}
+        </View>
+        {importing && <><Label size={13} muted>{importStage || 'Đang đọc tài liệu…'}</Label><Action onPress={cancelImport}>Hủy nhập</Action></>}
         {parts.length > 1 && <View style={{ gap: 10 }}>
           <Label>Phần {selectedPart + 1}/{parts.length} · {number(parts[selectedPart].length)} ký tự</Label>
           <View style={{ flexDirection: 'row', gap: 10 }}><Action disabled={busy || selectedPart === 0} onPress={() => setPartIndex(selectedPart - 1)}>Phần trước</Action>
@@ -256,7 +299,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       }}>Dùng bản đề xuất</Action>
       <Action onPress={() => { const pending = pendingInput.current; if (pending) void submit(pending.input, token.current, false, pending.index); }}>Giữ bản gốc</Action>
     </Sheet>
-    {pdfData && <PdfReader base64={pdfData} kind={fileKind} lang={lang} onProgress={setImportStage} onResult={(text, reason) => {
+    {readerKey > 0 && <PdfReader key={readerKey} base64={pdfData} kind={fileKind} lang={lang} onProgress={setImportStage} onResult={(text, reason) => {
       if (pdfRevision !== importRevision.current) return;
       importRevision.current++; importLock.current = false;
       if (pdfTimer.current) clearTimeout(pdfTimer.current);
@@ -266,6 +309,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   </>;
 }
 const styles = StyleSheet.create({
+  imports: { flexDirection: 'row', gap: 10 },
   voicePill: { borderRadius: 29, padding: 10, paddingRight: 18, flexDirection: 'row', alignItems: 'center', gap: 11, width: '100%', minWidth: 0 },
   voiceDot: { width: 39, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   editor: { lineHeight: 37, padding: 0, letterSpacing: -0.5, minWidth: 0 },
