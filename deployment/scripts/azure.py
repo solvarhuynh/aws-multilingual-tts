@@ -254,7 +254,29 @@ def demo_token():
     return value
 
 
-def plan(daily_char_limit=None):
+def ocr_overrides(enabled=None, model=None, daily_calls=None, parameter=None):
+    result = {}
+    if enabled is not None:
+        if enabled not in {"true", "false"}:
+            raise ValueError("--gemini-ocr phải là true hoặc false")
+        result["GeminiOcrEnabled"] = enabled
+    if model is not None:
+        if not re.fullmatch(r"gemini-[A-Za-z0-9._-]{1,60}", model):
+            raise ValueError("Model Gemini OCR không hợp lệ")
+        result["GeminiOcrModel"] = model
+    if daily_calls is not None:
+        if type(daily_calls) is not int or not 1 <= daily_calls <= 10000:
+            raise ValueError("Hạn mức đọc ảnh/ngày phải từ 1 đến 10.000")
+        result["OcrDailyCallLimit"] = str(daily_calls)
+    if parameter is not None:
+        if not re.fullmatch(r"/[A-Za-z0-9_./-]{1,200}", parameter):
+            raise ValueError("Cần đường dẫn SSM của Gemini, không nhập API key vào lệnh plan")
+        result["GeminiApiParameterName"] = parameter
+    return result
+
+
+def plan(daily_char_limit=None, *, gemini_ocr=None, ocr_model=None, ocr_daily_calls=None, gemini_parameter=None):
+    ocr = ocr_overrides(gemini_ocr, ocr_model, ocr_daily_calls, gemini_parameter)
     if daily_char_limit is not None and (type(daily_char_limit) is not int or daily_char_limit < 1):
         raise ValueError("Hạn mức ký tự/ngày phải là số nguyên dương")
     state = read_state()
@@ -263,6 +285,9 @@ def plan(daily_char_limit=None):
     if stack and stack["StackStatus"] not in {"CREATE_COMPLETE", "UPDATE_COMPLETE", "UPDATE_ROLLBACK_COMPLETE"}:
         raise ValueError("Stack chưa sẵn sàng; kiểm tra CloudFormation Events, không tự xóa hoặc tạo lại")
     change_type = "UPDATE" if stack else "CREATE"
+    previous = {p["ParameterKey"]: p.get("ParameterValue", "") for p in (stack or {}).get("Parameters", [])}
+    if gemini_ocr == "true" and not (gemini_parameter or previous.get("GeminiApiParameterName")):
+        raise ValueError("Cần --gemini-parameter trỏ tới SSM chứa key trước khi bật đọc ảnh")
 
     account = aws("sts", "get-caller-identity")["Account"]
     work = Path.home() / "tts-sandbox"
@@ -273,6 +298,7 @@ def plan(daily_char_limit=None):
         "--s3-bucket", bucket, "--output-template-file", str(packaged), parse_json=False)
     overrides = {"TtsProvider": "azure", "AzureSpeechRegion": state["region"], "TtsApiParameterName": PARAMETER}
     overrides.update(translator_overrides())
+    overrides.update(ocr)
     if daily_char_limit is not None:
         overrides["DailyCharLimit"] = str(daily_char_limit)
     # UsePreviousValue giữ DemoToken/CORS/Env hiện có, không đọc hay in token.
@@ -344,16 +370,23 @@ def main():
     parser.add_argument("action", choices=("configure", "configure-translator", "plan", "apply", "status"))
     parser.add_argument("--region", default="eastasia", help="Vùng Azure; AWS luôn us-east-1")
     parser.add_argument("--daily-char-limit", type=int, help="Chỉ dùng với plan; ghi đè quota TTS/ngày trong changeset, không tự apply")
+    parser.add_argument("--gemini-ocr", choices=("true", "false"), help="Chỉ dùng với plan; bật/tắt đọc ảnh qua backend")
+    parser.add_argument("--ocr-model", help="Model Gemini dành riêng cho đọc ảnh")
+    parser.add_argument("--ocr-daily-calls", type=int, help="Giới hạn lượt đọc trang/ngày, từ 1 đến 10.000")
+    parser.add_argument("--gemini-parameter", help="Đường dẫn SSM chứa key Gemini đã lưu, không phải API key")
     args = parser.parse_args()
     if args.daily_char_limit is not None and args.action != "plan":
         parser.error("--daily-char-limit chỉ dùng với plan")
+    if args.action != "plan" and any(value is not None for value in (args.gemini_ocr, args.ocr_model, args.ocr_daily_calls, args.gemini_parameter)):
+        parser.error("Các tùy chọn Gemini OCR chỉ dùng với plan")
     try:
         if args.action == "configure":
             configure(args.region)
         elif args.action == "configure-translator":
             configure_translator(args.region)
         elif args.action == "plan":
-            plan(args.daily_char_limit)
+            plan(args.daily_char_limit, gemini_ocr=args.gemini_ocr, ocr_model=args.ocr_model,
+                 ocr_daily_calls=args.ocr_daily_calls, gemini_parameter=args.gemini_parameter)
         else:
             {"apply": apply, "status": status}[args.action]()
     except urllib.error.HTTPError as error:

@@ -77,6 +77,21 @@ class TestHttpRouter(unittest.TestCase):
         self.assertEqual(response["statusCode"], 503)
         self.assertNotIn("PRIVATE", str(printed.call_args_list))
 
+    def test_document_route_keeps_auth_and_only_relaxes_its_body_limit(self):
+        raw = json.dumps({'data': 'a' * (app.MAX_BODY_BYTES + 10), 'mimeType': 'image/png'})
+        event = {'httpMethod': 'POST', 'path': '/documents/recognize', 'body': raw}
+        self.assertEqual(app.handler(event, None)['statusCode'], 401)
+        event['headers'] = {'X-Demo-Token': 'test-secret-token'}
+        for encoded in [False, True]:
+            response = app.handler({**event, 'body': base64.b64encode(raw.encode()).decode() if encoded else raw,
+                                    'isBase64Encoded': encoded}, None)
+            self.assertEqual(response['statusCode'], 200)
+            self.assertEqual(self.dispatched_calls[-1]['payload']['body'], raw)
+        self.assertEqual(app.handler({**event, 'path': '/synthesize'}, None)['statusCode'], 400)
+        with mock.patch.object(app, 'DOCUMENT_BODY_BYTES', 40):
+            self.assertEqual(app.handler(event, None)['statusCode'], 400)
+
+
     def test_missing_demo_token_returns_401(self):
         event = {
             "requestContext": {"http": {"method": "GET"}},

@@ -45,7 +45,7 @@ Repository được tổ chức theo trách nhiệm của năm thành viên. Fro
 |---|---|
 | Chuyển văn bản thành MP3 | Có backend async và giao diện web/app. Một stack/web hiện có đã được chuyển sang Azure và ghi nhận demo ngày 08/11/2026. |
 | Chọn ngôn ngữ, giọng và tốc độ | Lấy từ `/voices`; danh mục Azure được xác minh theo resource/vùng khi chạy `configure`. |
-| Nhập tài liệu và OCR | Có trong Tạo giọng đọc và Dịch và đọc, mỗi trang giữ nội dung riêng. PDF, DOCX, TXT, Markdown và ảnh JPG/PNG/WebP; tối đa 50 MB, 200.000 ký tự và 50.000 từ. OCR tại thiết bị cho ảnh/PDF scan, đã thử local trên Chrome. |
+| Nhập tài liệu và OCR | Có trong Tạo giọng đọc và Dịch và đọc, mỗi trang giữ nội dung riêng. PDF, DOCX, TXT, Markdown và ảnh JPG/PNG/WebP; tối đa 50 MB, 200.000 ký tự và 50.000 từ. Hai chế độ: Gemini qua backend (đọc ảnh, duyệt chữ trước khi dùng) hoặc OCR tại thiết bị. Cần bật Gemini ở backend; không tự fallback. |
 | Tài liệu dài | Chia thành các bản thu tối đa 10.000 ký tự; chọn từng phần hoặc tạo tuần tự, dừng khi gặp lỗi/quota. Chưa kiểm chứng trên Sandbox/điện thoại thật. |
 | Phát và tải âm thanh | MP3 dùng URL có hạn; player web lấy thời gian từ tệp, hỗ trợ tạm dừng, tua, lặp lại và điều chỉnh âm lượng. |
 | Lịch sử bản thu | Có danh sách, phân trang, phát lại và xóa bản thu đã kết thúc. Dữ liệu hiện dùng chung cho scope demo. |
@@ -76,7 +76,7 @@ Nhóm trưởng phối hợp giảng viên chốt môi trường hoặc chấp t
 
 ```mermaid
 flowchart LR
-    DOC[Tài liệu / ảnh] --> IMPORT[Đọc chữ / OCR tại thiết bị]
+    DOC[Tài liệu / ảnh] --> IMPORT[Đọc chữ / chọn chế độ OCR]
     IMPORT --> CLIENT
     CLIENT[Web / App] --> CF[CloudFront]
     CF --> WEB[S3 web]
@@ -84,7 +84,7 @@ flowchart LR
     ROUTER --> SUBMIT[Lambda submit · M5]
     ROUTER --> VOICES[Lambda voices · M2]
     ROUTER --> HISTORY[Lambda history · M3]
-    SUBMIT -.->|Sửa typo / dịch khi bật| GEMINI[Gemini · model đã cấu hình]
+    SUBMIT -.->|Typo / dịch / đọc ảnh khi bật| GEMINI[Gemini · model đã cấu hình]
     SUBMIT -->|Invoke Event| WORKER[Lambda worker · M2]
     WORKER --> AZURE[Azure Speech]
     WORKER --> AUDIO[S3 audio]
@@ -100,7 +100,7 @@ flowchart LR
 3. Worker nhận job, chuyển `PROCESSING`, đọc key từ SSM SecureString, gọi Azure, lưu MP3 vào S3 và cập nhật `DONE` hoặc `FAILED`.
 4. Frontend polling `/jobs/{id}`. Khi hoàn tất, backend cấp URL đọc có hạn để phát hoặc tải; mở lại bản thu sẽ lấy URL mới.
 
-Tài liệu dài được chia ở frontend thành nhiều request theo API này; mỗi phần có job và MP3 riêng. Tệp gốc không tải lên AWS để OCR. Bộ nhận dạng cần mạng để tải mã lõi/dữ liệu ngôn ngữ; người dùng kiểm tra và sửa chữ trước khi tạo giọng. PDF tối đa 200 trang, trong đó không quá 30 trang cần OCR/lần nhập. Chọn **Tạo các phần còn lại · bản gốc** để tạo lần lượt; phần đã thành công được bỏ qua trong phiên màn hình hiện tại. Tải lại trang/mở lại màn hình cần đối chiếu Lịch sử trước khi chạy cả tài liệu lần nữa.
+Tài liệu dài được chia ở frontend thành nhiều request theo API này; mỗi phần có job và MP3 riêng. Chế độ Trên thiết bị không gửi ảnh; Gemini · Trực tuyến gửi từng ảnh/trang scan qua backend tới Gemini, giữ key ở máy chủ. PDF có lớp chữ vẫn đọc cục bộ. Xem [cấu hình đọc ảnh](deployment/local/README.md#đọc-ảnh-bằng-gemini). Bộ nhận dạng cần mạng để tải mã lõi/dữ liệu ngôn ngữ; người dùng kiểm tra và sửa chữ trước khi tạo giọng. PDF tối đa 200 trang, trong đó không quá 30 trang cần OCR/lần nhập. Chọn **Tạo các phần còn lại · bản gốc** để tạo lần lượt; phần đã thành công được bỏ qua trong phiên màn hình hiện tại. Tải lại trang/mở lại màn hình cần đối chiếu Lịch sử trước khi chạy cả tài liệu lần nữa.
 
 Màn **Dịch và đọc** mặc định dùng Azure Translator → Azure Speech, giữ bản gốc và hiển thị bản dịch kèm MP3. Giao diện web và app chỉ dùng Azure; lựa chọn Gemini đã gỡ khỏi màn này ngày 10/11/2026. API `/text/translate` (Gemini) của M5 vẫn còn ở backend, mặc định tắt và không có giao diện gọi. TTS vẫn tối đa 10.000 ký tự/lượt.
 

@@ -1,6 +1,6 @@
 # Quy ước chung — API và dữ liệu TTS
 
-**Cập nhật 2026-11-09.** Giữ tám public paths và các field chính; `/text/translate` là phần mở rộng mặc định tắt trên AWS. Code backend và root SAM đã có, Azure Speech là provider mặc định. Những mục ghi “đề xuất” hoặc “MR” chưa mặc nhiên được triển khai/kiểm chứng; xem code, task và log để xác nhận trạng thái từng phần.
+**Cập nhật 2026-11-09.** Giữ tám public paths cũ và bổ sung `POST /documents/recognize` theo chấp thuận ngày 12/11/2026; giữ các field chính; `/text/translate` là phần mở rộng mặc định tắt trên AWS. Code backend và root SAM đã có, Azure Speech là provider mặc định. Những mục ghi “đề xuất” hoặc “MR” chưa mặc nhiên được triển khai/kiểm chứng; xem code, task và log để xác nhận trạng thái từng phần.
 
 **Cấu hình runtime:** `deployment/samconfig.toml`/`deployment/config/settings.json` dùng `us-east-1`; root SAM đã ghép hosting M4. M2 có thử riêng trên Sandbox; M4 ghi đã cập nhật stack/web hiện có sang Azure. Tạo stack mới và E2E từng phiên cần kiểm riêng. Xem [kiến trúc](ARCHITECTURE.md), [hướng dẫn Azure](./AZURE-SPEECH.md) và [ma trận Sandbox](../backend/m1-minh-ly/reference/SANDBOX-PERMISSIONS.md).
 
@@ -33,7 +33,7 @@ Cần một cơ chế bảo vệ token ở backend và API keys được trườ
 
 CORS một nguồn do M1 chốt cùng M4: exact frontend origin, allow GET/POST/DELETE/OPTIONS; Content-Type, X-Demo-Token, Idempotency-Key và x-amz-content-sha256 khi cần. OPTIONS preflight không token, không gọi nghiệp vụ/provider. Không dùng CORS như cơ chế phân quyền.
 
-CloudFront default → S3 REST origin private (không website endpoint). API behaviors /synthesize, /text/*, /voices, /jobs/*, /history, /history/*, /stats → router; OriginPath rỗng, path/query được giữ; không cache response API kể cả error. Không forward viewer Host tới Lambda; không để SPA fallback biến JSON lỗi thành HTML 200.
+CloudFront default → S3 REST origin private (không website endpoint). API behaviors /synthesize, /text/*, /documents/*, /voices, /jobs/*, /history, /history/*, /stats → router; OriginPath rỗng, path/query được giữ; không cache response API kể cả error. Không forward viewer Host tới Lambda; không để SPA fallback biến JSON lỗi thành HTML 200.
 
 OAC (Origin Access Control) ký request từ CloudFront tới origin, không xác thực người dùng cuối. Lambda OAC candidate dùng AWS_IAM/SigV4, policy giới hạn distribution SourceArn, cả lambda:InvokeFunctionUrl và lambda:InvokeFunction theo yêu cầu hiện hành. POST/PUT cần x-amz-content-sha256 của đúng body bytes. X-Demo-Token tránh xung đột Authorization dùng cho SigV4. M1 kiểm policy; M4 kiểm association/header. Nếu chỉ NONE khả thi, cần security exception cho demo giới hạn, cap ký tự/job/credits và thời điểm tắt; không được duyệt thì giữ mock.
 
@@ -72,19 +72,20 @@ Root SAM đã nối Parameters/Outputs cho các Lambda. Tên parameter là cấu
 
 ### Giới hạn nhập tài liệu ở frontend
 
-Tệp tối đa 50 MiB, văn bản tối đa 200.000 đơn vị UTF-16 và 50.000 từ đếm theo khoảng trắng. Nhật/Trung không có khoảng trắng vẫn bị chặn bởi giới hạn ký tự. PDF tối đa 200 trang, không quá 30 trang cần OCR/lần nhập. OCR chạy trên browser/WebView: Paddle phát hiện dòng + VietOCR cho tiếng Việt, Tesseract.js cho các ngôn ngữ khác. Ngôn ngữ tài liệu mặc định vi-VN, độc lập giọng đọc. Web/app dùng chung worker/WASM/model tự phục vụ từ `/ocr/`; tệp gốc không tải lên backend để OCR. Lỗi đọc/OCR hoặc vượt cap không được trả nội dung thiếu như thành công.
+Tệp tối đa 50 MiB, văn bản tối đa 200.000 đơn vị UTF-16 và 50.000 từ đếm theo khoảng trắng. Nhật/Trung không có khoảng trắng vẫn bị chặn bởi giới hạn ký tự. PDF tối đa 200 trang, không quá 30 trang cần OCR/lần nhập. Ở chế độ **Trên thiết bị**, OCR chạy trên browser/WebView: Paddle phát hiện dòng + VietOCR cho tiếng Việt, Tesseract.js cho các ngôn ngữ khác. Ngôn ngữ tài liệu mặc định vi-VN, độc lập giọng đọc. Web/app dùng chung worker/WASM/model tự phục vụ từ `/ocr/`; tệp gốc không tải lên backend ở chế độ này. **Gemini · Trực tuyến** gửi từng ảnh/trang scan qua backend theo hợp đồng dưới đây; PDF có lớp chữ vẫn đọc cục bộ. Lỗi đọc/OCR hoặc vượt cap không được trả nội dung thiếu như thành công.
 
 Frontend chia văn bản thành nhiều phần tối đa 10.000 đơn vị UTF-16, giữ đủ nội dung và không cắt cặp surrogate; mỗi phần dùng POST `/synthesize` riêng, tạo job/MP3 riêng. Backend nhận tối đa 10.000 ký tự Unicode/request; không gửi tệp 50 MiB qua router. Worker chia nội bộ thành đoạn 1.500 ký tự và ghép thành một MP3 cho mỗi job; file trung gian private dùng lại khi retry và được xóa khi thành công/xóa bản thu. Tạo hàng loạt dùng nội dung gốc đã hiển thị để người dùng duyệt, tuần tự từng phần; Gemini review chỉ trong thao tác tạo phần riêng. Hàng đợi dừng khi lỗi/quota. Thành công trong phiên màn hình được bỏ qua khi tiếp tục; chưa có manifest tài liệu bền vững sau reload.
 
 `DailyCharLimit` mặc định 30.000 ký tự/ngày cho scope demo, độc lập giới hạn tài liệu. Công cụ deploy có `plan --daily-char-limit N` để đưa quota đã thống nhất vào changeset; không tự apply hoặc tăng quota Azure. Các giới hạn này khác quota theo tháng/tốc độ của Azure.
 
-## 4. API tám route
+## 4. API
 
 Mọi route auth như mục 2; OPTIONS là preflight. Response JSON và headers HTTP/CORS do adapter thống nhất.
 
 | Method/path | Owner handler | Request | Success | Errors đặc trưng |
 |---|---|---|---|---|
 | POST /text/correct | M5, MR | text, lang | 200 checked/skipped với original/corrected/changes | 400 input; provider lỗi → 200 skipped |
+| POST /documents/recognize | M5, M1 route/M4 UI | data (base64), mimeType | 200 text/unclear/warnings/provider/model | 400 ảnh; 401 auth; 422 không có chữ; 503 cấu hình/provider/quota |
 | POST /text/translate | M5, MR | text, sourceLang, targetLang, context? | 200 sourceLang/targetLang/translatedText | 400 input; 503 chưa bật/provider/quota |
 | POST /synthesize | M5 | text, lang, voice?, speed?, translateTo?; Idempotency-Key? | 202 job mới; 200 DONE replay có kết quả | 400/409/429/503 |
 | GET /voices | M2 | Không | 200 languages | 503 chưa có registry thật |
@@ -141,9 +142,19 @@ Transport/auth/input JSON hỏng vẫn trả 4xx theo contract; fail-open không
 
 Request gồm `text` không rỗng tối đa 2.000 ký tự UTF-16, `sourceLang`, `targetLang` khác nhau và `context` tùy chọn tối đa 600 ký tự từ phần trước. Response `200` gồm `sourceLang`, `targetLang`, `translatedText` không rỗng (tối đa 6.000 ký tự). Sai input trả `400`; chưa bật trả `503 FEATURE_NOT_ENABLED`; Gemini lỗi, output sai hoặc hết quota riêng trả `503 TRANSLATION_UNAVAILABLE`. Không tạo job, không trừ quota TTS, không tự gọi Azure. Gemini typo và dịch cùng dùng tên SSM parameter/model `gemini-3.6-flash` mặc định, nhưng có cờ bật và counter S3 riêng; request đặt `store=false`.
 
-Từ 10/11/2026, màn **Dịch và đọc** trên web và app chỉ dùng Azure: `/synthesize` với `translateTo` theo hợp đồng phía trên, không gọi Gemini hoặc fallback. API `/text/translate` và logic chia đoạn trong `frontend/shared/translation.ts` vẫn giữ cho M5 nhưng không có giao diện gọi. Tệp gốc/OCR xử lý trên thiết bị. Bản dịch chưa có manifest bền vững sau reload; mỗi phần Gemini dùng một API call trong quota riêng.
+Từ 10/11/2026, màn **Dịch và đọc** trên web và app chỉ dùng Azure: `/synthesize` với `translateTo` theo hợp đồng phía trên, không gọi Gemini hoặc fallback. API `/text/translate` và logic chia đoạn trong `frontend/shared/translation.ts` vẫn giữ cho M5 nhưng không có giao diện gọi. Xử lý ảnh tài liệu theo chế độ OCR đã chọn, độc lập với dịch Azure. Bản dịch chưa có manifest bền vững sau reload; mỗi phần Gemini dùng một API call trong quota riêng.
 
 Lỗi Gemini giữ `503 TRANSLATION_UNAVAILABLE`, thông báo phân biệt xác thực, model, quota, timeout, kết nối và dịch vụ bận. Log chỉ có mã phân loại `GEMINI_*` và HTTP status nếu có; không ghi raw exception/body. Typo lỗi vẫn `200 skipped`. Azure worker giữ `TRANSLATION_REJECTED` cho key/vùng hoặc request bị từ chối; riêng Azure `403001` hết quota trả job FAILED với `TRANSLATION_QUOTA_EXCEEDED`, không tự retry như lỗi tạm thời. Key resource regional cần header đúng vùng, chỉ resource Global mới được bỏ header vùng.
+
+### POST /documents/recognize — đọc ảnh trực tuyến, không tạo MP3
+
+Được người dùng chấp thuận ngày 12/11/2026, bổ sung độc lập tám paths cũ. Request JSON **chỉ** có `data` (base64 thuần, không data URL) và `mimeType` (`image/jpeg`, `image/png`, `image/webp`). Mỗi ảnh sau chuẩn bị tối đa **2 MiB**; router chỉ nới body cho POST này lên **3 MiB**, các route cũ giữ 250 KiB. Header mã demo và SHA-256 body giữ như POST hiện có. Không nhận URL ảnh, bucket, scope hoặc key từ client.
+
+Response `200`: `{"text":"Nội dung tiếng Việt…","unclear":false,"warnings":[],"provider":"gemini","model":"gemini-3.5-flash-lite"}`. Một trang tối đa 20.000 đơn vị UTF-16, 8 cảnh báo tối đa 200 ký tự. Chỉ chép chữ, giữ ngôn ngữ/dấu/tên/số, bảng thành các cột cách bằng tab. Chỗ khó đọc dùng `[không đọc rõ]`; không tự dịch, viết lại hoặc coi chỉ dẫn trong ảnh là lệnh. Không tin tuyệt đối cờ `unclear`; mô hình vẫn có thể sai nên web/app mở màn đối chiếu trước khi thay bản nháp.
+
+Mặc định backend tắt (`GEMINI_OCR_ENABLED=false`). Dùng SSM/key Gemini hiện có, model riêng `GEMINI_OCR_MODEL=gemini-3.5-flash-lite`, `OCR_DAILY_CALL_LIMIT=100` riêng với TTS/typo/dịch/cảm xúc. Một trang = một lượt gọi, timeout 25 giây, không retry/fallback/model thay thế tự động. Counter CAS `ocr-usage/` chỉ giữ số lượt/ngày. Không ghi ảnh/chữ/key vào S3 hoặc log, không tạo job TTS; ảnh đi inline tới Gemini với `store=false`, không dùng Files API. `store=false` không đồng nghĩa nhà cung cấp không lưu dữ liệu theo điều khoản của họ.
+
+Lỗi: `400 INVALID_IMAGE|IMAGE_TOO_LARGE`, `422 NO_TEXT_FOUND`, `503 OCR_NOT_CONFIGURED|GEMINI_AUTH|GEMINI_MODEL|GEMINI_QUOTA|GEMINI_DAILY_LIMIT|GEMINI_TIMEOUT|GEMINI_CONNECTION|GEMINI_BUSY|GEMINI_UNAVAILABLE`. Không trả văn bản thiếu hoặc dùng OCR cục bộ như thành công khi API lỗi. PDF scan gửi tuần tự từng trang, tối đa 30 trang scan; trang sau lỗi giữ toàn bộ bản nháp trước nhập. Hủy dừng trang tiếp theo và bỏ phản hồi muộn; trang đã nhận ở backend vẫn có thể tính quota.
 
 ### GET /voices
 

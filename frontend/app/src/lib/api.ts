@@ -1,6 +1,7 @@
 import { MAX_CHARS, type Correction, type Input, type Job, type Language, type Recording, isRecording } from './model';
 import { sha256Hex } from './sha256';
 import { SubmissionLedger } from '../../../shared/submissions';
+import { checkedRecognition, type DocumentPage, type DocumentResult } from '../../../shared/vision';
 const submissions = new SubmissionLedger();
 submissions.configure({}, async () => { throw new Error('Chưa đọc được mã yêu cầu đã lưu. Hãy mở lại ứng dụng trước khi tạo bản thu.'); });
 export const configureSubmissionStore = submissions.configure.bind(submissions);
@@ -14,6 +15,9 @@ let demoToken = '';
 export const setDemoToken = (token: string) => { demoToken = token.trim(); };
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  init?.signal?.addEventListener('abort', abort, { once: true });
+  if (init?.signal?.aborted) abort();
   const timer = setTimeout(() => controller.abort(), 45000);
   try {
     const response = await fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal,
@@ -27,10 +31,11 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     if (!response.ok) throw new ApiError(body?.error?.message || `Không hoàn tất được yêu cầu (${response.status}).`, body?.error?.code ?? 'INTERNAL');
     return body as T;
   } catch (error) {
+    if (init?.signal?.aborted) throw new Error('Đã hủy đọc tài liệu.');
     if (controller.signal.aborted) throw new Error('Kết nối quá lâu. Bạn hãy thử lại.');
     if (error instanceof TypeError) throw new Error('Không kết nối được máy chủ. Hãy kiểm tra mạng.');
     throw error;
-  } finally { clearTimeout(timer); }
+  } finally { clearTimeout(timer); init?.signal?.removeEventListener('abort', abort); }
 }
 export function checkedJob(value: Job): Job {
   if (!value || typeof value.jobId !== 'string' || !['PENDING', 'PROCESSING', 'DONE', 'FAILED'].includes(value.status) ||
@@ -40,6 +45,10 @@ export function checkedJob(value: Job): Job {
   return value;
 }
 export const api = {
+  async recognizeDocument(page: DocumentPage, signal?: AbortSignal): Promise<DocumentResult> {
+    if (DEMO) throw new Error('Cần kết nối backend và bật Gemini để đọc ảnh.');
+    return checkedRecognition(await request<DocumentResult>('/documents/recognize', { method: 'POST', body: JSON.stringify(page), signal }));
+  },
   async voices(): Promise<Language[]> {
     const data = await request<{ languages: Language[]; limits?: { maxChars?: number }; features?: { translation?: boolean; autoEmotion?: boolean } }>('/voices');
     if (!Array.isArray(data?.languages) || !data.languages.every(l => typeof l?.lang === 'string' && Array.isArray(l.voices) &&

@@ -144,7 +144,7 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
         env.win.setTimeout = originalTimeout;
       }
     });
-    await suite.test("màn dịch dùng Azure, có nhập tài liệu và không còn lựa chọn Gemini", async () => {
+    await suite.test("màn dịch dùng Azure; Gemini chỉ là lựa chọn đọc ảnh", async () => {
       await click(env.mount.querySelector('.sidebar a[href="#translation"]'));
       const fileInput = env.mount.querySelector('input[aria-label="Chọn tài liệu văn bản"]');
       await act(async () => {
@@ -166,7 +166,7 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       await click(env.mount.querySelector('[aria-label="Xóa nội dung văn bản"]'));
       assert.equal(env.mount.querySelector('.imported-file'), null);
       assert.equal(env.mount.querySelector('#translation-mode'), null);
-      assert.doesNotMatch(env.mount.textContent, /Gemini/);
+      assert.match(env.mount.querySelector('.document-privacy-note').textContent, /Gemini/);
       const originalTranslate = api.translate, originalSynthesize = api.synthesize;
       const submitted = [];
       api.translate = async () => { throw new Error('Không được gọi Gemini'); };

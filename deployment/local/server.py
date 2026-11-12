@@ -73,6 +73,7 @@ def settings(path=ENV_FILE, *, host=None, public_url=None):
         'AZURE_SPEECH_KEY': '', 'AZURE_SPEECH_REGION': 'eastasia',
         'AZURE_TRANSLATOR_KEY': '', 'AZURE_TRANSLATOR_REGION': 'global',
         'GEMINI_API_KEY': '', 'GEMINI_MODEL': '', 'GEMINI_TYPO_ENABLED': 'false', 'GEMINI_TRANSLATION_ENABLED': 'false', 'GEMINI_EMOTION_ENABLED': 'false',
+        'GEMINI_OCR_ENABLED': 'false', 'GEMINI_OCR_MODEL': 'gemini-3.5-flash-lite', 'OCR_DAILY_CALL_LIMIT': '100',
         'DEMO_TOKEN': '', 'MAX_CHARS': '10000', 'DAILY_CHAR_LIMIT': '30000',
     }
     if values.keys() - result.keys():
@@ -88,6 +89,12 @@ def settings(path=ENV_FILE, *, host=None, public_url=None):
     for name in gemini_flags:
         if result[name] not in {'true', 'false'}:
             raise ValueError(f'{name} dùng true hoặc false.')
+    if result['GEMINI_OCR_ENABLED'] not in {'true', 'false'}:
+        raise ValueError('GEMINI_OCR_ENABLED dùng true hoặc false.')
+    if result['GEMINI_OCR_ENABLED'] == 'true' and (not result['GEMINI_API_KEY'] or not re.fullmatch(r'gemini-[A-Za-z0-9._-]{1,60}', result['GEMINI_OCR_MODEL'])):
+        raise ValueError('Đọc tài liệu bằng Gemini cần GEMINI_API_KEY và GEMINI_OCR_MODEL ở backend.')
+    if not result['OCR_DAILY_CALL_LIMIT'].isdigit() or not 1 <= int(result['OCR_DAILY_CALL_LIMIT']) <= 10000:
+        raise ValueError('OCR_DAILY_CALL_LIMIT từ 1 đến 10000.')
     if any(result[name] == 'true' for name in gemini_flags):
         if not result['GEMINI_API_KEY'] or not re.fullmatch(r'gemini-[A-Za-z0-9._-]{1,60}', result['GEMINI_MODEL']):
             raise ValueError('Bật Gemini cần GEMINI_API_KEY và GEMINI_MODEL hợp lệ ở backend; Azure vẫn dùng key riêng.')
@@ -190,6 +197,9 @@ class Runtime:
             'TRANSLATOR_API_PARAMETER_NAME': '/local/azure-translator' if self.values['AZURE_TRANSLATOR_KEY'] else '',
             'GEMINI_TYPO_ENABLED': self.values['GEMINI_TYPO_ENABLED'],
             'GEMINI_EMOTION_ENABLED': self.values['GEMINI_EMOTION_ENABLED'],
+            'GEMINI_OCR_ENABLED': self.values['GEMINI_OCR_ENABLED'],
+            'GEMINI_OCR_MODEL': self.values['GEMINI_OCR_MODEL'],
+            'OCR_DAILY_CALL_LIMIT': self.values['OCR_DAILY_CALL_LIMIT'],
             'GEMINI_TRANSLATION_ENABLED': self.values['GEMINI_TRANSLATION_ENABLED'],
             'GEMINI_API_PARAMETER_NAME': '/local/gemini' if self.values['GEMINI_API_KEY'] else '',
             'GEMINI_MODEL': self.values['GEMINI_MODEL'], 'DEMO_TOKEN': self.values['DEMO_TOKEN'],
@@ -376,7 +386,7 @@ def handler_class(runtime):
                 return self.error(400, 'INVALID_INPUT', 'Không hỗ trợ body dạng chunked ở local.')
             try:
                 length = int(self.headers.get('Content-Length', '0'))
-                if length < 0 or length > runtime.router.MAX_BODY_BYTES:
+                if length < 0 or length > runtime.router.body_limit(path.path, self.command):
                     return self.error(400, 'TEXT_TOO_LONG', 'Yêu cầu vượt giới hạn cho phép.')
                 body = self.rfile.read(length).decode('utf-8') if length else None
             except (ValueError, UnicodeError):

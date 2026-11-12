@@ -106,7 +106,7 @@ Chỉ chạy AWS read/mutation, provider live, deploy/reset khi được giao r�
 
 ## 6. Hợp đồng không được làm hỏng
 
-Giữ nguyên bảy public paths hiện có; nhánh M5 `3f87586` bổ sung `/text/translate` cho Gemini, mặc định tắt. Dịch Azure vẫn dùng `translateTo` trong `/synthesize`, không chuyển ngầm sang Gemini:
+Giữ tám public paths hiện có (gồm `/text/translate` từ M5 `3f87586`, mặc định tắt); bổ sung `/documents/recognize` theo ngoại lệ được duyệt ở mục 13. Dịch Azure vẫn dùng `translateTo` trong `/synthesize`, không chuyển ngầm sang Gemini:
 
 | Method | Path | Owner |
 |---|---|---|
@@ -209,3 +209,19 @@ Pull mới trước khi tích hợp; giữ thay đổi quét camera/worker OCR c
 Theo yêu cầu sửa OCR tiếng Việt ngày 12/11/2026: dùng Paddle phát hiện dòng và VietOCR ONNX `ocr-v1` nhận dạng tiếng Việt, chạy worker WASM tại thiết bị. Ngôn ngữ tài liệu mặc định vi-VN và độc lập giọng đọc. Tesseract.js 7 `best_int` giữ cho ngôn ngữ khác. `shared/build-ocr.mjs` sinh static cho cả web/Expo; model khóa kích thước/SHA-256, cache `frontend/.cache/` ngoài Git, không đưa ảnh lên API. Giữ OpenCV.js 4.12, góc giấy từ thuật toán jscanify MIT với đầy đủ giấy phép. Chỉ căn phối cảnh ảnh qua nút camera, không tự cắt ảnh/tables đã scan nền trắng. Dùng chung `frontend/shared/{scan,ocr}.ts`, lazy-load OpenCV, giữ giới hạn pixel và cleanup WASM/canvas/worker. Model float đã có lỗi relaxed SIMD trên runtime hiện tại; không đổi model/lõi chỉ vì tên best. OCR vẫn cần người dùng duyệt chữ và nghiệm thu thiết bị thật, không cam kết nhận dạng chính xác mọi tài liệu.
 
 Người dùng giao thêm sắc thái và nhận diện cảm xúc: cho phép wiring M1/M2/M3/M5 cần thiết, không tự gọi live/deploy. `style` cụ thể chỉ từ catalog thật; `auto` là lựa chọn rõ dùng Gemini hiện có, mặc định tắt (`GEMINI_EMOTION_ENABLED=false`, root `GeminiEmotionEnabled`). Một sắc thái chủ đạo mỗi lượt tạo, phân tích sau dịch, checkpoint `resolvedStyle` bằng CAS trước audio; lỗi không tự đọc trung tính. Giữ quota Gemini riêng có giới hạn và fingerprint tương thích neutral. Không giả cảm xúc cho Hoài My/Nam Minh khi catalog không có styles. Chi tiết contract và cách bật nằm trong CONVENTIONS/AZURE-SPEECH; log tích hợp của M4 chỉ bổ sung vào CHANGELOG frontend, không sửa bằng chứng lịch sử owner khác.
+
+
+## 13. Gemini đọc ảnh — ngoại lệ được người dùng duyệt 12/11/2026
+
+Người dùng đồng ý gửi ảnh/trang scan qua backend tới Gemini để cải thiện đọc tiếng Việt. Quy tắc không gửi ảnh ở mục 10/12 chỉ còn áp dụng cho chế độ **Trên thiết bị**. UI nêu rõ **Gemini · Trực tuyến**, mở màn đối chiếu/sửa chữ trước khi thay bản nháp; không tự dịch hoặc tạo giọng. PDF có lớp chữ vẫn đọc tại thiết bị. Không đưa key/token vào WebView hoặc bundle.
+
+Được thêm `POST /documents/recognize` (M1 route, M5 xử lý, M4 web/app/CloudFront `/documents/*`), giữ tám paths cũ. Dùng Lambda M5 và key Gemini hiện có; không thêm dịch vụ AWS hay provider TTS. Backend mặc định tắt `GeminiOcrEnabled=false`, model riêng `GeminiOcrModel=gemini-3.5-flash-lite`, quota `OcrDailyCallLimit=100`/ngày. Local dùng các biến `GEMINI_OCR_*`, `OCR_DAILY_CALL_LIMIT` trong env backend mẫu, không sửa env thật tự động.
+
+Ảnh inline tối đa 2 MiB, body chỉ route này tối đa 3 MiB; JPG/PNG/WebP, không nhận URL. Timeout 25 giây/một trang, không retry hoặc fallback ngầm. Không lưu ảnh/chữ vào S3/log; counter CAS riêng `ocr-usage/` chỉ giữ số lượt. `store=false` không được diễn đạt thành cam kết Google không giữ dữ liệu. Hủy phải bỏ phản hồi muộn, lỗi trang sau giữ bản nháp cũ; không trả nội dung thiếu như thành công. Hợp đồng và hướng dẫn cấu hình: CONVENTIONS, local README, AZURE-SPEECH. Việc gọi provider thật/triển khai vẫn cần được giao rõ; mock/build không chứng minh chất lượng nhận dạng tài liệu thật.
+
+
+## 14. Model OCR đã thử thật — 12/11/2026
+
+Người dùng yêu cầu tiếp tục thử và cho phép đổi model để OCR hoạt động. `gemini-3.8-flash`/3.6 gặp 503; mặc định OCR chuyển **gemini-3.5-flash-lite**, đã có kết quả thật cho ba loại ảnh tổng hợp qua handler/web. Giữ mức thinking low; thử minimal có lỗi nên không tích hợp. Không thay model của typo/dịch/cảm xúc hoặc thêm fallback tự động.
+
+Được cập nhật hai trường OCR trong env local theo yêu cầu này (`GEMINI_OCR_MODEL`, `GEMINI_OCR_ENABLED`), giữ nguyên key và cấu hình khác. Ngoài thao tác được giao đó vẫn giữ quy tắc không tự sửa env. Kết quả thử được ghi ở CHANGELOG frontend, không nâng thành Sandbox verified: AWS trong RAM bằng Moto, Gemini thật; chưa deploy AWS hoặc kiểm thiết bị native thật. Có lượt quá tải/timeout bên cạnh kết quả đúng, không hứa mọi ảnh đều chính xác hoặc dịch vụ luôn sẵn sàng.

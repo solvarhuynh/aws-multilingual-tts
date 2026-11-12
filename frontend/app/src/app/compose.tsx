@@ -14,6 +14,8 @@ import { useKeyboardState } from '../hooks/useKeyboard';
 import Sheet from '../components/Sheet';
 import VoiceList from '../components/VoiceList';
 import PdfReader from '../components/PdfReader';
+import DocumentReview from '../components/DocumentReview';
+import { DOCUMENT_MODES, type DocumentMode } from '../../../shared/vision';
 import { useStudio } from '../state/Studio';
 import { usePlayback } from '../state/Playback';
 import { api, DEMO } from '../lib/api';
@@ -55,6 +57,10 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const { gutter, usableHeight } = useLayout();
   const [sheet, setSheet] = useState<'voices' | 'settings' | 'source' | 'target' | 'ocr' | null>(null);
   const [documentLang, setDocumentLang] = useState('vi-VN');
+  const [documentMode, setDocumentMode] = useState<DocumentMode>('gemini');
+  const [documentReview, setDocumentReview] = useState<{ text: string; name: string; warning: string; original: string; preview?: string } | null>(null);
+  const importOriginal = useRef('');
+  const importPreview = useRef<string | undefined>(undefined);
   const [importWarning, setImportWarning] = useState('');
   const [viewportHeight, setViewportHeight] = useState(usableHeight);
   const [target, setTarget] = useState('en-US');
@@ -178,6 +184,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     importLock.current = true;
     const id = ++importRevision.current;
     setImporting(true); setError(''); setImportWarning(''); Keyboard.dismiss();
+    importOriginal.current = draft;
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: ['text/plain', 'text/markdown', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png', 'image/webp'], copyToCacheDirectory: true });
       if (id !== importRevision.current) return;
@@ -192,12 +199,12 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       readImported(id, data, asset.name, Platform.OS !== 'web' && IMAGE_FILE.test(asset.name) ? 'jpg' : undefined);
     } catch (reason) { failImport(id, reason); }
   };
-  /** Chụp trang giấy bằng camera rồi nhận dạng chữ trên máy như ảnh scan; ảnh không gửi lên API. */
   const scanPage = async () => {
     if (importLock.current || locked.current) return;
     importLock.current = true;
     const id = ++importRevision.current;
     setImporting(true); setError(''); setImportWarning(''); Keyboard.dismiss();
+    importOriginal.current = draft;
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (id !== importRevision.current) return;
@@ -217,6 +224,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     setPartIndex(0);
     if (/\.(pdf|jpg|jpeg|png|webp)$/i.test(name)) {
       setFileKind(kind); setScan(scan); setImportStage('Đang mở tài liệu…');
+      importPreview.current = kind === 'pdf' ? undefined : `data:image/${kind === 'png' ? 'png' : kind === 'webp' ? 'webp' : 'jpeg'};base64,${data}`;
       setReaderKey(value => value || 1); setPdfData(data);
       pdfTimer.current = setTimeout(() => { if (id !== importRevision.current) return; cancelImport(); setError('Nhận dạng quá lâu. Hãy thử ít trang hơn hoặc ảnh rõ hơn.'); }, 10 * 60 * 1000);
     } else { setDraft(extractDocument(base64Bytes(data), name)); setDocumentName(name); importLock.current = false; setImporting(false); }
@@ -226,6 +234,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     importLock.current = false; setError(reason instanceof Error ? reason.message : 'Không đọc được tài liệu.'); setImporting(false);
   };
   const cancelImport = () => {
+    importPreview.current = undefined;
     importRevision.current++;
     importLock.current = false;
     if (pdfTimer.current) clearTimeout(pdfTimer.current);
@@ -253,8 +262,9 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
           <Action icon="upload" style={styles.importAction} disabled={busy || importing} accessibilityLabel="Tải tài liệu PDF, Word, TXT hoặc ảnh" onPress={() => void importFile()}>{documentName || 'Tải tài liệu'}</Action>
           {Platform.OS !== 'web' && <Action icon="camera" style={styles.importAction} disabled={busy || importing} accessibilityLabel="Quét tài liệu bằng camera" onPress={() => void scanPage()}>Quét tài liệu</Action>}
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Ngôn ngữ tài liệu" disabled={busy || importing} onPress={() => setSheet('ocr')}
-          style={styles.documentLanguage}><Icon name="globe" size={15} color={colors.secondary} /><Label size={13} muted>{OCR_LANGUAGES.find(item => item.value === documentLang)?.label}</Label><Icon name="next" size={12} color={colors.secondary} /></Pressable></>}
+        <Pressable accessibilityRole="button" accessibilityLabel="Cách đọc tài liệu" disabled={busy || importing} onPress={() => setSheet('ocr')}
+          style={styles.documentLanguage}><Icon name="globe" size={15} color={colors.secondary} /><Label size={13} muted>{documentMode === 'gemini' ? 'Gemini · Trực tuyến' : OCR_LANGUAGES.find(item => item.value === documentLang)?.label}</Label><Icon name="next" size={12} color={colors.secondary} /></Pressable>
+        {documentMode === 'gemini' && <Label size={12} muted>Ảnh và trang scan được gửi tới Gemini để đọc chữ.</Label>}</>}
         {importing && <><Label size={13} muted>{importStage || 'Đang đọc tài liệu…'}</Label><Action onPress={cancelImport}>Hủy nhập</Action></>}
         {parts.length > 1 && !keyboard.visible && <View style={{ gap: 10 }}>
           <Label>Phần {selectedPart + 1}/{parts.length} · {number(parts[selectedPart].length)} ký tự</Label>
@@ -290,10 +300,18 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
         </View>
       </View>
     </KeyboardArea>
-    <Sheet title="Ngôn ngữ tài liệu" visible={sheet === 'ocr'} close={() => setSheet(null)}>
-      {OCR_LANGUAGES.map(item => <Action key={item.value} icon={documentLang === item.value ? 'check' : undefined}
+    <Sheet title="Đọc tài liệu" visible={sheet === 'ocr'} close={() => setSheet(null)}>
+      {DOCUMENT_MODES.map(item => <Action key={item.value} icon={documentMode === item.value ? 'check' : undefined}
+        onPress={() => { setDocumentMode(item.value as DocumentMode); if (item.value === 'gemini') setSheet(null); }}>{item.label}</Action>)}
+      {documentMode === 'device' && <Label size={14} weight="600">Ngôn ngữ tài liệu</Label>}
+      {documentMode === 'device' && OCR_LANGUAGES.map(item => <Action key={item.value} icon={documentLang === item.value ? 'check' : undefined}
         onPress={() => { setDocumentLang(item.value); setSheet(null); }}>{item.label}</Action>)}
     </Sheet>
+    {documentReview && <DocumentReview {...documentReview} close={() => { importPreview.current = undefined; setDocumentReview(null); }} onAccept={text => {
+      if (draftRef.current !== documentReview.original) { setError('Bản nháp đã thay đổi. Hãy nhập tài liệu lại.'); setDocumentReview(null); return; }
+      try { setDraft(checkedDocument(text)); setDocumentName(documentReview.name); setImportWarning(documentReview.warning); setPartIndex(0); importPreview.current = undefined; setDocumentReview(null); }
+      catch (error) { setError((error as Error).message); }
+    }} />}
     <Sheet title="Chọn giọng đọc" visible={sheet === 'voices'} close={() => setSheet(null)}>
       <VoiceList onlyLanguage={mode === 'translation' ? target : undefined} selected={mode === 'translation' ? { lang: target, voice: selectedTargetVoice } : undefined}
         onSelect={(_, id) => { if (mode === 'translation') setTargetVoice(id); setSheet(null); }} />
@@ -335,12 +353,17 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       }}>Dùng bản đề xuất</Action>
       <Action onPress={() => { const pending = pendingInput.current; if (pending) void submit(pending.input, token.current, false, pending.index); }}>Giữ bản gốc</Action>
     </Sheet>
-    {readerKey > 0 && <PdfReader key={readerKey} base64={pdfData} kind={fileKind} lang={documentLang} scan={scan} onProgress={setImportStage} onResult={(text, reason, warning) => {
+    {readerKey > 0 && <PdfReader key={readerKey} base64={pdfData} kind={fileKind} lang={documentLang} scan={scan} mode={documentMode} onProgress={setImportStage} onResult={(text, reason, warning) => {
       if (pdfRevision !== importRevision.current) return;
       importRevision.current++; importLock.current = false;
       if (pdfTimer.current) clearTimeout(pdfTimer.current);
       setPdfData(null); setImporting(false);
-      try { if (reason) throw new Error(reason); setDraft(checkedText(text ?? '')); setDocumentName(importName.current); setImportWarning(warning ?? ''); } catch (e) { setReaderKey(0); setError(e instanceof Error ? e.message : 'Chưa đọc được PDF.'); }
+      try {
+        if (reason) throw new Error(reason);
+        const content = checkedText(text ?? '');
+        if (documentMode === 'gemini') setDocumentReview({ text: content, name: importName.current, warning: warning ?? '', original: importOriginal.current, preview: importPreview.current });
+        else { setDraft(content); setDocumentName(importName.current); setImportWarning(warning ?? ''); }
+      } catch (e) { setReaderKey(0); setError(e instanceof Error ? e.message : 'Chưa đọc được PDF.'); }
     }} />}
   </>;
 }

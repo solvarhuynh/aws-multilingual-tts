@@ -57,6 +57,18 @@ Parameters:
     Type: String
     Default: 'false'
     AllowedValues: ['true', 'false']
+  GeminiOcrEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  GeminiOcrModel:
+    Type: String
+    Default: gemini-3.5-flash-lite
+  OcrDailyCallLimit:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    MaxValue: 10000
   GeminiApiParameterName:
     Type: String
     Default: ''
@@ -131,6 +143,9 @@ Resources:
           AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
           TRANSLATOR_API_PARAMETER_NAME: !Ref TranslatorApiParameterName
           AZURE_TRANSLATOR_REGION: !Ref AzureTranslatorRegion
+          GEMINI_OCR_ENABLED: !Ref GeminiOcrEnabled
+          GEMINI_OCR_MODEL: !Ref GeminiOcrModel
+          OCR_DAILY_CALL_LIMIT: !Ref OcrDailyCallLimit
           GEMINI_TYPO_ENABLED: !Ref GeminiTypoEnabled
           GEMINI_EMOTION_ENABLED: !Ref GeminiEmotionEnabled
           GEMINI_API_PARAMETER_NAME: !Ref GeminiApiParameterName

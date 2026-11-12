@@ -8,6 +8,11 @@ import sys
 
 
 MAX_BODY_BYTES = int(os.environ.get("MAX_BODY_BYTES", str(250 * 1024)))
+DOCUMENT_BODY_BYTES = 3 * 1024 * 1024
+
+
+def body_limit(path, method):
+    return DOCUMENT_BODY_BYTES if method == "POST" and path.rstrip("/") == "/documents/recognize" else MAX_BODY_BYTES
 
 
 SUBMIT_FUNCTION_NAME = os.environ.get("SUBMIT_FUNCTION_NAME", "tts-submit-dev")
@@ -24,6 +29,7 @@ ROUTE_PATTERNS = [
     for path, method, target, name in [
         (r"^/text/correct$", "POST", SUBMIT_FUNCTION_NAME, "text_correct"),
         (r"^/text/translate$", "POST", SUBMIT_FUNCTION_NAME, "text_translate"),
+        (r"^/documents/recognize$", "POST", SUBMIT_FUNCTION_NAME, "document_ocr"),
         (r"^/synthesize$", "POST", SUBMIT_FUNCTION_NAME, "synthesize"),
         (r"^/voices$", "GET", VOICES_FUNCTION_NAME, "voices"),
         (r"^/jobs/(?P<id>[a-zA-Z0-9_\-]+)$", "GET", HISTORY_FUNCTION_NAME, "get_job"),
@@ -146,20 +152,21 @@ def handler(event, context):
         }
 
     raw_body = event.get("body")
+    limit = body_limit(path, method)
     body_str = None
     if raw_body is not None:
 
         if not isinstance(raw_body, str):
             return error_response(400, "INVALID_INPUT", "Nội dung yêu cầu không hợp lệ.")
         raw_body_len = len(raw_body.encode("utf-8"))
-        if raw_body_len > MAX_BODY_BYTES:
-            log_json(event="body_too_large", size=raw_body_len, limit=MAX_BODY_BYTES)
+        if raw_body_len > (limit * 4 // 3 + 4 if event.get("isBase64Encoded", False) else limit):
+            log_json(event="body_too_large", size=raw_body_len, limit=limit)
             return error_response(400, "TEXT_TOO_LONG", "Kích thước yêu cầu vượt quá giới hạn cho phép.")
 
         if event.get("isBase64Encoded", False):
             try:
                 decoded_bytes = base64.b64decode(raw_body, validate=True)
-                if len(decoded_bytes) > MAX_BODY_BYTES:
+                if len(decoded_bytes) > limit:
                     return error_response(400, "TEXT_TOO_LONG", "Kích thước yêu cầu vượt quá giới hạn cho phép.")
                 body_str = decoded_bytes.decode("utf-8")
             except (ValueError, UnicodeDecodeError):

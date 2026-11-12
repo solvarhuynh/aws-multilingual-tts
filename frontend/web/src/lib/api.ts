@@ -1,6 +1,7 @@
 import { demoLanguages, MAX_CHARS, readStored, storeValue } from "./data";
 import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, Stats, TextCorrection, Translation } from "./types";
 import { SubmissionLedger } from '../../../shared/submissions';
+import { checkedRecognition, type DocumentPage, type DocumentResult } from '../../../shared/vision';
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
 export const DEMO = !API_BASE;
@@ -96,6 +97,9 @@ function checkedJob(value: unknown): Job {
 
 async function request<T>(path: string, init?: RequestInit, timeout = 45000, base = API_BASE): Promise<T> {
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  init?.signal?.addEventListener('abort', abort, { once: true });
+  if (init?.signal?.aborted) abort();
   const timer = window.setTimeout(() => controller.abort(), timeout);
   try {
     const token = base === API_BASE ? getDemoToken() : '';
@@ -123,12 +127,14 @@ async function request<T>(path: string, init?: RequestInit, timeout = 45000, bas
     }
     return body as T;
   } catch (error) {
+    if (init?.signal?.aborted) throw new ApiError('Đã hủy đọc tài liệu.', 'CANCELLED');
     if (error instanceof ApiError) throw error;
     if (error instanceof DOMException && error.name === "AbortError")
       throw new ApiError("Kết nối mất quá nhiều thời gian. Vui lòng thử lại.", "TIMEOUT");
     throw new ApiError("Không kết nối được máy chủ. Kiểm tra kết nối mạng và thử lại.", "NETWORK");
   } finally {
     window.clearTimeout(timer);
+    init?.signal?.removeEventListener('abort', abort);
   }
 }
 
@@ -138,6 +144,10 @@ function getDemoHistory(): HistoryItem[] {
   return value.filter(isHistoryItem);
 }
 export const api = {
+  async recognizeDocument(page: DocumentPage, signal?: AbortSignal): Promise<DocumentResult> {
+    if (DEMO) throw new ApiError('Cần kết nối backend và bật Gemini để đọc ảnh.', 'OCR_NOT_CONFIGURED');
+    return checkedRecognition(await request<DocumentResult>('/documents/recognize', { method: 'POST', body: JSON.stringify(page), signal }));
+  },
   async correct(text: string, lang: string): Promise<TextCorrection> {
     if (!AI_BASE) return { status: "skipped", language: lang, hasTypos: false, originalText: text, correctedText: text, changes: [] };
     const result = await request<TextCorrection>("/text/correct", {

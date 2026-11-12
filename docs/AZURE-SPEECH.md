@@ -838,3 +838,41 @@ Tính năng này mở rộng Azure hiện có, không chuyển TTS sang ElevenLa
 5. Nghiệm thu câu ngắn ở Tự nhiên/Vui vẻ/Buồn và tự động; kiểm `style`/`resolvedStyle` của job, nghe và nhận xét thực tế. Thử giọng không hỗ trợ (400 trước tạo job), cấu hình thiếu (503), Gemini timeout/quota (FAILED không giả thành công), retry giữ sắc thái đã ghi. Dùng hạn mức đã chốt và không bật tự động cho demo công khai khi chưa nghiệm thu.
 
 Trạng thái bàn giao: có code và kiểm thử mock; chưa gọi Gemini/Azure để nghe cảm xúc, chưa xác minh trên Sandbox hoặc điện thoại thật.
+
+
+## Đọc ảnh bằng Gemini trên Sandbox
+
+Phần này dành cho người được giao thao tác lab; source mới chưa được triển khai chỉ vì đã build local. TTS/dịch vẫn Azure. Chế độ **Gemini · Trực tuyến** dùng Gemini đọc ảnh qua backend, khác tính năng dịch/cảm xúc. Cấu hình local xem [local README](../deployment/local/README.md#đọc-ảnh-bằng-gemini).
+
+1. Trong Lab/CloudShell, cập nhật source theo quy trình Git của nhóm, giữ bản sao thay đổi local trước khi pull. Kiểm đúng commit và vùng AWS `us-east-1`. Không mang credentials Academy sang máy cá nhân.
+2. Mở **Systems Manager → Parameter Store**. Dùng SecureString Gemini đã có; nếu chưa có, **Create parameter**: tên ví dụ `/tts/dev/gemini`, type **SecureString**, khóa mặc định, value là key Google AI Studio. Không chọn SecureString đang chứa Speech/Translator và không đưa key vào lệnh CLI/history. Chỉ thực hiện khi LabRole có quyền tương ứng đã kiểm. Ghi lại **tên parameter**, không ghi value.
+3. Root stack dùng source/template mới. Trong CloudShell từ gốc repo, chạy (thay tên parameter nếu nhóm đặt tên khác):
+
+```bash
+python3 deployment/scripts/azure.py plan --gemini-ocr true --ocr-model gemini-3.5-flash-lite --ocr-daily-calls 100 --gemini-parameter /tts/dev/gemini
+```
+
+`plan` chỉ tạo changeset. Nó giữ token/CORS và các parameter cũ; không tăng quota TTS hoặc bật Gemini typo/dịch/cảm xúc. Kiểm changeset: cập nhật router/submit/hosting, không xóa hoặc thay thế tài nguyên. Model phải được key/quota dự án hỗ trợ; không tự fallback sang model khác. Chỉ khi đã xem và đồng ý với changeset mới chạy:
+
+```bash
+python3 deployment/scripts/azure.py apply
+python3 deployment/scripts/azure.py status
+bash deployment/scripts/sandbox.sh web
+```
+
+4. `apply` cập nhật backend và CloudFront behavior **`/documents/*`** không cache. `sandbox.sh web` build/upload cả web và bộ đọc static mới; không chỉ upload JS lẻ. Chờ CloudFront cập nhật, tải lại web. App Expo Go vẫn chạy trên điện thoại, dùng cùng domain CloudFront làm API base; cập nhật bundle app và mở lại nếu báo bộ đọc cũ. Nhập mã demo riêng trong Cài đặt web/app. Env local không cấu hình stack AWS.
+5. Trong **Tạo giọng đọc** chọn **Gemini · Trực tuyến**, nhập một ảnh tiếng Việt rõ. Chờ **Kiểm tra tài liệu**; bản nháp cũ vẫn còn. So tên, số, dấu, dòng/cột với ảnh rồi sửa/nhấn **Dùng nội dung**. Bấm **Hủy** phải giữ bản nháp. Thử PDF scan hai trang, một trang chữ + một trang scan; chỉ trang scan gọi Gemini. Sau khi duyệt, tạo MP3 bằng giọng Azure như trước.
+6. Thử ảnh không chữ, quota và hủy đang đọc; không được nhập nội dung thiếu hoặc chuyển ngầm sang OCR cũ. Kiểm cả web sáng/tối/màn hẹp và app iOS/Android thật. Báo cáo riêng nhận dạng đúng/sai và thiết bị; build/mock không chứng minh độ chính xác ảnh thật.
+
+Giới hạn: **2 MiB/ảnh sau chuẩn bị**, **3 MiB body JSON**, **20.000 ký tự/trang**, timeout **25 giây/trang**, tối đa **100 lượt/ngày** theo cấu hình chung scope demo; provider có quota riêng. Không tự retry nên nút thử lại sẽ là một lượt mới. Nếu một trang PDF lỗi, cả lần nhập giữ bản nháp trước đó. Hủy không hoàn quota trang đã gửi. Bộ nhập vẫn có giới hạn 50 MiB/tệp/30 trang scan, không upload nguyên PDF 50 MiB qua router.
+
+| Lỗi | Cần kiểm |
+|---|---|
+| `OCR_NOT_CONFIGURED` | `GeminiOcrEnabled=true`, tên SSM đúng, stack đã apply; không sửa env Lambda bằng tay. |
+| `GEMINI_AUTH` / `GEMINI_MODEL` | Key/quyền/model của dự án Google; không dùng key Speech/Translator. |
+| `GEMINI_QUOTA` / `GEMINI_DAILY_LIMIT` | Quota Google hoặc counter riêng của ứng dụng; chờ hạn mức, không bấm lặp. |
+| `GEMINI_BUSY` / HTTP 503 | Model đang quá tải; chờ rồi thử lại có chủ đích. Không tự đổi model hoặc coi đây là đã đọc được ảnh. |
+| `GEMINI_TIMEOUT` / `GEMINI_CONNECTION` | Kết nối HTTPS của backend và ảnh quá dày chữ; chụp từng phần hoặc thử lại khi mạng ổn định. |
+| HTML/404 hoặc bộ đọc cũ | Hosting behavior `/documents/*`, bundle static và cache CloudFront; cập nhật cả backend lẫn web/app. |
+
+Để tắt qua changeset: `python3 deployment/scripts/azure.py plan --gemini-ocr false`, review rồi apply khi được giao. Backend không lưu ảnh/chữ vào S3/log; chỉ counter `ocr-usage/`. Google nhận ảnh inline; `store=false` tắt lưu trạng thái interaction nhưng không thay điều khoản dữ liệu của Google. Không cam kết mô hình không sai hoặc gọi đây là OCR chính xác nhất.

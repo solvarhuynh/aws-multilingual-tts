@@ -33,6 +33,9 @@ test('Giữ định dạng API và gửi nội dung đúng một lần', async (
   assert.equal(calls[0].url, '/synthesize');
   assert.deepEqual(JSON.parse(calls[0].body!), input);
 });
+test('Chế độ chưa nối backend không giả thành công khi đọc ảnh', async () => {
+  await assert.rejects(api.recognizeDocument({ data: 'fixture', mimeType: 'image/png' }), /Cần kết nối backend/);
+});
 test('Không dùng kết quả kiểm tra nhầm nội dung', async () => {
   globalThis.fetch = async () => new Response(JSON.stringify({ originalText: 'Văn bản khác', correctedText: 'Sai', hasTypos: true }));
   assert.equal(await api.correct('Xin chào.', 'vi-VN'), null);

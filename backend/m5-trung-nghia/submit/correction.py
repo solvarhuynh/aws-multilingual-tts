@@ -138,18 +138,21 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 _opener = urllib.request.build_opener(_NoRedirect)
 
 
-def _interaction(prompt, cfg, key, schema, max_output_tokens=2048):
+def _interaction(prompt, cfg, key, schema, max_output_tokens=2048, *, max_response_bytes=MAX_RESPONSE_BYTES):
     generation = {"max_output_tokens": max_output_tokens}
-    if cfg["model"].startswith("gemini-3."):
+    if cfg["model"].startswith(("gemini-3.", "gemini-4-")):
         generation["thinking_level"] = "low"
     payload = {"model": cfg["model"], "input": prompt, "store": False,
                "generation_config": generation,
                "response_format": {"type": "text", "mime_type": "application/json", "schema": schema}}
+    headers = {"Content-Type": "application/json", "x-goog-api-key": key}
+    if cfg.get("revision"):
+        headers["Api-Revision"] = cfg["revision"]
     request = urllib.request.Request(API_URL, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-                                     headers={"Content-Type": "application/json", "x-goog-api-key": key}, method="POST")
+                                     headers=headers, method="POST")
     with _opener.open(request, timeout=cfg["timeout"]) as response:
-        raw = response.read(MAX_RESPONSE_BYTES + 1)
-    if len(raw) > MAX_RESPONSE_BYTES:
+        raw = response.read(max_response_bytes + 1)
+    if len(raw) > max_response_bytes:
         raise UnsafeSuggestion("Response too large")
     interaction = json.loads(raw)
     if interaction.get("status") != "completed":

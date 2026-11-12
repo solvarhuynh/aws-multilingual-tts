@@ -6,6 +6,7 @@ import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, Text
 import { MAX_DOCUMENT_CHARS, checkedDocument, splitDocument } from '../../../shared/documents';
 import { HISTORY_SYNC_INTERVAL, mergeHistoryPage } from '../../../shared/history';
 import { expressionOptions } from '../../../shared/expression';
+import { readDocumentPage, type DocumentMode } from '../../../shared/vision';
 
 type Review = { input: SynthesizeInput; correction: TextCorrection; documentText: string; partIndex: number; partLimit?: number };
 type Notify = (message: string, error?: boolean) => void;
@@ -196,6 +197,8 @@ export function useEditor(
   const [readingFile, setReadingFile] = useState(false);
   const [importProgress, setImportProgress] = useState('');
   const [documentLang, setDocumentLang] = useState('vi-VN');
+  const [documentMode, setDocumentMode] = useState<DocumentMode>('gemini');
+  const [documentReview, setDocumentReview] = useState<{ text: string; file: File; warning: string; revision: number } | null>(null);
   const [importWarning, setImportWarning] = useState('');
   const importController = useRef<AbortController | null>(null);
   const partLimit = languages.find(item => item.lang === (translateTo || lang))?.maxChars;
@@ -273,6 +276,7 @@ export function useEditor(
   }, [text, lang, voice, speed, style, translateTo, partLimit]);
 
   async function generate() {
+    if (documentReview) return;
     if (submitLock.current || fileLock.current || reviewRef.current || batchLock.current) return;
     try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
     const part = parts[selectedPart] ?? '';
@@ -375,6 +379,7 @@ export function useEditor(
   }
 
   async function generateAll() {
+    if (documentReview) return;
     if (batchLock.current || submitLock.current || fileLock.current || reviewRef.current) return;
     try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
     if (translateTo && language?.translationEnabled === false) { setError("Chưa kết nối Azure Translator. Nhờ quản trị viên cấu hình dịch vụ dịch."); return; }
@@ -404,14 +409,21 @@ export function useEditor(
     const controller = new AbortController();
     importController.current = controller;
     setImportProgress('Đang mở tài liệu…');
-    let warning = '';
+    const warnings = new Set<string>();
+    const before = revision.current;
     try {
-      const content = await extractDocument(file, { lang: documentLang, scan, signal: controller.signal,
-        onWarning: message => { warning = message; },
-        onProgress: message => { if (mounted.current) setImportProgress(message); } });
+      const options = { lang: documentLang, scan: documentMode === 'device' && scan, signal: controller.signal,
+        onWarning: (message: string) => { warnings.add(message); },
+        onProgress: (message: string) => { if (mounted.current) setImportProgress(message); } };
+      const content = await extractDocument(file, { ...options,
+        ...(documentMode === 'gemini' ? { recognize: (canvas: HTMLCanvasElement) => readDocumentPage(canvas, api.recognizeDocument, options) } : {}) });
       if (!mounted.current) return;
+      if (documentMode === 'gemini' && /\.(pdf|png|jpe?g|webp)$/i.test(file.name)) {
+        setDocumentReview({ text: content, file, warning: [...warnings].join(' '), revision: before });
+        return;
+      }
       updateText(content);
-      setImportWarning(warning);
+      setImportWarning([...warnings].join(' '));
       setFileName(file.name);
       setPartIndex(0);
       notify(`Đã nhập ${file.name}.`);
@@ -426,6 +438,17 @@ export function useEditor(
   }
 
   return {
+    documentMode, setDocumentMode, documentReview,
+    closeDocumentReview: () => setDocumentReview(null),
+    acceptDocument: (content: string) => {
+      if (!documentReview) return;
+      if (revision.current !== documentReview.revision) { setError('Bản nháp đã thay đổi. Hãy nhập tài liệu lại để tránh ghi đè.'); setDocumentReview(null); return; }
+      try {
+        const checked = checkedDocument(content);
+        updateText(checked); setFileName(documentReview.file.name); setImportWarning(documentReview.warning);
+        setPartIndex(0); setDocumentReview(null); editorRef.current?.focus();
+      } catch (error) { setError((error as Error).message); }
+    },
     text,
     updateText,
     useSample,

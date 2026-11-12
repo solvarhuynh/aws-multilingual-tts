@@ -163,7 +163,7 @@ npm --prefix frontend/web run dev
 
 Mở `http://127.0.0.1:5173`. Vào **Cài đặt → Mã truy cập**, nhập giá trị `DEMO_TOKEN` trong env backend (mẫu local là `local-demo`). Không dùng mã của stack Sandbox cũ.
 
-Thử câu ngắn → 202 → DONE → phát/pause/tua/tải MP3 → mở/xóa Lịch sử. Dịch và đọc chọn nguồn/đích khác nhau, giọng thuộc đích; kiểm bản dịch riêng và bản gốc còn nguyên. OCR ảnh/PDF chạy trong trình duyệt, không cần key OCR; tài liệu gốc không gửi lên Azure/AWS.
+Thử câu ngắn → 202 → DONE → phát/pause/tua/tải MP3 → mở/xóa Lịch sử. Dịch và đọc chọn nguồn/đích khác nhau, giọng thuộc đích; kiểm bản dịch riêng và bản gốc còn nguyên. OCR Trên thiết bị không cần key và không gửi ảnh; Gemini · Trực tuyến dùng key backend và màn duyệt chữ theo hướng dẫn dưới đây.
 
 Muốn chỉ xem UI và nghe giọng thiết bị, để `VITE_API_BASE_URL=` trống rồi khởi động lại Vite. Chế độ đó không tạo MP3 hoặc dịch thật. Không tự chuyển sang nghe thiết bị khi API local báo lỗi.
 
@@ -189,7 +189,7 @@ Khởi động lại Metro (`npm --prefix frontend/app start -- --clear`), quét
 
 Job/MP3/quota/idempotency local nằm trong RAM, **mất khi tắt API**; catalog và key env vẫn ở máy. Tránh tắt khi job đang xử lý rồi gửi lại liên tục. Key/quota Azure không reset theo runtime local.
 
-Local giữ bảy API nền và phần mở rộng `/text/translate` của M5; thêm `/health` và `/media/{id}` chỉ trong dev server. Link media được ký, có hạn và hỗ trợ HTTP Range để tua; không dùng presigned URL AWS giả. Worker chạy tuần tự, thử lại tối đa một lần; đây không phải mô phỏng đầy đủ Lambda/IAM/OAC hoặc bằng chứng AWS đã đạt.
+Local giữ bảy API nền, phần mở rộng `/text/translate` và `/documents/recognize` của M5; thêm `/health` và `/media/{id}` chỉ trong dev server. Link media được ký, có hạn và hỗ trợ HTTP Range để tua; không dùng presigned URL AWS giả. Worker chạy tuần tự, thử lại tối đa một lần; đây không phải mô phỏng đầy đủ Lambda/IAM/OAC hoặc bằng chứng AWS đã đạt.
 
 ```bash
 .venv/bin/python -m unittest discover -s backend/m1-minh-ly/tests
@@ -205,3 +205,21 @@ Kiểm thử runtime dùng provider giả, không tiêu quota Azure. Để kiể
 Sắc thái Azure cụ thể không cần thêm key. Lấy lại catalog bằng `npm run dev -- --refresh-voices` sau khi cập nhật code, rồi chọn giọng có hỗ trợ. Nhận diện tự động dùng cờ backend `GEMINI_EMOTION_ENABLED=true` với key/model Gemini hiện có; mặc định tắt, cần mở lại runtime sau khi đổi env. Không đưa key vào web/app. Quy trình và giới hạn: [Giọng đọc có cảm xúc](../../docs/AZURE-SPEECH.md#giọng-đọc-có-cảm-xúc).
 
 Làm theo [AZURE-SPEECH.md](../../docs/AZURE-SPEECH.md) trong CloudShell: `configure`, `configure-translator`, `plan`, review, `apply`, `sandbox.sh web`. Không upload/copy `.env.local` lên AWS. Lambda tiếp tục đọc key từ SSM SecureString, không dùng key plaintext của máy. Script upload build với domain CloudFront và ghi đè API base local; không upload một bản build `/api` thủ công rồi coi là đã nối backend Sandbox.
+
+## Đọc ảnh bằng Gemini
+
+Người dùng đã đồng ý bổ sung chế độ gửi ảnh qua backend ngày 12/11/2026. Giữ OCR cục bộ ở lựa chọn **Trên thiết bị**. Trong `deployment/local/.env.local`, dùng lại `GEMINI_API_KEY` đã có (hoặc dán key Google AI Studio vào dòng đó), thêm:
+
+```dotenv
+GEMINI_OCR_ENABLED=true
+GEMINI_OCR_MODEL=gemini-3.5-flash-lite
+OCR_DAILY_CALL_LIMIT=100
+```
+
+Không thay `GEMINI_MODEL` của typo/dịch/cảm xúc. OCR không cần bật ba cờ tính năng đó và không đổi Azure Speech/Translator. Mặc định file mẫu tắt OCR để không gọi provider ngoài ý muốn. Key thật không được commit hoặc đưa vào `VITE_*`/`EXPO_PUBLIC_*`. Không cần key/resource OCR khác.
+
+Ctrl+C tiến trình dev rồi chạy `npm run dev` từ gốc repo; nhập cùng mã demo của backend vào Cài đặt web/app. Chọn **Gemini · Trực tuyến** ở trang soạn thảo → nhập/chụp ảnh → **Kiểm tra tài liệu** → đối chiếu dấu, tên riêng, số, sửa nếu cần → **Dùng nội dung**. PDF có lớp chữ không gọi Gemini; trang scan gửi từng trang. Thử ảnh rõ trước, rồi bảng/ảnh nghiêng; không thể khôi phục chắc chắn chữ đã mất nét.
+
+Mỗi ảnh sau chuẩn bị tối đa 2 MiB, một trang tối đa 20.000 ký tự; bộ nhập vẫn giữ 50 MiB/tệp, 200 trang PDF/30 trang scan và 200.000 ký tự toàn tài liệu. Không cắt thiếu trang để báo thành công. Mỗi trang dùng một lượt quota riêng; lỗi/hủy không tự hoàn lượt đã dùng. Key/model/quota/timeout báo rõ, không chuyển ngầm sang OCR cũ. Nếu `OCR_NOT_CONFIGURED`, kiểm cờ/env và khởi động lại API; app dùng AWS thì phải bật trên stack AWS, không dùng env local.
+
+Backend không lưu ảnh/chữ OCR vào S3/log hoặc tạo TTS job. Ảnh được gửi tới Gemini; `store=false` chỉ tắt lưu trạng thái interaction, không thay chính sách dữ liệu của Google. Xem [model](https://aistudio.google.com/docs/models/gemini-3.5-flash-lite), [đọc ảnh](https://aistudio.google.com/docs/image-understanding) và [lưu trạng thái](https://aistudio.google.com/docs/interactions-overview#data-storage-retention). Không tự gọi model khác khi model cấu hình không được key hỗ trợ. Mặc định OCR đã chuyển sang `gemini-3.5-flash-lite` sau các lượt 3.8/3.6 quá tải; ba loại ảnh tổng hợp có kết quả đọc đúng được ghi trong [CHANGELOG M4](../../frontend/CHANGELOG.md). Dịch vụ vẫn có thể quá tải/timeout, vì vậy cần đối chiếu chữ trước khi dùng; không tự đổi model hoặc gọi lại vô hạn.

@@ -8,7 +8,7 @@ type Page<V extends { width: number; height: number }> = {
   cleanup(): void;
 };
 type Pdf<V extends { width: number; height: number }> = { numPages: number; getPage(page: number): Promise<Page<V>> };
-export type ImportOptions = { lang?: string; scan?: boolean; ocrBase?: string; signal?: AbortSignal; onProgress?: (message: string) => void; onWarning?: (message: string) => void };
+export type ImportOptions = { lang?: string; scan?: boolean; ocrBase?: string; signal?: AbortSignal; recognize?: Recognize; onProgress?: (message: string) => void; onWarning?: (message: string) => void };
 export type Recognize = (image: HTMLCanvasElement) => Promise<string>;
 
 export function checkCancelled(options: ImportOptions) {

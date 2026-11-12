@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
+import { createHash } from 'node:crypto';
 
 const original = globalThis.fetch;
 after(() => { globalThis.fetch = original; delete process.env.EXPO_PUBLIC_API_BASE_URL; });
@@ -32,4 +33,23 @@ test('App dùng cùng API HTTPS cho giọng, tạo/phát, lịch sử và xóa; 
   globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 'UNAUTHORIZED', message: 'Mã truy cập chưa đúng.' } }), { status: 401 });
   await assert.rejects(api.voices(), /Mã truy cập chưa đúng/);
   setDemoToken('');
+});
+
+test('Đọc ảnh dùng API chung và mã demo, không gọi Gemini trực tiếp hoặc tạo MP3', async () => {
+  const { api, setDemoToken } = await import('../src/lib/api');
+  const calls: string[] = [];
+  const page = { data: 'fixture-image-base64', mimeType: 'image/jpeg' };
+  setDemoToken('ocr-test');
+  globalThis.fetch = async (url, init) => {
+    calls.push(String(url));
+    assert.equal((init?.headers as Record<string, string>)['X-Demo-Token'], 'ocr-test');
+    assert.equal((init?.headers as Record<string, string>)['x-amz-content-sha256'], createHash('sha256').update(JSON.stringify(page)).digest('hex'));
+    assert.deepEqual(JSON.parse(String(init?.body)), page);
+    return new Response(JSON.stringify({ text: 'Chữ tiếng Việt', unclear: false, warnings: [], provider: 'gemini', model: 'gemini-test' }));
+  };
+  assert.equal((await api.recognizeDocument(page)).text, 'Chữ tiếng Việt');
+  assert.deepEqual(calls, ['https://tts.test/documents/recognize']);
+  setDemoToken('');
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 'GEMINI_QUOTA', message: 'Đã hết lượt đọc.' } }), { status: 503 });
+  await assert.rejects(api.recognizeDocument(page), /Đã hết lượt đọc/);
 });

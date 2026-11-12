@@ -89,6 +89,12 @@ Resources:
           Compress: true
           CachePolicyId: !FindInMap [CloudFrontPolicy, Ids, CachingOptimized]
         CacheBehaviors:
+          - PathPattern: /documents/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: !FindInMap [CloudFrontPolicy, Ids, CachingDisabled]
+            OriginRequestPolicyId: !FindInMap [CloudFrontPolicy, Ids, AllViewerExceptHostHeader]
           - PathPattern: /synthesize
             TargetOriginId: api
             ViewerProtocolPolicy: https-only

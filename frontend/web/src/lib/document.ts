@@ -14,6 +14,7 @@ export async function extractDocument(file: File, options: ImportOptions = {}): 
   options.signal?.addEventListener('abort', cancel);
   const recognize = async (image: HTMLCanvasElement) => {
     checkCancelled(options);
+    if (options.recognize) return options.recognize(image);
     if ((options.lang ?? 'vi-VN').startsWith('vi')) {
       vietnamese ??= createVietnameseReader(options);
       return vietnamese.recognize(image);

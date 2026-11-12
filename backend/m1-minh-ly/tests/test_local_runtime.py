@@ -68,6 +68,17 @@ class LocalSettingsTest(unittest.TestCase):
             self.assertEqual(cache['vi-VN']['voices'][0]['id'],'vi-VN-HoaiMyNeural')
             self.assertNotIn('test-key',json.dumps(cache))
 
+    def test_ocr_has_explicit_flag_and_separate_model_without_old_gemini_features(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / '.env.local'
+            path.write_text('DEMO_TOKEN=test\nGEMINI_API_KEY=fixture-only\nGEMINI_OCR_ENABLED=true\n')
+            values = local.settings(path)
+            self.assertEqual(values['GEMINI_OCR_MODEL'], 'gemini-3.5-flash-lite')
+            self.assertEqual(values['GEMINI_TRANSLATION_ENABLED'], 'false')
+            for setting in ['GEMINI_OCR_ENABLED=maybe', 'GEMINI_OCR_MODEL=invalid', 'OCR_DAILY_CALL_LIMIT=0']:
+                path.write_text('DEMO_TOKEN=test\nGEMINI_API_KEY=fixture-only\nGEMINI_OCR_ENABLED=true\n' + setting + '\n')
+                with self.subTest(setting=setting), self.assertRaises(ValueError): local.settings(path)
+
 
 @unittest.skipUnless(AVAILABLE, 'Cài deployment/local/requirements.txt để kiểm local runtime')
 class LocalFlowTest(unittest.TestCase):
@@ -124,6 +135,21 @@ class LocalFlowTest(unittest.TestCase):
         self.assertNotIn('test-speech-only',json.dumps(health)+json.dumps(catalog))
         self.assertEqual(self.request('/.env.local')[0],404)
         self.assertEqual(self.request('/voices',headers={'Origin':'https://untrusted.test'})[0],403)
+
+    def test_document_image_over_text_cap_uses_same_authenticated_local_api(self):
+        import base64
+        page = {'data': base64.b64encode(b'\x89PNG\r\n\x1a\n' + b'x' * 300000).decode(), 'mimeType': 'image/png'}
+        result = {'text': 'Tài liệu tiếng Việt', 'unclear': False, 'warnings': [], 'provider': 'gemini', 'model': 'gemini-test'}
+        document = sys.modules['local_submit'].document
+        with mock.patch.dict(os.environ, {'GEMINI_OCR_ENABLED': 'true', 'GEMINI_API_PARAMETER_NAME': '/local/gemini'}), \
+             mock.patch.object(document, 'recognize', return_value=result) as recognize:
+            self.assertEqual(self.request('/documents/recognize', 'POST', page, token=False)[0], 401)
+            recognize.assert_not_called()
+            status, body, _ = self.request('/documents/recognize', 'POST', page)
+            self.assertEqual((status, body), (200, result))
+            self.assertEqual(recognize.call_args.args[:2], (page['data'], page['mimeType']))
+        self.assertEqual(self.request('/history')[1]['items'], [])
+        self.provider.synthesize.assert_not_called()
 
     def test_optional_gemini_translation_uses_same_local_api_without_tts(self):
         self.assertEqual(self.request('/text/translate', 'POST', {'text': 'Xin chào', 'sourceLang': 'vi-VN', 'targetLang': 'en-US'})[0], 503)

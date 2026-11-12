@@ -12,6 +12,7 @@ import os
 import correction
 import translation
 import idempotency
+import document
 
 from tts_common import aws, config, db
 from tts_common.errors import error_response, json_response, log_json
@@ -220,6 +221,8 @@ def _translate(event):
 def handler(event, context):
     """Chọn thao tác theo path; lỗi không lường trước trả 500 đã làm sạch."""
     try:
+        if event.get("path") == "/documents/recognize":
+            return _recognize_document(event)
         if event.get("path") == "/text/correct":
             return _correct(event)
         if event.get("path") == "/text/translate":
@@ -230,3 +233,30 @@ def handler(event, context):
     except Exception as error:
         log_json(module="M5", operation="submit", status="ERROR", errorCode=type(error).__name__)
         return error_response(500, "INTERNAL", "Hệ thống đang gặp lỗi. Vui lòng thử lại sau.")
+
+
+def _recognize_document(event):
+    cfg = document.settings()
+    if cfg is None:
+        return error_response(503, "OCR_NOT_CONFIGURED", "Chưa bật đọc tài liệu bằng Gemini ở máy chủ. Cần GEMINI_OCR_ENABLED và API key backend.")
+    try:
+        encoded, mime = document.validate_input(_parse_body(event))
+    except ValueError as error:
+        code = str(error)
+        return error_response(400, code, "Ảnh mỗi trang tối đa 2 MB." if code == "IMAGE_TOO_LARGE" else "Ảnh không hợp lệ. Hỗ trợ JPG, PNG và WebP.")
+    try:
+        result = document.recognize(encoded, mime, cfg)
+    except Exception as error:
+        failure = correction.provider_failure(error)
+        log_json(module="M5", operation="document_ocr", status="UNAVAILABLE", errorCode=failure["code"])
+        message = {"GEMINI_AUTH": "Gemini chưa xác thực được. Kiểm tra key và quyền dự án.",
+                   "GEMINI_MODEL": "Model đọc ảnh chưa dùng được với key này. Kiểm tra GEMINI_OCR_MODEL.",
+                   "GEMINI_QUOTA": "Gemini hết quota hoặc đang giới hạn lượt gọi.",
+                   "GEMINI_BUSY": "Gemini đang bận. Chờ một lát rồi thử lại; bản nháp được giữ nguyên.",
+                   "GEMINI_DAILY_LIMIT": "Đã hết lượt đọc tài liệu hôm nay trong bản demo.",
+                   "GEMINI_TIMEOUT": "Gemini đọc trang này quá lâu. Thử chụp gần hơn hoặc chia trang thành các phần.",
+                   "GEMINI_CONNECTION": "Không kết nối được Gemini. Kiểm tra mạng của máy chủ."}.get(failure["code"], "Chưa đọc được đầy đủ trang tài liệu. Hãy thử lại; bản nháp được giữ nguyên.")
+        return error_response(503, failure["code"], message)
+    if not result["text"]:
+        return error_response(422, "NO_TEXT_FOUND", "Không tìm được chữ trong trang này. Hãy kiểm tra lại ảnh.")
+    return json_response(200, result)

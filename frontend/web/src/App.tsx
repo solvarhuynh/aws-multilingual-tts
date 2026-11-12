@@ -6,6 +6,8 @@ import PageHeader from "./components/PageHeader";
 import HeaderSearch from "./components/HeaderSearch";
 import Select from "./components/Select";
 import CorrectionReview from "./components/CorrectionReview";
+import DocumentReview from './components/DocumentReview';
+import { DOCUMENT_MODES, type DocumentMode } from '../../shared/vision';
 import {
   Button,
   EmptyState,
@@ -530,8 +532,10 @@ export default function App() {
                         <Icon name="chevron" size={13} />
                       </Button>
                       <div className="editor-import-actions">
-                        <Select label="Ngôn ngữ tài liệu" value={studio.documentLang} onValueChange={studio.setDocumentLang}
-                          disabled={studio.busy || studio.readingFile} options={OCR_LANGUAGES} />
+                        <Select label="Cách đọc tài liệu" value={studio.documentMode} onValueChange={value => studio.setDocumentMode(value as DocumentMode)}
+                          disabled={studio.busy || studio.readingFile} options={DOCUMENT_MODES} />
+                        {studio.documentMode === 'device' && <Select label="Ngôn ngữ tài liệu" value={studio.documentLang} onValueChange={studio.setDocumentLang}
+                          disabled={studio.busy || studio.readingFile} options={OCR_LANGUAGES} />}
                         <Button
                           className="text-button"
                           type="button"
@@ -549,6 +553,7 @@ export default function App() {
                       </div>
                     </div>
                     {studio.fileName && <div className="imported-file" title={studio.fileName}><Icon name="file" size={14} /><span>{studio.fileName}</span></div>}
+                    {studio.documentMode === 'gemini' && <div className="document-privacy-note">Ảnh và trang scan được gửi tới Gemini để đọc chữ.</div>}
                     {!!studio.importWarning && <div className="imported-file" role="status">{studio.importWarning}</div>}
                     {studio.readingFile && <div className="document-tools" role="status">
                       <span>{studio.importProgress}</span>
@@ -960,6 +965,7 @@ export default function App() {
           {renderVoiceBrowser(true)}
         </Modal>
       )}
+      {studio.documentReview && <DocumentReview {...studio.documentReview} onClose={studio.closeDocumentReview} onAccept={studio.acceptDocument} />}
 
       {dialog === "menu" && (
         <Modal title="TTS Studio" onClose={closeDialog} className="mobile-nav-modal">
