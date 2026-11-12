@@ -15,3 +15,9 @@ test('SHA-256 đúng với tiếng Việt, tiếng Nhật và emoji', () => {
     assert.equal(sha256Hex(text), expected(text));
   }
 });
+test('SHA-256 kiểm đúng byte nhị phân của model trên WebView không có crypto.subtle', () => {
+  for (const length of [0, 55, 64, 1000, 65536]) {
+    const bytes = Uint8Array.from({ length }, (_, index) => index % 256);
+    assert.equal(sha256Hex(bytes), createHash('sha256').update(bytes).digest('hex'));
+  }
+});

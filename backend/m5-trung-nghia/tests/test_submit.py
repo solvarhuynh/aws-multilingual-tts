@@ -76,6 +76,25 @@ class FlowTestCase(unittest.TestCase):
 
 
 class SubmitTest(FlowTestCase):
+    def test_style_validation_precedes_quota_and_dispatch(self):
+        registry = {"vi-VN": {"provider": "azure", "voices": [{"id": MATILDA, "styles": ["cheerful"]}]}}
+        with mock.patch.object(submit, "load_registry", return_value=registry):
+            for value in ["sad", {}, None, True]:
+                status, body = self.post(**self.good(style=value))
+                self.assertEqual((status, body["error"]["code"]), (400, "UNSUPPORTED_STYLE"))
+            self.assertEqual(self.events, [])
+            self.assertFalse(self.s3.objects)
+            status, result = self.post(**self.good(style="cheerful"))
+            self.assertEqual(status, 202)
+            from tts_common import db
+            self.assertEqual(db.get_job("demo", result["jobId"])["style"], "cheerful")
+
+    def test_idempotency_distinguishes_emotion_and_preserves_legacy_hash(self):
+        import idempotency
+        original = self.good()
+        self.assertEqual(idempotency.fingerprint(original), idempotency.fingerprint({**original, "style": "neutral"}))
+        self.assertNotEqual(idempotency.fingerprint(original), idempotency.fingerprint({**original, "style": "cheerful"}))
+
     def test_azure_registry_is_shared_by_voices_submit_and_worker(self):
         from tts_common import voices as voice_registry
 

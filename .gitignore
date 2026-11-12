@@ -36,3 +36,10 @@ Thumbs.db
 
 # Dữ liệu catalog sinh khi thử local
 deployment/local/data/
+
+# Bộ OCR/PDF sinh từ prepare; không đưa model/WASM vào Git
+frontend/.cache/
+frontend/web/public/ocr/
+frontend/web/public/pdf/
+frontend/app/public/ocr/
+frontend/app/public/pdf/

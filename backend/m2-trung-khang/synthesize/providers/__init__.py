@@ -7,13 +7,14 @@ from .base import PermanentProviderError
 from .elevenlabs import ElevenLabsProvider
 
 
-def get_provider(entry: dict, timeout: float):
+def get_provider(entry: dict, timeout: float, style=None):
     """Tạo provider theo mục ngôn ngữ trong registry."""
     if entry.get("provider") == "azure":
         return AzureSpeechProvider(
             region=os.environ.get("AZURE_SPEECH_REGION", ""),
             language=entry.get("languageCode"),
             timeout=timeout,
+            style=style,
         )
     if entry.get("provider") == "elevenlabs":
         return ElevenLabsProvider(

@@ -1,6 +1,8 @@
-import type { ComponentRef, PropsWithChildren, ReactNode, Ref } from 'react';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useEffect, useRef, type ComponentRef, type PropsWithChildren, type ReactNode, type Ref } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
+import { BlurTargetView } from 'expo-blur';
+import { useBlurScene } from './BlurScene';
+import { SafeAreaProvider, useSafeAreaFrame } from 'react-native-safe-area-context';
 import { router, useIsFocused } from 'expo-router';
 import { Circle, Label } from './ui';
 import { useLayout } from '../hooks/useLayout';
@@ -20,12 +22,14 @@ export function ScreenFrame(props: PropsWithChildren<{ bottom?: boolean }>) {
   return <SafeAreaProvider style={{ flex: 1 }}><FrameBody {...props} /></SafeAreaProvider>;
 }
 export function KeyboardArea({ children }: PropsWithChildren) {
-  return <KeyboardAvoidingView behavior="padding" style={{ flex: 1, minHeight: 0 }}>{children}</KeyboardAvoidingView>;
+  const frame = useSafeAreaFrame();
+  const { insets } = useLayout();
+  return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    keyboardVerticalOffset={Platform.OS === 'ios' ? frame.y + insets.top : 0} style={{ flex: 1, minHeight: 0 }}>{children}</KeyboardAvoidingView>;
 }
 export function Header({ title, left, right }: { title: string; left?: ReactNode; right?: ReactNode }) {
   const { gutter, usableHeight } = useLayout();
-  const keyboard = useKeyboardState();
-  const short = usableHeight - keyboard.height < 440;
+  const short = usableHeight < 440;
   return <View testID="page-header" style={[styles.header, { paddingHorizontal: gutter, minHeight: short ? 54 : 64, paddingVertical: short ? 4 : 10 }]}>
     <View style={styles.headerSide}>{left}</View><Label size={19} weight="600" lines={2} maxScale={1.4} style={styles.headerTitle}>{title}</Label>
     <View style={styles.headerSide}>{right}</View>
@@ -35,12 +39,19 @@ export function PageScroll({ children, tabs = false, style, contentContainerStyl
   const { gutter, dockClearance } = useLayout();
   const { current } = usePlayback();
   const keyboard = useKeyboardState();
-  return <ScrollView {...props} style={[{ flex: 1, minHeight: 0 }, style]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+  const focused = useIsFocused();
+  const target = useRef<ComponentRef<typeof View>>(null);
+  const { register } = useBlurScene();
+  useEffect(() => {
+    if (Platform.OS === 'android' && tabs && focused) return register?.(target);
+  }, [tabs, focused, register]);
+  const content = <ScrollView {...props} style={[{ flex: 1, minHeight: 0 }, style]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
     contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false} automaticallyAdjustKeyboardInsets={false}
     showsVerticalScrollIndicator={false} contentContainerStyle={[styles.content,
       { paddingHorizontal: gutter, paddingBottom: tabs && !keyboard.visible ? dockClearance + (current ? 78 : 0) : 24 }, contentContainerStyle]}>
     {children}
   </ScrollView>;
+  return Platform.OS === 'android' && tabs ? <BlurTargetView ref={target} style={{ flex: 1, minHeight: 0 }}>{content}</BlurTargetView> : content;
 }
 export function Page({ children, title, tabs = false, close = false, ...scrollProps }: PropsWithChildren<ScrollViewProps & {
   title: string; tabs?: boolean; close?: boolean; ref?: Ref<ComponentRef<typeof ScrollView>>;

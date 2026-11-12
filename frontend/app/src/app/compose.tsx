@@ -18,18 +18,25 @@ import { useStudio } from '../state/Studio';
 import { usePlayback } from '../state/Playback';
 import { api, DEMO } from '../lib/api';
 import { base64Bytes, checkedText, extractDocument, MAX_FILE_BYTES } from '../lib/document';
-import { DEFAULT_SPEED, duration, languageNames, MAX_CHARS, MAX_SPEED, MIN_SPEED, number, samples, time, validate, type Correction, type EditorMode, type Input, type Recording } from '../lib/model';
-import { checkedDocument, MAX_DOCUMENT_CHARS, splitDocument, wordCount } from '../../../shared/documents';
+import { DEFAULT_SPEED, languageNames, MAX_CHARS, MAX_SPEED, MIN_SPEED, number, samples, validate, type Correction, type EditorMode, type Input, type Recording } from '../lib/model';
+import { checkedDocument, MAX_DOCUMENT_CHARS, OCR_LANGUAGES, splitDocument, wordCount } from '../../../shared/documents';
+import { expressionHint, expressionOptions } from '../../../shared/expression';
 
 const IMAGE_FILE = /\.(jpg|jpeg|png|webp)$/i;
-/** OCR không cần ảnh 12 MP; thu cạnh dài về 2.000 px để truyền vào WebView và nhận dạng nhanh hơn. */
+/** Giữ chi tiết dấu tiếng Việt nhưng chặn kích thước ảnh truyền sang WebView. */
 async function shrinkImage(uri: string) {
   const original = await ImageManipulator.manipulate(uri).renderAsync();
-  const longest = Math.max(original.width, original.height);
-  const image = longest > 2000 ? await ImageManipulator.manipulate(original).resize(original.width >= original.height ? { width: 2000 } : { height: 2000 }).renderAsync() : original;
-  const { base64 } = await image.saveAsync({ base64: true, compress: 0.85, format: SaveFormat.JPEG });
-  if (!base64) throw new Error('Không đọc được ảnh. Hãy thử lại.');
-  return base64;
+  const ratio = Math.min(1, 2400 / Math.max(original.width, original.height), Math.sqrt(4_000_000 / (original.width * original.height)));
+  let image = original;
+  try {
+    if (ratio < 1) image = await ImageManipulator.manipulate(original).resize({ width: Math.round(original.width * ratio), height: Math.round(original.height * ratio) }).renderAsync();
+    const { base64 } = await image.saveAsync({ base64: true, compress: 0.95, format: SaveFormat.JPEG });
+    if (!base64) throw new Error('Không đọc được ảnh. Hãy thử lại.');
+    return base64;
+  } finally {
+    if (image !== original) image.release();
+    original.release();
+  }
 }
 export default function Compose() {
   const keyboard = useKeyboardState();
@@ -43,12 +50,16 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const [draft, setDraft] = mode === 'translation'
     ? [studio.translationDraft, studio.setTranslationDraft]
     : [studio.draft, studio.setDraft];
-  const { colors, lang, voice, speed, setSpeed, selectVoice, languages, loadingVoices, saveRecording, setNotice } = studio;
+  const { colors, isDark, lang, voice, speed, setSpeed, selectVoice, languages, loadingVoices, saveRecording, setNotice } = studio;
   const { play, stop } = usePlayback();
-  const { gutter, compact, usableHeight } = useLayout();
-  const [sheet, setSheet] = useState<'voices' | 'settings' | 'source' | 'target' | null>(null);
+  const { gutter, usableHeight } = useLayout();
+  const [sheet, setSheet] = useState<'voices' | 'settings' | 'source' | 'target' | 'ocr' | null>(null);
+  const [documentLang, setDocumentLang] = useState('vi-VN');
+  const [importWarning, setImportWarning] = useState('');
+  const [viewportHeight, setViewportHeight] = useState(usableHeight);
   const [target, setTarget] = useState('en-US');
   const [targetVoice, setTargetVoice] = useState('Joanna');
+  const [selectedStyle, setStyle] = useState('neutral');
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
   const [error, setError] = useState('');
@@ -57,6 +68,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const [pdfData, setPdfData] = useState<string | null>(null);
   const [readerKey, setReaderKey] = useState(0);
   const [fileKind, setFileKind] = useState('pdf');
+  const [scan, setScan] = useState(false);
   const [importStage, setImportStage] = useState('');
   const partLimit = languages.find(item => item.lang === (mode === 'translation' ? target : lang))?.maxChars ?? MAX_CHARS;
   const parts = useMemo(() => splitDocument(draft, partLimit), [draft, partLimit]);
@@ -79,7 +91,11 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const title = mode === 'translation' ? 'Dịch và đọc' : 'Tạo giọng đọc';
   useEffect(() => () => { token.current++; importRevision.current++; if (pdfTimer.current) clearTimeout(pdfTimer.current); }, []);
   const selectedTargetVoice = languages.find(l => l.lang === target)?.voices.find(v => v.id === targetVoice)?.id ?? languages.find(l => l.lang === target)?.voices[0]?.id ?? '';
-  const availableVoice = languages.find(l => l.lang === (mode === 'translation' ? target : lang))?.voices.find(v => v.id === (mode === 'translation' ? selectedTargetVoice : voice));
+  const voiceLanguage = languages.find(l => l.lang === (mode === 'translation' ? target : lang));
+  const availableVoice = voiceLanguage?.voices.find(v => v.id === (mode === 'translation' ? selectedTargetVoice : voice));
+  const styleOptions = expressionOptions(availableVoice?.styles, voiceLanguage?.autoEmotionEnabled);
+  const style = styleOptions.some(item => item.value === selectedStyle) ? selectedStyle : 'neutral';
+  const expression = style === 'neutral' ? {} : { style };
   const finish = () => { locked.current = false; submitting.current = false; setBusy(false); setStage(''); };
   const submit = async (input: Input, id: number, batchMode = false, index = selectedPart) => {
     if (submitting.current) return;
@@ -123,7 +139,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     }
     if (!availableVoice || loadingVoices) { setError('Hãy chờ tải xong và chọn một giọng đọc.'); return; }
     try { checkedDocument(draft); } catch (reason) { setError((reason as Error).message); return; }
-    const input: Input = { text: parts[selectedPart] ?? '', lang, voice: mode === 'translation' ? selectedTargetVoice : voice, speed, translateTo: mode === 'translation' ? target : null };
+    const input: Input = { text: parts[selectedPart] ?? '', lang, voice: mode === 'translation' ? selectedTargetVoice : voice, speed, translateTo: mode === 'translation' ? target : null, ...expression };
     const invalid = validate(input);
     if (invalid) { setError(invalid); return; }
     locked.current = true; setBusy(true); setError(''); Keyboard.dismiss(); stop();
@@ -140,7 +156,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const generateAll = async () => {
     if (locked.current || importLock.current || !availableVoice) return;
     try { checkedDocument(draft); } catch (reason) { setError((reason as Error).message); return; }
-    const inputs = parts.map((text, index) => ({ index, input: { text, lang, voice: mode === 'translation' ? selectedTargetVoice : voice, speed, translateTo: mode === 'translation' ? target : null } })).filter(({ input }) => input.text.trim());
+    const inputs = parts.map((text, index) => ({ index, input: { text, lang, voice: mode === 'translation' ? selectedTargetVoice : voice, speed, translateTo: mode === 'translation' ? target : null, ...expression } })).filter(({ input }) => input.text.trim());
     const invalid = inputs.map(({ input }) => validate(input)).find(Boolean);
     if (invalid) { setError(invalid); return; }
     locked.current = true; stopBatch.current = false; setBusy(true); setError(''); stop();
@@ -161,7 +177,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     if (importLock.current || locked.current) return;
     importLock.current = true;
     const id = ++importRevision.current;
-    setImporting(true); setError('');
+    setImporting(true); setError(''); setImportWarning(''); Keyboard.dismiss();
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: ['text/plain', 'text/markdown', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/jpeg', 'image/png', 'image/webp'], copyToCacheDirectory: true });
       if (id !== importRevision.current) return;
@@ -181,7 +197,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     if (importLock.current || locked.current) return;
     importLock.current = true;
     const id = ++importRevision.current;
-    setImporting(true); setError('');
+    setImporting(true); setError(''); setImportWarning(''); Keyboard.dismiss();
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (id !== importRevision.current) return;
@@ -192,15 +208,15 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       setImportStage('Đang chuẩn bị ảnh…');
       const data = await shrinkImage(result.assets[0].uri);
       if (id !== importRevision.current) return;
-      readImported(id, data, 'Ảnh quét.jpg');
+      readImported(id, data, 'Ảnh quét.jpg', 'jpg', true);
     } catch (reason) { failImport(id, reason); }
   };
-  const readImported = (id: number, data: string, name: string, kind = name.split('.').pop()!.toLowerCase()) => {
+  const readImported = (id: number, data: string, name: string, kind = name.split('.').pop()!.toLowerCase(), scan = false) => {
     if (data.length > Math.ceil(MAX_FILE_BYTES / 3) * 4) throw new Error('Tệp tối đa 50 MB.');
     importName.current = name;
     setPartIndex(0);
     if (/\.(pdf|jpg|jpeg|png|webp)$/i.test(name)) {
-      setFileKind(kind); setImportStage('Đang mở tài liệu…');
+      setFileKind(kind); setScan(scan); setImportStage('Đang mở tài liệu…');
       setReaderKey(value => value || 1); setPdfData(data);
       pdfTimer.current = setTimeout(() => { if (id !== importRevision.current) return; cancelImport(); setError('Nhận dạng quá lâu. Hãy thử ít trang hơn hoặc ảnh rõ hơn.'); }, 10 * 60 * 1000);
     } else { setDraft(extractDocument(base64Bytes(data), name)); setDocumentName(name); importLock.current = false; setImporting(false); }
@@ -214,15 +230,16 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     importLock.current = false;
     if (pdfTimer.current) clearTimeout(pdfTimer.current);
     // Tạo lại bộ đọc để dừng hẳn lượt OCR đang chạy; lượt thành công thì giữ để dùng lại.
-    setReaderKey(value => value && value + 1);
+    setReaderKey(0);
     setPdfData(null); setImporting(false);
   };
   const pdfRevision = importRevision.current;
   const close = () => { if (busy) return; if (router.canGoBack()) router.back(); else router.replace('/'); };
   return <>
     <KeyboardArea>
-      <Header title={title} left={<Circle name="close" label="Đóng trang soạn thảo" disabled={busy} onPress={close} />} />
-      <PageScroll contentContainerStyle={{ flexGrow: 1 }}>
+      <Header title={title} left={<Circle name="close" label="Đóng trang soạn thảo" disabled={busy} onPress={close} />}
+        right={keyboard.visible ? <Circle name="keyboard" label="Ẩn bàn phím" onPress={Keyboard.dismiss} /> : undefined} />
+      <PageScroll onLayout={event => setViewportHeight(event.nativeEvent.layout.height)} contentContainerStyle={{ flexGrow: 1, gap: 12 }}>
         {mode === 'translation' && <View style={styles.translation}>
           <Pressable accessibilityRole="button" onPress={() => setSheet('source')} disabled={busy} style={[styles.language, { backgroundColor: colors.raised }]}><Label size={12} muted>Từ</Label><Label weight="600">{languageNames[lang]}</Label></Pressable>
           <Icon name="arrow" color={colors.secondary} />
@@ -232,29 +249,33 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
           style={[styles.voicePill, { backgroundColor: colors.raised }]}><View style={[styles.voiceDot, { backgroundColor: colors.blueSoft }]}><Icon name="mic" color={colors.blue} size={18} /></View>
           <View style={{ flex: 1, minWidth: 0 }}><Label weight="500" size={16}>{loadingVoices ? 'Đang tải giọng đọc…' : (availableVoice?.name ?? availableVoice?.id) || 'Chọn giọng đọc'}</Label><Label size={12} muted>{languageNames[mode === 'translation' ? target : lang]}</Label></View>
           <Icon name="next" size={16} color={colors.secondary} /></Pressable>
-        <View style={styles.imports}>
-          <Action icon="upload" style={{ flex: 1 }} disabled={busy || importing} accessibilityLabel="Tải tài liệu PDF, Word, TXT hoặc ảnh" onPress={() => void importFile()}>{documentName || 'Tải tài liệu'}</Action>
-          {Platform.OS !== 'web' && <Action icon="camera" style={{ flex: 1 }} disabled={busy || importing} accessibilityLabel="Quét tài liệu bằng camera" onPress={() => void scanPage()}>Quét tài liệu</Action>}
+        {!keyboard.visible && <><View style={styles.imports}>
+          <Action icon="upload" style={styles.importAction} disabled={busy || importing} accessibilityLabel="Tải tài liệu PDF, Word, TXT hoặc ảnh" onPress={() => void importFile()}>{documentName || 'Tải tài liệu'}</Action>
+          {Platform.OS !== 'web' && <Action icon="camera" style={styles.importAction} disabled={busy || importing} accessibilityLabel="Quét tài liệu bằng camera" onPress={() => void scanPage()}>Quét tài liệu</Action>}
         </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Ngôn ngữ tài liệu" disabled={busy || importing} onPress={() => setSheet('ocr')}
+          style={styles.documentLanguage}><Icon name="globe" size={15} color={colors.secondary} /><Label size={13} muted>{OCR_LANGUAGES.find(item => item.value === documentLang)?.label}</Label><Icon name="next" size={12} color={colors.secondary} /></Pressable></>}
         {importing && <><Label size={13} muted>{importStage || 'Đang đọc tài liệu…'}</Label><Action onPress={cancelImport}>Hủy nhập</Action></>}
-        {parts.length > 1 && <View style={{ gap: 10 }}>
+        {parts.length > 1 && !keyboard.visible && <View style={{ gap: 10 }}>
           <Label>Phần {selectedPart + 1}/{parts.length} · {number(parts[selectedPart].length)} ký tự</Label>
-          <View style={{ flexDirection: 'row', gap: 10 }}><Action disabled={busy || selectedPart === 0} onPress={() => setPartIndex(selectedPart - 1)}>Phần trước</Action>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}><Action disabled={busy || selectedPart === 0} onPress={() => setPartIndex(selectedPart - 1)}>Phần trước</Action>
             <Action disabled={busy || selectedPart >= parts.length - 1} onPress={() => setPartIndex(selectedPart + 1)}>Phần sau</Action></View>
           <Label muted size={12}>{parts[selectedPart].slice(0, 180)}…</Label>
           <Action disabled={busy || importing} onPress={() => void generateAll()}>Tạo các phần còn lại</Action>
           <Label size={12} muted>Mỗi phần dùng hạn mức riêng. Tạo lần lượt và dừng khi máy chủ báo hết hạn mức.</Label>
           {!!batchProgress && <><Label>{batchProgress}</Label><Action onPress={() => { stopBatch.current = true; }}>Dừng sau phần hiện tại</Action></>}
         </View>}
-        <TextInput accessibilityLabel="Nội dung cần đọc" value={draft} onChangeText={text => { setDraft(text); setError(''); }} editable={!busy && !importing}
+        <View style={[styles.editorSurface, { borderColor: colors.line, backgroundColor: colors.surface }]}>
+        <TextInput accessibilityLabel="Nội dung cần đọc" value={draft} onChangeText={text => { setDraft(text); setError(''); setImportWarning(''); }} editable={!busy && !importing}
           multiline scrollEnabled maxLength={MAX_DOCUMENT_CHARS + 1} placeholder="Nhập hoặc dán nội dung…" placeholderTextColor={colors.faint}
-          textAlignVertical="top" style={[styles.editor, { color: colors.text, fontSize: compact ? 23 : 25,
-            minHeight: keyboard.visible ? 110 : Math.max(150, Math.min(260, usableHeight * 0.32)),
-            maxHeight: keyboard.visible ? Math.max(120, Math.min(200, usableHeight - keyboard.height - 180)) : Math.max(160, usableHeight * 0.5) }]} selectionColor={colors.blue} />
-        <View style={styles.editorMeta}><Label size={12} muted>{number(draft.length)} ký tự · {number(wordCount(draft))} từ · {number(partLimit)}/phần</Label>
-          <Label size={12} muted>~ {time(duration(draft, speed))}</Label>
-          <Pressable accessibilityRole="button" accessibilityLabel="Xóa nội dung" disabled={busy || !draft} onPress={() => setDraft('')} hitSlop={12}><Icon name="trash" color={colors.faint} size={17} /></Pressable></View>
-        {!draft && <View style={{ gap: 14 }}><Pressable accessibilityRole="button" onPress={() => { void Clipboard.getStringAsync().then(text => { if (text) setDraft(text); else setNotice('Bộ nhớ tạm chưa có văn bản.'); }).catch(() => setNotice('Chưa đọc được bộ nhớ tạm.')); }}
+          keyboardAppearance={isDark ? 'dark' : 'light'} autoCapitalize="sentences" underlineColorAndroid="transparent"
+          textAlignVertical="top" style={[styles.editor, { color: colors.text,
+            height: Math.max(120, Math.min(keyboard.visible ? 320 : 420, viewportHeight - (keyboard.visible ? 180 : 250))) }]} selectionColor={colors.blue} />
+        <View style={styles.editorMeta}><Label size={12} muted>{number(draft.length)} ký tự · {number(wordCount(draft))} từ</Label>
+          <Pressable accessibilityRole="button" accessibilityLabel="Xóa nội dung" disabled={busy || importing || !draft} onPress={() => { setDraft(''); setDocumentName(''); setPartIndex(0); setImportWarning(''); }} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Icon name="trash" color={colors.faint} size={17} /></Pressable></View>
+        </View>
+        {!!importWarning && <Label size={13} muted>{importWarning}</Label>}
+        {!draft && !keyboard.visible && <View style={{ gap: 14 }}><Pressable accessibilityRole="button" onPress={() => { void Clipboard.getStringAsync().then(text => { if (text) setDraft(text); else setNotice('Bộ nhớ tạm chưa có văn bản.'); }).catch(() => setNotice('Chưa đọc được bộ nhớ tạm.')); }}
           style={styles.paste}><Icon name="copy" size={17} color={colors.secondary} /><Label muted size={14}>Dán văn bản</Label></Pressable>
           <View style={styles.samples}>{samples.map(sample => <Pressable key={sample.title} accessibilityRole="button" onPress={() => setDraft(sample.text)} style={[styles.sample, { borderColor: colors.line }]}>
             <Icon name={sample.icon} size={15} color={colors.secondary} /><Label size={13} muted>{sample.title}</Label></Pressable>)}</View></View>}
@@ -269,16 +290,31 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
         </View>
       </View>
     </KeyboardArea>
+    <Sheet title="Ngôn ngữ tài liệu" visible={sheet === 'ocr'} close={() => setSheet(null)}>
+      {OCR_LANGUAGES.map(item => <Action key={item.value} icon={documentLang === item.value ? 'check' : undefined}
+        onPress={() => { setDocumentLang(item.value); setSheet(null); }}>{item.label}</Action>)}
+    </Sheet>
     <Sheet title="Chọn giọng đọc" visible={sheet === 'voices'} close={() => setSheet(null)}>
       <VoiceList onlyLanguage={mode === 'translation' ? target : undefined} selected={mode === 'translation' ? { lang: target, voice: selectedTargetVoice } : undefined}
         onSelect={(_, id) => { if (mode === 'translation') setTargetVoice(id); setSheet(null); }} />
     </Sheet>
     <Sheet title="Cài đặt giọng đọc" visible={sheet === 'settings'} close={() => setSheet(null)}>
+      <Label size={18} weight="600">Sắc thái</Label>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {styleOptions.map(item => <Pressable key={item.value} accessibilityRole="button" accessibilityLabel={`Sắc thái ${item.label.toLowerCase()}`}
+          accessibilityState={{ selected: item.value === style }} onPress={() => setStyle(item.value)}
+          style={{ minHeight: 44, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 22, justifyContent: 'center',
+            backgroundColor: item.value === style ? colors.blueSoft : colors.raised }}>
+          <Label size={14} weight="500" style={{ color: item.value === style ? colors.blue : colors.secondary }}>{item.label}</Label>
+        </Pressable>)}
+      </View>
+      {styleOptions.length < 2 && availableVoice && <Label size={13} muted>{expressionHint(voiceLanguage?.provider, availableVoice.styles)}</Label>}
+      {style === 'auto' && <Label size={13} muted>Gửi đoạn đọc cho Gemini để chọn sắc thái.</Label>}
       <Label size={18} weight="600">Tốc độ đọc</Label><Label size={34} weight="600" style={{ color: colors.blue }}>{speed.toFixed(2).replace('.', ',')}×</Label>
       <Slider accessibilityLabel="Tốc độ đọc" value={speed} onValueChange={value => setSpeed(Math.round(value * 100) / 100)} minimumValue={MIN_SPEED} maximumValue={MAX_SPEED} step={0.05}
         minimumTrackTintColor={colors.blue} maximumTrackTintColor={colors.line} thumbTintColor={colors.blue} style={{ width: '100%', height: 44 }} />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Label size={13} muted>Chậm · 0,7×</Label><Label size={13} muted>Nhanh · 1,2×</Label></View>
-      <Action onPress={() => setSpeed(DEFAULT_SPEED)}>Đặt lại 0,9×</Action>
+      <Action onPress={() => { setSpeed(DEFAULT_SPEED); setStyle('neutral'); }}>Đặt lại</Action>
     </Sheet>
     <Sheet title={sheet === 'source' ? 'Ngôn ngữ gốc' : 'Dịch sang'} visible={sheet === 'source' || sheet === 'target'} close={() => setSheet(null)}>
       {languages.filter(l => l.voices.length).map(l => <Action key={l.lang} onPress={() => {
@@ -299,21 +335,24 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       }}>Dùng bản đề xuất</Action>
       <Action onPress={() => { const pending = pendingInput.current; if (pending) void submit(pending.input, token.current, false, pending.index); }}>Giữ bản gốc</Action>
     </Sheet>
-    {readerKey > 0 && <PdfReader key={readerKey} base64={pdfData} kind={fileKind} lang={lang} onProgress={setImportStage} onResult={(text, reason) => {
+    {readerKey > 0 && <PdfReader key={readerKey} base64={pdfData} kind={fileKind} lang={documentLang} scan={scan} onProgress={setImportStage} onResult={(text, reason, warning) => {
       if (pdfRevision !== importRevision.current) return;
       importRevision.current++; importLock.current = false;
       if (pdfTimer.current) clearTimeout(pdfTimer.current);
       setPdfData(null); setImporting(false);
-      try { if (reason) throw new Error(reason); setDraft(checkedText(text ?? '')); setDocumentName(importName.current); } catch (e) { setError(e instanceof Error ? e.message : 'Chưa đọc được PDF.'); }
+      try { if (reason) throw new Error(reason); setDraft(checkedText(text ?? '')); setDocumentName(importName.current); setImportWarning(warning ?? ''); } catch (e) { setReaderKey(0); setError(e instanceof Error ? e.message : 'Chưa đọc được PDF.'); }
     }} />}
   </>;
 }
 const styles = StyleSheet.create({
-  imports: { flexDirection: 'row', gap: 10 },
+  imports: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  importAction: { flexGrow: 1, flexBasis: 136, minWidth: 0 },
   voicePill: { borderRadius: 29, padding: 10, paddingRight: 18, flexDirection: 'row', alignItems: 'center', gap: 11, width: '100%', minWidth: 0 },
   voiceDot: { width: 39, height: 39, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  editor: { lineHeight: 37, padding: 0, letterSpacing: -0.5, minWidth: 0 },
-  editorMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 12 },
+  documentLanguage: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 36, alignSelf: 'flex-start' },
+  editorSurface: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 22, overflow: 'hidden', minWidth: 0 },
+  editor: { fontSize: 19, lineHeight: 28, paddingHorizontal: 16, paddingVertical: 14, minWidth: 0 },
+  editorMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingLeft: 16, paddingRight: 6 },
   paste: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   samples: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, sample: { flexDirection: 'row', gap: 6, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 10, alignItems: 'center' },
   footer: { width: '100%', maxWidth: 1016, alignSelf: 'center', borderTopWidth: StyleSheet.hairlineWidth, gap: 10, flexShrink: 0 },

@@ -14,6 +14,20 @@ import dev
 
 
 class LauncherTests(unittest.TestCase):
+    def test_old_catalog_without_style_metadata_is_refreshed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'voices.json'
+            self.assertTrue(dev.catalog_needs_refresh(path, 'eastasia'))
+            catalog = {'_region': 'eastasia', 'vi-VN': {'voices': [{'id': 'v1'}]}}
+            path.write_text(json.dumps(catalog))
+            self.assertTrue(dev.catalog_needs_refresh(path, 'eastasia'))
+            catalog['vi-VN']['voices'][0]['styles'] = []
+            path.write_text(json.dumps(catalog))
+            self.assertFalse(dev.catalog_needs_refresh(path, 'eastasia'))
+            self.assertTrue(dev.catalog_needs_refresh(path, 'japaneast'))
+            path.write_text('[]')
+            self.assertTrue(dev.catalog_needs_refresh(path, 'eastasia'))
+
     def test_ip_prefers_physical_lan_and_validates_override(self):
         networks = {
             'lo0': [{'family': 'IPv4', 'address': '127.0.0.1', 'internal': True}],

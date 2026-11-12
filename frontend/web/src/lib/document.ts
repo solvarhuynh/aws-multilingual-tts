@@ -1,5 +1,7 @@
-import { checkedDocument, MAX_FILE_BYTES, ocrLanguage } from '../../../shared/documents';
+import { checkedDocument, MAX_FILE_BYTES } from '../../../shared/documents';
 import { abortable, checkCancelled, imageText, pdfText, type ImportOptions } from '../../../shared/browser-document';
+import { loadOcrModels, recognizeText } from '../../../shared/ocr';
+import { createVietnameseReader } from '../../../shared/vietocr';
 
 export async function extractDocument(file: File, options: ImportOptions = {}): Promise<string> {
   const extension = file.name.split('.').pop()?.toLowerCase();
@@ -7,14 +9,19 @@ export async function extractDocument(file: File, options: ImportOptions = {}): 
     throw new Error('Hỗ trợ PDF, DOCX, TXT, Markdown và ảnh JPG/PNG/WebP.');
   if (file.size > MAX_FILE_BYTES) throw new Error('Tệp tối đa 50 MB. Hãy chia nhỏ tài liệu.');
   let worker: Awaited<ReturnType<typeof import('tesseract.js').createWorker>> | undefined;
-  const cancel = () => { void worker?.terminate(); };
+  let vietnamese: ReturnType<typeof createVietnameseReader> | undefined;
+  const cancel = () => { void worker?.terminate(); vietnamese?.terminate(); };
   options.signal?.addEventListener('abort', cancel);
   const recognize = async (image: HTMLCanvasElement) => {
     checkCancelled(options);
+    if ((options.lang ?? 'vi-VN').startsWith('vi')) {
+      vietnamese ??= createVietnameseReader(options);
+      return vietnamese.recognize(image);
+    }
     if (!worker) {
       options.onProgress?.('Đang tải bộ nhận dạng chữ lần đầu…');
       const { createWorker, OEM } = await import('tesseract.js');
-      const models = await ocrModels(options);
+      const models = await loadOcrModels(options);
       checkCancelled(options);
       let fail!: (reason: Error) => void;
       const failed = new Promise<never>((_, reject) => { fail = reject; });
@@ -30,7 +37,7 @@ export async function extractDocument(file: File, options: ImportOptions = {}): 
       worker = await abortable(Promise.race([loading, failed]), options, late => { void late.terminate(); });
     }
     checkCancelled(options);
-    return (await abortable(worker.recognize(image), options)).data.text;
+    return recognizeText(worker, image, options);
   };
   try {
     checkCancelled(options);
@@ -66,32 +73,7 @@ export async function extractDocument(file: File, options: ImportOptions = {}): 
   } finally {
     options.signal?.removeEventListener('abort', cancel);
     await worker?.terminate();
-  }
-}
-
-async function ocrModels(options: ImportOptions) {
-  try {
-    const base = new URL('ocr/', document.baseURI);
-    const response = await fetch(new URL('manifest.json', base), { signal: options.signal, cache: 'no-cache' });
-    if (!response.ok) throw new Error();
-    const manifest = await response.json() as Record<string, { bytes: number; sha256: string }>;
-    const models = [];
-    for (const code of ocrLanguage(options.lang ?? 'vi-VN').split('+')) {
-      const expected = manifest[code];
-      if (!expected || !Number.isInteger(expected.bytes) || expected.bytes < 2 || expected.bytes > 32 * 1024 * 1024 || !/^[a-f0-9]{64}$/.test(expected.sha256)) throw new Error();
-      const result = await fetch(new URL(`lang/${code}.bin`, base), { signal: options.signal, cache: 'no-cache' });
-      if (!result.ok) throw new Error();
-      const data = await result.arrayBuffer();
-      if (data.byteLength !== expected.bytes) throw new Error();
-      const hash = await crypto.subtle.digest('SHA-256', data);
-      const digest = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
-      if (digest !== expected.sha256) throw new Error();
-      models.push({ code, data: new Uint8Array(data) });
-    }
-    return models;
-  } catch {
-    checkCancelled(options);
-    throw new Error('Chưa tải được bộ nhận dạng chữ đầy đủ. Kiểm tra kết nối rồi nhập lại.');
+    vietnamese?.terminate();
   }
 }
 

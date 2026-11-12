@@ -131,19 +131,21 @@ export function ToolArt() {
   useEffect(() => {
     const art = artRef.current;
     if (!art) return;
-    let visible = false;
+    let visible = true;
     const update = () => {
       art.dataset.moving = String(visible && !document.hidden);
     };
+    document.addEventListener("visibilitychange", update);
+    if (typeof IntersectionObserver === 'undefined') { update(); return () => document.removeEventListener('visibilitychange', update); }
     const observer = new IntersectionObserver(
       ([entry]) => {
-        visible = entry.isIntersecting && entry.intersectionRatio >= 0.15;
+        visible = entry.isIntersecting;
         update();
       },
-      { threshold: 0.15 },
+      { threshold: 0 },
     );
-    observer.observe(art);
-    document.addEventListener("visibilitychange", update);
+    // Observe the cover footprint, not the oversized, scaled 3D drawing inside it.
+    observer.observe(art.closest('.track-cover') ?? art);
     return () => {
       observer.disconnect();
       document.removeEventListener("visibilitychange", update);

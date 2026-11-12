@@ -8,6 +8,7 @@ import os
 from tts_common import config
 from tts_common.errors import error_response, json_response, log_json
 from tts_common.voices import load_registry
+from tts_common.expression import auto_enabled
 
 
 def public_voice(voice):
@@ -15,6 +16,8 @@ def public_voice(voice):
     item = {"id": voice["id"], "gender": voice["gender"]}
     if voice.get("name"):
         item["name"] = voice["name"]
+    if "styles" in voice:
+        item["styles"] = voice["styles"]
     return item
 
 
@@ -43,4 +46,5 @@ def handler(event, context):
     if not languages:
         return error_response(503, "VOICES_UNAVAILABLE", "Danh sách giọng đọc chưa sẵn sàng.")
     return json_response(200, {"languages": languages, "limits": {"maxChars": config.MAX_CHARS},
-                               "features": {"translation": bool(os.environ.get("TRANSLATOR_API_PARAMETER_NAME"))}})
+                               "features": {"translation": bool(os.environ.get("TRANSLATOR_API_PARAMETER_NAME")),
+                                            "autoEmotion": auto_enabled()}})

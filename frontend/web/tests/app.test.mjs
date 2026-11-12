@@ -212,6 +212,23 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       assert.equal(env.mount.querySelector('.sidebar-toggle').getAttribute("aria-expanded"), "true");
       assert.equal(localStorage.getItem("tts.sidebar.collapsed"), "false");
     });
+    await suite.test("menu hẹp dùng cùng sidebar kính, giữ nhãn/count và đóng sau điều hướng", async () => {
+      const originalWidth = env.win.innerWidth;
+      env.win.innerWidth = 600;
+      await click(env.mount.querySelector('[aria-label="Mở menu điều hướng"]'));
+      const drawer = document.querySelector('.mobile-nav-modal .drawer-sidebar');
+      assert.ok(drawer.querySelector('.sidebar-glass'));
+      assert.ok(drawer.querySelector('.nav-selection'));
+      assert.equal(drawer.querySelector('.product-name').textContent, 'TTS Studio');
+      assert.equal(drawer.querySelectorAll('a').length, 7);
+      assert.equal(drawer.querySelectorAll('.nav-item.active').length, 1);
+      assert.ok(drawer.querySelector('.sidebar-bottom a[href="#settings"]'));
+      assert.equal(drawer.querySelector('.mobile-nav'), null);
+      await click(drawer.querySelector('a[href="#library"]'));
+      assert.equal(document.querySelector('.mobile-nav-modal'), null);
+      assert.equal(env.mount.querySelector('h1').textContent, 'Bản thu đã lưu');
+      env.win.innerWidth = originalWidth;
+    });
     await suite.test("gõ tìm kiếm lọc gợi ý ngay dưới ô nhập và mở đúng công cụ", async () => {
       await click(env.mount.querySelector('.sidebar a[href="#library"]'));
       const search = env.mount.querySelector('.header-search input');

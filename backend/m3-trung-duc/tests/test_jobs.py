@@ -20,6 +20,18 @@ OLD_TIME = "2020-01-01T00:00:00Z"
 
 
 class JobsTestCase(unittest.TestCase):
+    def test_emotion_quota_and_checkpoint_use_cas(self):
+        from tts_common.expression import reserve_analysis_call
+        self.assertTrue(reserve_analysis_call(1))
+        self.assertFalse(reserve_analysis_call(1))
+        job = db.create_job("demo", "Hello!", "en-US", "jenny", 0.9, style="auto")
+        claim = db.claim_job("demo", job["jobId"], 60).job
+        updated = db.checkpoint_job(claim, resolvedStyle="cheerful")
+        self.assertEqual(updated.data["style"], "auto")
+        self.assertEqual(updated.data["resolvedStyle"], "cheerful")
+        with self.assertRaises(db.JobConflict):
+            db.checkpoint_job(claim, resolvedStyle="sad")
+
     def setUp(self):
         self.s3 = FakeS3()
         for patcher in (

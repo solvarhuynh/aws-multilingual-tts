@@ -17,6 +17,7 @@ from tts_common import aws, config, db
 from tts_common.errors import error_response, json_response, log_json
 from tts_common.utils import get_user_id
 from tts_common.voices import load_registry
+from tts_common.expression import validate_style
 
 
 AUTO_LANGS = {None, "", "auto"}
@@ -121,11 +122,19 @@ def _synthesize(event):
             raise InvalidRequest(503, "TRANSLATION_NOT_CONFIGURED", "Chưa kết nối dịch vụ dịch. Nhờ quản trị viên cấu hình Azure Translator.")
     voice = _pick_voice(entry, body.get("voice"))
     speed = _pick_speed(entry, body.get("speed"))
+    style = body.get("style", "neutral")
+    try:
+        validate_style(entry, voice, style)
+    except ValueError as error:
+        code = str(error)
+        raise InvalidRequest(400 if code == "UNSUPPORTED_STYLE" else 503, code,
+                             "Giọng đã chọn chưa hỗ trợ sắc thái này." if code == "UNSUPPORTED_STYLE"
+                             else "Chưa bật nhận diện cảm xúc bằng Gemini ở máy chủ.") from None
 
     if request_key is not None:
         return idempotency.submit_first(
             user_id, request_key, request_fingerprint, text, body["lang"], voice, speed,
-            entry.get("provider"), entry.get("engine"), _dispatch, translate_to=target,
+            entry.get("provider"), entry.get("engine"), _dispatch, translate_to=target, style=style,
         )
 
     if not db.reserve_chars(len(text)):
@@ -133,7 +142,7 @@ def _synthesize(event):
     try:
         job = db.create_job(
             user_id, text, body["lang"], voice, speed, translate_to=target,
-            provider=entry.get("provider"), engine=entry.get("engine")
+            provider=entry.get("provider"), engine=entry.get("engine"), style=style
         )
     except Exception as error:
         # S3 can persist the job before a connection error hides the response.

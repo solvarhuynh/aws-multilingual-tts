@@ -8,20 +8,24 @@ import { type ThemeMode } from '../lib/model';
 import { API_BASE, DEMO } from '../lib/api';
 
 export default function Settings() {
-  const { colors, preferences, updatePreferences, reloadVoices, refresh, loadingVoices, voiceError } = useStudio();
+  const { colors, preferences, reducedMotion, updatePreferences, reloadVoices, refresh, loadingVoices, voiceError } = useStudio();
   const [accessCode, setAccessCode] = useState(preferences.demoToken);
   const code = accessCode.trim();
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
   const [editingCode, setEditingCode] = useState(false);
-  // Ô mã nằm cuối trang modal; ScrollView không tự cuộn tới ô đang nhập. Cuộn sau keyboardDidShow,
-  // khi KeyboardAvoidingView đã co trang, nếu không lúc cuộn đủ lúc cuộn thiếu.
+  const fieldTop = useRef(0);
   useEffect(() => {
     if (!editingCode) return;
-    const toEnd = () => scroll.current?.scrollToEnd({ animated: true });
-    if (Keyboard.isVisible()) toEnd();
-    const shown = Keyboard.addListener('keyboardDidShow', toEnd);
+    const reveal = () => scroll.current?.scrollTo({ y: Math.max(0, fieldTop.current - 12), animated: true });
+    if (Keyboard.isVisible()) reveal();
+    const shown = Keyboard.addListener('keyboardDidShow', reveal);
     return () => shown.remove();
   }, [editingCode]);
+  const connect = () => {
+    Keyboard.dismiss();
+    if (code === preferences.demoToken) void reloadVoices().then(ok => { if (ok) void refresh(); });
+    else updatePreferences({ demoToken: code });
+  };
   const options: { title: string; value: ThemeMode; icon: IconName }[] = [
     { title: 'Hệ thống', value: 'system', icon: 'phone' }, { title: 'Sáng', value: 'light', icon: 'sun' }, { title: 'Tối', value: 'dark', icon: 'moon' },
   ];
@@ -41,21 +45,23 @@ export default function Settings() {
         <View style={[styles.row, { borderBottomWidth: 0 }]}><View style={{ flex: 1 }}><Label weight="500">Phản hồi khi chạm</Label></View>
           <Switch accessibilityLabel="Phản hồi khi chạm" value={preferences.haptics} onValueChange={v => updatePreferences({ haptics: v })} trackColor={{ true: colors.blue }} /></View>
       </View>
+      {reducedMotion && !preferences.reducedMotion && <Label size={13} muted>Chuyển động đang được giảm theo cài đặt của thiết bị.</Label>}
       <Section title="Kết nối" />
       <View style={[styles.connection, { backgroundColor: colors.surface, borderColor: colors.line }]}><Icon name={DEMO ? 'phone' : 'globe'} color={colors.blue} size={27} />
-        <View style={{ flex: 1, gap: 7 }}><Label weight="600">{DEMO ? 'Nghe trên thiết bị' : loadingVoices ? 'Đang kết nối…' : voiceError ? 'Chưa kết nối' : 'Đã kết nối'}</Label>
-          <Label size={13} muted style={{ lineHeight: 20 }}>{DEMO ? 'Chưa có dịch tự động và MP3.' : API_BASE}</Label></View></View>
+        <View style={{ flex: 1, minWidth: 0, gap: 7 }}><Label weight="600">{DEMO ? 'Nghe trên thiết bị' : loadingVoices ? 'Đang kết nối…' : voiceError ? 'Chưa kết nối' : 'Đã kết nối'}</Label>
+          <Label size={13} muted style={{ lineHeight: 20, textAlign: 'left' }}>{DEMO ? 'Chưa có dịch tự động và MP3.' : API_BASE.replace(/\//g, '/\u200b')}</Label></View></View>
       {!DEMO && <>
-        <TextInput accessibilityLabel="Mã truy cập" placeholder="Mã truy cập" placeholderTextColor={colors.secondary} secureTextEntry
-          autoCapitalize="none" autoCorrect={false} value={accessCode} onChangeText={setAccessCode}
+        <View onLayout={event => { fieldTop.current = event.nativeEvent.layout.y; }} style={styles.codeField}>
+        <Label size={14} weight="500">Mã truy cập</Label>
+        <TextInput accessibilityLabel="Mã truy cập" placeholder="Nhập mã truy cập" placeholderTextColor={colors.faint} secureTextEntry
+          autoCapitalize="none" autoCorrect={false} autoComplete="off" textContentType="none" returnKeyType="done" onSubmitEditing={connect}
+          value={accessCode} onChangeText={setAccessCode}
           onFocus={() => setEditingCode(true)} onBlur={() => setEditingCode(false)}
-          style={{ color: colors.text, borderColor: colors.line, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 }} />
+          style={[styles.codeInput, { color: colors.text, backgroundColor: colors.raised, borderColor: colors.line }]} />
+        </View>
         {!!voiceError && <Label size={13} style={{ color: colors.danger }}>{voiceError}</Label>}
         <Action primary disabled={!code && !preferences.demoToken || loadingVoices && code === preferences.demoToken}
-          onPress={() => {
-            if (code === preferences.demoToken) void reloadVoices().then(ok => { if (ok) void refresh(); });
-            else updatePreferences({ demoToken: code });
-          }}>{!code && preferences.demoToken ? 'Xóa mã truy cập' : 'Kết nối'}</Action>
+          onPress={connect}>{!code && preferences.demoToken ? 'Xóa mã truy cập' : 'Kết nối'}</Action>
       </>}
       <Pressable accessibilityRole="button" onPress={() => router.push('/help')} style={[styles.help, { borderColor: colors.line }]}><Icon name="help" color={colors.secondary} />
         <Label style={{ flex: 1 }}>Hướng dẫn sử dụng</Label><Icon name="next" size={15} color={colors.secondary} /></Pressable>
@@ -67,6 +73,8 @@ const styles = StyleSheet.create({
   radio: { width: 19, height: 19, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   group: { borderWidth: 1, borderRadius: 26, paddingHorizontal: 18 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, gap: 15, borderBottomWidth: 1 },
-  connection: { padding: 20, borderRadius: 26, borderWidth: 1, flexDirection: 'row', gap: 15, alignItems: 'center' },
+  connection: { padding: 18, borderRadius: 22, borderWidth: 1, flexDirection: 'row', gap: 14, alignItems: 'center', minWidth: 0 },
+  codeField: { gap: 9, alignSelf: 'stretch', minWidth: 0 },
+  codeInput: { minHeight: 54, fontSize: 17, lineHeight: 24, borderWidth: 1, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, textAlign: 'left', textAlignVertical: 'center', includeFontPadding: false },
   help: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 19, borderBottomWidth: 1 },
 });

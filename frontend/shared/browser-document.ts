@@ -8,7 +8,7 @@ type Page<V extends { width: number; height: number }> = {
   cleanup(): void;
 };
 type Pdf<V extends { width: number; height: number }> = { numPages: number; getPage(page: number): Promise<Page<V>> };
-export type ImportOptions = { lang?: string; signal?: AbortSignal; onProgress?: (message: string) => void };
+export type ImportOptions = { lang?: string; scan?: boolean; ocrBase?: string; signal?: AbortSignal; onProgress?: (message: string) => void; onWarning?: (message: string) => void };
 export type Recognize = (image: HTMLCanvasElement) => Promise<string>;
 
 export function checkCancelled(options: ImportOptions) {
@@ -72,7 +72,7 @@ export async function pdfText<V extends { width: number; height: number }>(pdf: 
         if (++scanned > MAX_OCR_PAGES) throw new Error('Mỗi lần nhập tối đa 30 trang scan. Hãy chia PDF thành các phần nhỏ hơn.');
         options.onProgress?.(`Đang nhận dạng chữ trang ${index}/${pdf.numPages}…`);
         const original = page.getViewport({ scale: 1 });
-        const scale = Math.min(2, Math.sqrt(4_000_000 / (original.width * original.height)));
+        const scale = Math.min(3, Math.sqrt(4_000_000 / (original.width * original.height)));
         const viewport = page.getViewport({ scale });
         const canvas = document.createElement('canvas');
         canvas.width = Math.ceil(viewport.width); canvas.height = Math.ceil(viewport.height);
@@ -108,9 +108,14 @@ export async function imageText(source: string, recognize: Recognize, options: I
   try {
     const context = canvas.getContext('2d');
     if (!context) throw new Error('Thiết bị không hỗ trợ đọc ảnh tài liệu.');
+    context.fillStyle = '#fff'; context.fillRect?.(0, 0, canvas.width, canvas.height);
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    image.src = '';
     checkCancelled(options);
-    const text = (await abortable(recognize(canvas), options)).normalize('NFC');
+    const prepared = options.scan ? await (await import('./scan')).scanPaper(canvas, options) : canvas;
+    let text: string;
+    try { text = (await abortable(recognize(prepared), options)).normalize('NFC'); }
+    finally { if (prepared !== canvas) { prepared.width = 0; prepared.height = 0; } }
     checkCancelled(options);
     return checkedDocument(text);
   } finally { canvas.width = 0; canvas.height = 0; image.src = ''; }

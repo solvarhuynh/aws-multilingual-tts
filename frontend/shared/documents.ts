@@ -5,6 +5,11 @@ export const MAX_DOCUMENT_WORDS = 50_000;
 export const MAX_PART_CHARS = 10_000;
 export const MAX_DOCUMENT_PAGES = 200;
 export const MAX_OCR_PAGES = 30;
+export const OCR_LANGUAGES = [
+  { value: 'vi-VN', label: 'Tiếng Việt / Anh' }, { value: 'en-US', label: 'Tiếng Anh' },
+  { value: 'ja-JP', label: 'Tiếng Nhật' }, { value: 'ko-KR', label: 'Tiếng Hàn' },
+  { value: 'zh-CN', label: 'Tiếng Trung giản thể' }, { value: 'zh-TW', label: 'Tiếng Trung phồn thể' },
+];
 
 export function wordCount(text: string): number {
   return text.match(/\S+/gu)?.length ?? 0;

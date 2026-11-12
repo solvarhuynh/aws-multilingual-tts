@@ -12,10 +12,12 @@ from providers import get_provider
 from providers.base import PermanentProviderError, TransientProviderError
 from providers.translation import translate
 from providers.mp3 import join_mp3
+from providers.emotion import detect_style
 from registry import find_entry
 from tts_common import config, db, storage
 from tts_common.errors import log_json
 from tts_common.utils import are_valid_ids
+from tts_common.expression import validate_style, voice_styles
 
 
 # Lease hết trước lần retry đầu của Lambda (khoảng 60 giây) để retry không bị bỏ qua.
@@ -52,10 +54,18 @@ def _synthesize(job: dict, context) -> bytes:
     speed = float(job.get("speed") or 1.0)
     voice = job.get("voice")
     entry = find_entry(job.get("lang"), voice, speed)
+    style = job.get("resolvedStyle", job.get("style", "neutral"))
+    try:
+        validate_style(entry, voice, style)
+    except ValueError:
+        raise PermanentProviderError("UNSUPPORTED_STYLE", "Giọng đọc không còn hỗ trợ sắc thái đã chọn. Hãy tải lại danh sách giọng.") from None
+    if style == "auto":
+        raise PermanentProviderError("EMOTION_UNAVAILABLE", "Chưa xác định được sắc thái giọng đọc.")
     timeout = min(PROVIDER_TIMEOUT_SECONDS, _remaining_seconds(context) - CLEANUP_SECONDS)
     if timeout <= 0:
         raise TransientProviderError("WORKER_TIMEOUT", "Không đủ thời gian xử lý, hệ thống sẽ thử lại.")
-    return get_provider(entry, timeout).synthesize(text, voice, speed)
+    provider = get_provider(entry, timeout) if style == "neutral" else get_provider(entry, timeout, style=style)
+    return provider.synthesize(text, voice, speed)
 
 
 def split_text(text, limit):
@@ -90,6 +100,17 @@ def _produce_audio(job: dict, context, checkpoint) -> str:
         job = checkpoint(text=translated, sourceLang=job["lang"], translated=True,
                          charCount=len(translated)).data
     job = {**job, "lang": job.get("translateTo") or job["lang"]}
+    if job.get("style") == "auto" and "resolvedStyle" not in job:
+        entry = find_entry(job["lang"], job.get("voice"), float(job.get("speed") or 1))
+        styles = voice_styles(entry, job.get("voice"))
+        if not styles:
+            raise PermanentProviderError("UNSUPPORTED_STYLE", "Giọng đọc không hỗ trợ cảm xúc.")
+        timeout = _remaining_seconds(context) - CLEANUP_SECONDS
+        if timeout <= 0:
+            raise TransientProviderError("WORKER_TIMEOUT", "Không đủ thời gian xử lý cảm xúc.")
+        resolved = detect_style(job["text"], styles, timeout)
+        stored = checkpoint(resolvedStyle=resolved).data
+        job = {**stored, "lang": stored.get("translateTo") or stored["lang"]}
     chunks = [part for part in split_text(job["text"], job.get("chunkSize", config.CHUNK_SIZE)) if part.strip()]
     if not chunks or len(chunks) > 100:
         raise PermanentProviderError("INVALID_INPUT", "Nội dung không hợp lệ hoặc quá dài.")

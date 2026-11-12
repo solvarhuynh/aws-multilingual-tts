@@ -3,6 +3,7 @@ import { usePlayback } from "../hooks/usePlayback";
 import { formatTime, languageNames, voiceLabel } from "../lib/data";
 import { Button, Icon, Slider, ToolArt } from "./ui";
 import type { HistoryItem, Language } from "../lib/types";
+import { expressionName } from '../../../shared/expression';
 
 export default function AudioPlayer({
   item,
@@ -141,7 +142,7 @@ export default function AudioPlayer({
           <div className="player-meta">
             <strong title={item?.text}>{item ? item.text : "Chưa có âm thanh"}</strong>
             <span>
-              {item ? `${voiceLabel(languages, item.voice)} · ${languageNames[item.lang] || item.lang}` : ""}
+              {item ? `${voiceLabel(languages, item.voice)} · ${languageNames[item.lang] || item.lang}${item.resolvedStyle && item.resolvedStyle !== 'neutral' ? ` · ${expressionName(item.resolvedStyle)}` : ''}` : ""}
             </span>
           </div>
           <div className="player-track">

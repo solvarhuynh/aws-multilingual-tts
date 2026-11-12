@@ -21,6 +21,8 @@ def _audio_url(job):
 
 def _public_job(job):
     """Chỉ trả các trường giao diện cần, lỗi đã làm sạch từ trước."""
+    style = job.get("style", "neutral")
+    resolved = job.get("resolvedStyle", style if style != "auto" else None)
     return {
         "jobId": job["jobId"],
         "status": job["status"],
@@ -31,6 +33,8 @@ def _public_job(job):
         "lang": job.get("translateTo") or job.get("lang", ""),
         "sourceLang": job.get("sourceLang"),
         "translated": job.get("translated", False),
+        "style": style,
+        **({"resolvedStyle": resolved} if resolved is not None else {}),
     }
 
 

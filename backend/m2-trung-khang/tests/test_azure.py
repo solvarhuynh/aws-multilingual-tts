@@ -37,6 +37,12 @@ def fixture():
 
 
 class AzureTest(unittest.TestCase):
+    def test_catalog_keeps_only_styles_reported_by_azure(self):
+        items = fixture()
+        items[0]["StyleList"] = ["cheerful", "sad", "cheerful", "<invalid>", None]
+        registry = setup.build_registry(items, setup.PREFERRED, "eastasia")
+        self.assertEqual(registry[items[0]["Locale"]]["voices"][0]["styles"], ["cheerful", "sad"])
+
     def adapter(self, result=None):
         opener = mock.Mock()
         if isinstance(result, Exception):

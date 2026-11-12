@@ -23,16 +23,20 @@
     "framework7-icons": "5.0.5",
     "glisse": "^0.5.0",
     "mammoth": "^1.13.0",
+    "onnxruntime-web": "1.29.0",
     "pdfjs-dist": "5.5.207",
+    "ppu-paddle-ocr": "6.7.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tesseract.js": "7.0.0"
   },
   "devDependencies": {
+    "@techstark/opencv-js": "4.12.0-release.1",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "esbuild": "0.28.2",
     "happy-dom": "21.0.4",
     "typescript": "~5.7.2",
     "vite": "^6.4.1"

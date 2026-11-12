@@ -118,3 +118,7 @@ python3 backend/m2-trung-khang/scripts/languages.py --languages ko-KR,fr-FR,de-D
 ```
 
 Các lệnh `--live`, cấu hình và tiêu chí nghe: [hướng dẫn Azure](../../docs/AZURE-SPEECH.md#nghiệm-thu-các-ngôn-ngữ-còn-lại). Không tick nghiệm thu chỉ vì catalog có giọng hoặc mock pass.
+
+## Sắc thái giọng đọc
+
+Tích hợp M4 được giao 11/11: `providers/emotion.py` chọn một style chủ đạo bằng Gemini tùy chọn; `azure.py` áp dụng `express-as`. Worker checkpoint `resolvedStyle` trước audio, dùng lại qua chunks/retry; catalog có styles thực từ Azure. Không fake cảm xúc cho giọng thiếu khả năng. M2 cần review/kiểm nghe riêng; log tích hợp ở CHANGELOG frontend. [Contract](../../docs/CONVENTIONS.md#sắc-thái-giọng-đọc--bổ-sung-11112026), [cấu hình/acceptance](../../docs/AZURE-SPEECH.md#giọng-đọc-có-cảm-xúc). Cờ mặc định tắt; không tự deploy/live.

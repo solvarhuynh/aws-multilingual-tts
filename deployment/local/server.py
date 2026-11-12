@@ -72,7 +72,7 @@ def settings(path=ENV_FILE, *, host=None, public_url=None):
         'LOCAL_HOST': '127.0.0.1', 'LOCAL_PORT': '8000', 'LOCAL_PUBLIC_URL': '',
         'AZURE_SPEECH_KEY': '', 'AZURE_SPEECH_REGION': 'eastasia',
         'AZURE_TRANSLATOR_KEY': '', 'AZURE_TRANSLATOR_REGION': 'global',
-        'GEMINI_API_KEY': '', 'GEMINI_MODEL': '', 'GEMINI_TYPO_ENABLED': 'false', 'GEMINI_TRANSLATION_ENABLED': 'false',
+        'GEMINI_API_KEY': '', 'GEMINI_MODEL': '', 'GEMINI_TYPO_ENABLED': 'false', 'GEMINI_TRANSLATION_ENABLED': 'false', 'GEMINI_EMOTION_ENABLED': 'false',
         'DEMO_TOKEN': '', 'MAX_CHARS': '10000', 'DAILY_CHAR_LIMIT': '30000',
     }
     if values.keys() - result.keys():
@@ -84,10 +84,11 @@ def settings(path=ENV_FILE, *, host=None, public_url=None):
         result['LOCAL_PUBLIC_URL'] = public_url
     for name in result:
         result[name] = result[name].strip()
-    for name in ['GEMINI_TYPO_ENABLED', 'GEMINI_TRANSLATION_ENABLED']:
+    gemini_flags = ['GEMINI_TYPO_ENABLED', 'GEMINI_TRANSLATION_ENABLED', 'GEMINI_EMOTION_ENABLED']
+    for name in gemini_flags:
         if result[name] not in {'true', 'false'}:
             raise ValueError(f'{name} dùng true hoặc false.')
-    if 'true' in [result['GEMINI_TYPO_ENABLED'], result['GEMINI_TRANSLATION_ENABLED']]:
+    if any(result[name] == 'true' for name in gemini_flags):
         if not result['GEMINI_API_KEY'] or not re.fullmatch(r'gemini-[A-Za-z0-9._-]{1,60}', result['GEMINI_MODEL']):
             raise ValueError('Bật Gemini cần GEMINI_API_KEY và GEMINI_MODEL hợp lệ ở backend; Azure vẫn dùng key riêng.')
     for name in ['LOCAL_PORT', 'MAX_CHARS', 'DAILY_CHAR_LIMIT']:
@@ -188,6 +189,7 @@ class Runtime:
             'TTS_API_PARAMETER_NAME': '/local/azure-speech',
             'TRANSLATOR_API_PARAMETER_NAME': '/local/azure-translator' if self.values['AZURE_TRANSLATOR_KEY'] else '',
             'GEMINI_TYPO_ENABLED': self.values['GEMINI_TYPO_ENABLED'],
+            'GEMINI_EMOTION_ENABLED': self.values['GEMINI_EMOTION_ENABLED'],
             'GEMINI_TRANSLATION_ENABLED': self.values['GEMINI_TRANSLATION_ENABLED'],
             'GEMINI_API_PARAMETER_NAME': '/local/gemini' if self.values['GEMINI_API_KEY'] else '',
             'GEMINI_MODEL': self.values['GEMINI_MODEL'], 'DEMO_TOKEN': self.values['DEMO_TOKEN'],

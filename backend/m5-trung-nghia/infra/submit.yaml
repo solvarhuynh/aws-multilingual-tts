@@ -53,6 +53,10 @@ Parameters:
     Type: String
     Default: 'false'
     AllowedValues: ['true', 'false']
+  GeminiEmotionEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
   GeminiApiParameterName:
     Type: String
     Default: ''
@@ -128,6 +132,7 @@ Resources:
           TRANSLATOR_API_PARAMETER_NAME: !Ref TranslatorApiParameterName
           AZURE_TRANSLATOR_REGION: !Ref AzureTranslatorRegion
           GEMINI_TYPO_ENABLED: !Ref GeminiTypoEnabled
+          GEMINI_EMOTION_ENABLED: !Ref GeminiEmotionEnabled
           GEMINI_API_PARAMETER_NAME: !Ref GeminiApiParameterName
           GEMINI_MODEL: !Ref GeminiModel
           GEMINI_TRANSLATION_ENABLED: !Ref GeminiTranslationEnabled

@@ -49,6 +49,17 @@ def failing(error):
 
 
 class WorkerTest(unittest.TestCase):
+    def test_auto_style_is_checkpointed_and_reused_after_retry(self):
+        entry = {"vi-VN": {"provider": "azure", "voices": [{"id": "v1", "styles": ["cheerful"]}]}}
+        self.seed(style="auto")
+        with mock.patch("registry.load_registry", return_value=entry), mock.patch.object(app, "detect_style", return_value="cheerful") as detect:
+            with mock.patch.object(app.storage, "put_audio", side_effect=OSError), self.assertRaises(OSError):
+                self.run_worker()
+            self.assertEqual(self.saved()["resolvedStyle"], "cheerful")
+            self.assertEqual(self.run_worker()["status"], "DONE")
+            detect.assert_called_once()
+            self.assertEqual(self.factory.call_args.kwargs["style"], "cheerful")
+
     def setUp(self):
         self.s3 = FakeS3()
         for patcher in (

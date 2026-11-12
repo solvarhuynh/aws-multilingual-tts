@@ -24,6 +24,18 @@ WEB = ROOT / 'frontend/web'
 APP = ROOT / 'frontend/app'
 
 
+def catalog_needs_refresh(path, region):
+    try:
+        catalog = json.loads(path.read_text())
+        if not isinstance(catalog, dict) or catalog.get('_region') != region:
+            return True
+        voices = [voice for lang, entry in catalog.items() if not lang.startswith('_') and isinstance(entry, dict)
+                  for voice in entry.get('voices', [])]
+        return not voices or any(not isinstance(voice, dict) or not isinstance(voice.get('styles'), list) for voice in voices)
+    except (OSError, ValueError, TypeError):
+        return True
+
+
 def node_interfaces():
     source = 'process.stdout.write(JSON.stringify(require("node:os").networkInterfaces()))'
     result = subprocess.run(['node', '-e', source], check=True, capture_output=True, text=True)
@@ -205,11 +217,7 @@ def main():
             values = server.settings(args.env_file, host='0.0.0.0' if ip != '127.0.0.1' else ip, public_url=public_url)
             check_ports([port, 5173, 8081])
             catalog = server.DATA / 'voices.azure.json'
-            try:
-                region = json.loads(catalog.read_text()).get('_region')
-            except (OSError, ValueError):
-                region = None
-            if not args.no_voices and (args.refresh_voices or region != values['AZURE_SPEECH_REGION']):
+            if not args.no_voices and (args.refresh_voices or catalog_needs_refresh(catalog, values['AZURE_SPEECH_REGION'])):
                 if values['AZURE_SPEECH_KEY']:
                     print('Đang lấy catalog Azure Speech; không gọi AWS, chưa tạo MP3.', flush=True)
                     server.fetch_voices(values)
