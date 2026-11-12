@@ -1,10 +1,11 @@
 import { MAX_PART_CHARS as MAX_CHARS } from "../../../shared/documents";
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type EditorMode = 'speech' | 'translation';
-export interface Voice { id: string; gender: string; name?: string }
-export interface Language { lang: string; provider: string; engine: string | null; voices: Voice[]; maxChars?: number; translationEnabled?: boolean }
-export interface Input { text: string; lang: string; voice: string; speed: number; translateTo: string | null }
+export interface Voice { id: string; gender: string; name?: string; styles?: string[] }
+export interface Language { lang: string; provider: string; engine: string | null; voices: Voice[]; maxChars?: number; translationEnabled?: boolean; autoEmotionEnabled?: boolean }
+export interface Input { text: string; lang: string; voice: string; speed: number; translateTo: string | null; style?: string }
 export interface Job {
+  style?: string; resolvedStyle?: string;
   text?: string; lang?: string; translated?: boolean; sourceLang?: string | null;
   jobId: string;
   status: 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
@@ -67,7 +68,7 @@ export const demoLanguages: Language[] = [
 ];
 export const samples = [
   { title: 'Thông báo', icon: 'megaphone' as const, text: 'Mời các bạn kiểm tra lịch học trên cổng thông tin của trường trước khi đến lớp.' },
-  { title: 'Bài học', icon: 'book' as const, text: 'Amazon Polly chuyển văn bản thành giọng nói. File âm thanh được lưu trên Amazon S3 để người dùng nghe và tải về.' },
+  { title: 'Bài học', icon: 'book' as const, text: 'Azure Speech chuyển văn bản thành giọng nói. Bản thu được lưu trên Amazon S3 để nghe lại, tải xuống và chia sẻ.' },
   { title: 'Giới thiệu', icon: 'mic' as const, text: 'Xin chào, chúng tôi là Nhóm 5. Đây là ứng dụng chuyển văn bản thành giọng nói đa ngôn ngữ của nhóm.' },
 ];
 export const number = (value: number) => new Intl.NumberFormat('vi-VN').format(value);
@@ -106,6 +107,7 @@ export function isRecording(value: unknown): value is Recording {
   if (!value || typeof value !== 'object') return false;
   const r = value as Recording;
   return typeof r.jobId === 'string' && typeof r.text === 'string' && typeof r.lang === 'string' &&
+    (r.style === undefined || typeof r.style === 'string') && (r.resolvedStyle === undefined || typeof r.resolvedStyle === 'string') &&
     typeof r.voice === 'string' && typeof r.charCount === 'number' && Number.isFinite(r.charCount) &&
     typeof r.createdAt === 'string' && Number.isFinite(Date.parse(r.createdAt)) &&
     ['PENDING', 'PROCESSING', 'DONE', 'FAILED'].includes(r.status) &&

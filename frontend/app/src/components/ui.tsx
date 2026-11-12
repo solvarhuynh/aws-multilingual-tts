@@ -6,6 +6,7 @@ import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useStudio } from '../state/Studio';
+import { useBlurScene } from './BlurScene';
 
 const icons = {
   home: ['house.fill', 'home'], wave: ['waveform', 'pulse'], grid: ['square.grid.2x2.fill', 'grid'],
@@ -16,6 +17,7 @@ const icons = {
   heartFill: ['heart.fill', 'heart'], book: ['book.closed.fill', 'book'], translate: ['character.bubble.fill', 'language'],
   file: ['doc.text', 'document-text-outline'], upload: ['square.and.arrow.up', 'cloud-upload-outline'],
   camera: ['doc.viewfinder', 'scan-outline'],
+  keyboard: ['keyboard.chevron.compact.down', 'chevron-down'],
   download: ['arrow.down.to.line', 'download-outline'], share: ['square.and.arrow.up', 'share-outline'],
   trash: ['trash', 'trash-outline'], more: ['ellipsis', 'ellipsis-horizontal'], mic: ['mic.fill', 'mic'],
   sun: ['sun.max.fill', 'sunny'], moon: ['moon.fill', 'moon'], phone: ['iphone', 'phone-portrait-outline'],
@@ -42,12 +44,13 @@ export function Label({ children, size = 16, weight = '400', muted, style, lines
 let nativeGlass = false;
 try { nativeGlass = Platform.OS === 'ios' && isLiquidGlassAvailable() && isGlassEffectAPIAvailable(); } catch { /* Dùng kính mờ khi thiết bị không hỗ trợ. */ }
 export function Glass({ children, style, interactive = false }: PropsWithChildren<{ style?: StyleProp<ViewStyle>; interactive?: boolean }>) {
-  const { colors, isDark } = useStudio();
+  const { colors, isDark, reducedMotion } = useStudio();
+  const { target } = useBlurScene();
   const shape: ViewStyle = { borderRadius: 30, overflow: 'hidden', borderWidth: 1, borderColor: colors.glassLine };
-  if (nativeGlass) return <GlassView colorScheme={isDark ? 'dark' : 'light'} glassEffectStyle={isDark ? 'clear' : 'regular'} isInteractive={interactive}
+  if (nativeGlass) return <GlassView colorScheme={isDark ? 'dark' : 'light'} glassEffectStyle={{ style: isDark ? 'clear' : 'regular', animate: !reducedMotion }} isInteractive={interactive}
     style={[shape, { overflow: 'visible', borderCurve: 'continuous' }, style]}>{children}</GlassView>;
   return <View style={[shape, { backgroundColor: colors.glass }, style]}>
-    <BlurView pointerEvents="none" intensity={isDark ? 32 : 65} tint={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'} style={StyleSheet.absoluteFill} />
+    <BlurView pointerEvents="none" blurTarget={target} blurMethod={target ? 'dimezisBlurViewSdk31Plus' : 'none'} intensity={isDark ? 32 : 65} tint={isDark ? 'systemChromeMaterialDark' : 'systemChromeMaterialLight'} style={StyleSheet.absoluteFill} />
     {children}
   </View>;
 }

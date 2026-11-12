@@ -8,12 +8,13 @@ const footer: typeof navigation = [
   { id: "settings", title: "Cài đặt", icon: "settings" },
 ];
 
-export default function Sidebar({ page, collapsed, count, onToggle, onNavigate }: {
+export default function Sidebar({ page, collapsed, count, onToggle, onNavigate, drawer = false }: {
   page: Page;
   collapsed: boolean;
   count: number;
   onToggle: () => void;
   onNavigate: (page: Page) => void;
+  drawer?: boolean;
 }) {
   const [hint, setHint] = useState<{ text: string; top: number } | null>(null);
   const index = navigation.findIndex((item) => item.id === page);
@@ -39,14 +40,15 @@ export default function Sidebar({ page, collapsed, count, onToggle, onNavigate }
     </a>;
   }
 
-  return <aside id="main-sidebar" className="sidebar" aria-label="Điều hướng chính"
+  const sidebarId = drawer ? "drawer-sidebar" : "main-sidebar";
+  return <aside id={sidebarId} className={`sidebar ${drawer ? "drawer-sidebar" : ""}`} aria-label="Điều hướng chính"
     onPointerOver={showHint} onFocusCapture={showHint}
     onPointerLeave={() => setHint(null)} onBlurCapture={() => setHint(null)}>
     <div className="sidebar-glass" aria-hidden="true" />
-    <Button className="sidebar-toggle" aria-label={collapsed ? "Hiện thanh bên" : "Thu gọn thanh bên"}
-      aria-expanded={!collapsed} aria-controls="main-sidebar"
+    <Button className={drawer ? "icon-button drawer-close" : "sidebar-toggle"} aria-label={drawer ? "Đóng menu điều hướng" : collapsed ? "Hiện thanh bên" : "Thu gọn thanh bên"}
+      aria-expanded={drawer ? undefined : !collapsed} aria-controls={sidebarId}
       onClick={() => { setHint(null); onToggle(); }}>
-      <Icon name="chevron" size={13} />
+      <Icon name={drawer ? "close" : "chevron"} size={drawer ? 19 : 13} />
     </Button>
     <div className="sidebar-content">
       <div className="sidebar-brand">

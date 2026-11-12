@@ -8,7 +8,6 @@ import Select from "./components/Select";
 import CorrectionReview from "./components/CorrectionReview";
 import {
   Button,
-  Brand,
   EmptyState,
   Icon,
   Modal,
@@ -40,7 +39,8 @@ import { useSidebarMotion } from "./hooks/useSidebarMotion";
 import { useTheme } from "./hooks/useTheme";
 import Dashboard from "./views/Dashboard";
 import type { HistoryItem, Page, Preferences } from "./lib/types";
-import { MAX_DOCUMENT_CHARS, wordCount } from '../../shared/documents';
+import { MAX_DOCUMENT_CHARS, OCR_LANGUAGES, wordCount } from '../../shared/documents';
+import { expressionHint } from '../../shared/expression';
 
 type Dialog = "voices" | "menu" | null;
 const pages = [
@@ -74,6 +74,7 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [languageFilter, setLanguageFilter] = useState("all");
   const [preferences, setPreferences] = useState(getPreferences);
+  const [systemReducedMotion, setSystemReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const [demoToken, setDemoToken] = useState(getDemoToken);
   useTheme(preferences.theme);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readStored<boolean>("tts.sidebar.collapsed", false) === true);
@@ -149,6 +150,20 @@ export default function App() {
     document.documentElement.dataset.contrast = preferences.highContrast ? "high" : "normal";
   }, [preferences]);
   useEffect(() => { storeValue("tts.sidebar.collapsed", sidebarCollapsed); }, [sidebarCollapsed]);
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setSystemReducedMotion(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    if (dialog !== "menu") return;
+    const desktop = window.matchMedia("(min-width: 801px)");
+    const close = () => { if (desktop.matches) setDialog(null); };
+    desktop.addEventListener("change", close);
+    close();
+    return () => desktop.removeEventListener("change", close);
+  }, [dialog]);
 
   async function playRecording(item: HistoryItem) {
     const selected = studio.currentAudio?.jobId === item.jobId ? item : await studio.openRecording(item);
@@ -249,6 +264,7 @@ export default function App() {
           checked={preferences.highContrast}
           onChange={(value) => setPreferences((p) => ({ ...p, highContrast: value }))}
         />
+        {systemReducedMotion && !preferences.reducedMotion && <p className="settings-note">Chuyển động đang được giảm theo cài đặt của thiết bị.</p>}
         <label className="volume-setting">
           <span>Âm lượng</span>
           <Slider
@@ -334,6 +350,7 @@ export default function App() {
                   {languageNames[v.lang] || v.lang}
                   <span>·</span>
                   {v.gender === "F" ? "Nữ" : v.gender === "M" ? "Nam" : "Giọng đọc"}
+                  {!!v.styles?.length && <><span>·</span>Có sắc thái</>}
                 </p>
                 <div className="voice-card-bottom">
                   <small>
@@ -500,7 +517,7 @@ export default function App() {
                     }}
                     noValidate
                   >
-                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" hidden onChange={event => { void studio.importFile(event.target.files?.[0]); event.target.value = ""; }} />
+                    <input ref={cameraRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden onChange={event => { void studio.importFile(event.target.files?.[0], true); event.target.value = ""; }} />
                     <div className="editor-toolbar">
                       <Button
                         type="button"
@@ -513,6 +530,8 @@ export default function App() {
                         <Icon name="chevron" size={13} />
                       </Button>
                       <div className="editor-import-actions">
+                        <Select label="Ngôn ngữ tài liệu" value={studio.documentLang} onValueChange={studio.setDocumentLang}
+                          disabled={studio.busy || studio.readingFile} options={OCR_LANGUAGES} />
                         <Button
                           className="text-button"
                           type="button"
@@ -530,6 +549,7 @@ export default function App() {
                       </div>
                     </div>
                     {studio.fileName && <div className="imported-file" title={studio.fileName}><Icon name="file" size={14} /><span>{studio.fileName}</span></div>}
+                    {!!studio.importWarning && <div className="imported-file" role="status">{studio.importWarning}</div>}
                     {studio.readingFile && <div className="document-tools" role="status">
                       <span>{studio.importProgress}</span>
                       <Button type="button" onClick={studio.cancelImport}>Hủy nhập</Button>
@@ -724,6 +744,13 @@ export default function App() {
                     </div>
                   )}
                   <div className="setting-field">
+                    <label htmlFor="speaking-style">Sắc thái</label>
+                    <Select id="speaking-style" label="Sắc thái" value={studio.style} onValueChange={studio.setStyle}
+                      options={studio.styles} disabled={studio.busy || studio.styles.length < 2} />
+                    {studio.styles.length < 2 && selectedVoice && <small>{expressionHint(studio.language?.provider, selectedVoice.styles)}</small>}
+                    {studio.style === 'auto' && <small>Gửi đoạn đọc cho Gemini để chọn sắc thái.</small>}
+                  </div>
+                  <div className="setting-field">
                     <span className="field-label">Nguồn giọng đọc</span>
                     <div className="engine-label">
                       <Icon name="layers" size={17} />
@@ -756,6 +783,7 @@ export default function App() {
                     disabled={studio.busy}
                     onClick={() => {
                       studio.setSpeed(1);
+                      studio.setStyle('neutral');
                       const initial =
                         studio.languages.find((l) => l.lang === "vi-VN" && l.voices.length) ||
                         studio.languages.find((l) => l.voices.length);
@@ -935,18 +963,8 @@ export default function App() {
 
       {dialog === "menu" && (
         <Modal title="TTS Studio" onClose={closeDialog} className="mobile-nav-modal">
-          <div className="mobile-brand">
-            <Brand />
-          </div>
-          <div className="mobile-nav">
-            {pages.map((n) => (
-              <Button className={page === n.id ? "active" : ""} key={n.id} aria-current={page === n.id ? "page" : undefined} onClick={() => navigate(n.id)}>
-                <Icon name={n.icon} size={19} />
-                {n.title}
-                <Icon name="arrow" size={15} />
-              </Button>
-            ))}
-          </div>
+          <Sidebar drawer page={page} collapsed={false} count={studio.history.length}
+            onToggle={closeDialog} onNavigate={navigate} />
         </Modal>
       )}
       {deleteItem && (

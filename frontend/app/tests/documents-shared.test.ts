@@ -2,6 +2,100 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { checkedDocument, splitDocument, wordCount, ocrLanguage } from '../../shared/documents';
 import { abortable, imageText, joinTextItems, pdfText } from '../../shared/browser-document';
+import { loadOcrModels, recognizeText } from '../../shared/ocr';
+import { sha256Hex } from '../../shared/sha256';
+import { paperCorners } from '../../shared/scan';
+import { expressionHint, expressionOptions } from '../../shared/expression';
+import { createVietnameseReader } from '../../shared/vietocr';
+import ocrModels from '../../shared/ocr-models.json';
+
+test('Model tự phục vụ kiểm hash, không phụ thuộc crypto.subtle trên mạng LAN', async () => {
+  const originalFetch = globalThis.fetch, originalDocument = globalThis.document;
+  const bytes = new Uint8Array([31, 139, 8, 0]), requests: string[] = [];
+  let corrupt = false;
+  globalThis.document = { baseURI: 'http://fixture.test/' } as Document;
+  globalThis.fetch = (async (url: URL) => {
+    requests.push(url.href);
+    return url.pathname.endsWith('manifest.json') ? Response.json({ eng: { bytes: bytes.length, sha256: sha256Hex(bytes) } }) :
+      new Response(corrupt ? new Uint8Array([31, 139, 0, 0]) : bytes);
+  }) as typeof fetch;
+  try {
+    const result = await loadOcrModels({ lang: 'en-US' });
+    assert.deepEqual(result, [{ code: 'eng', data: bytes }]);
+    assert.ok(requests.every(url => url.startsWith('http://fixture.test/ocr/')));
+    corrupt = true;
+    await assert.rejects(loadOcrModels({ lang: 'en-US' }), /Chưa tải được/);
+    const controller = new AbortController(); controller.abort();
+    await assert.rejects(loadOcrModels({ lang: 'en-US', signal: controller.signal }), /Đã hủy/);
+  } finally { globalThis.fetch = originalFetch; globalThis.document = originalDocument; }
+});
+
+test('Model tiếng Việt có đủ dấu, đúng bảng mã của bản export đã khóa', () => {
+  const { vocab, offset, sos, eos } = ocrModels.recognition;
+  for (const char of 'ăâđêôơưĂÂĐÊÔƠƯ' + Array.from({ length: 90 }, (_, i) => String.fromCharCode(0x1ea0 + i)).join(''))
+    assert.ok(vocab.includes(char), `Thiếu ${char}`);
+  assert.equal(new Set(vocab).size, vocab.length);
+  assert.equal(offset, 4); assert.equal(sos, 1); assert.equal(eos, 2);
+});
+
+test('Bộ đọc chạy trong worker riêng, hủy/lỗi không giữ request hoặc nhận kết quả cũ', async () => {
+  const originalWorker = globalThis.Worker, originalDocument = globalThis.document;
+  let instance: FakeWorker;
+  class FakeWorker {
+    onmessage?: (event: { data: object }) => void;
+    onerror?: (event: { preventDefault(): void }) => void;
+    stopped = false;
+    request?: { base: string; width: number; height: number; pixels: Uint8ClampedArray };
+    constructor() { instance = this; }
+    postMessage(request: FakeWorker['request']) { this.request = request; }
+    terminate() { this.stopped = true; }
+  }
+  globalThis.Worker = FakeWorker as unknown as typeof Worker;
+  globalThis.document = { baseURI: 'https://fixture.test/' } as Document;
+  const image = { width: 1, height: 1, getContext: () => ({ getImageData: () => ({ data: new Uint8ClampedArray([0, 0, 0, 255]) }) }) } as unknown as HTMLCanvasElement;
+  const controller = new AbortController(), progress: string[] = [], warnings: string[] = [];
+  const reader = createVietnameseReader({ signal: controller.signal, onProgress: value => progress.push(value), onWarning: value => warnings.push(value) });
+  try {
+    const result = reader.recognize(image);
+    assert.equal(instance!.request?.base, 'https://fixture.test/ocr/');
+    instance!.onmessage?.({ data: { progress: 'Đang đọc dòng 1/1…' } });
+    instance!.onmessage?.({ data: { text: 'Tiếng Việt', warning: 'Chữ mờ' } });
+    assert.equal(await result, 'Tiếng Việt'); assert.equal(progress.length, 1); assert.deepEqual(warnings, ['Chữ mờ']);
+    const pending = reader.recognize(image);
+    controller.abort(); await assert.rejects(pending, /Đã hủy/);
+    instance!.onmessage?.({ data: { text: 'Phản hồi cũ' } });
+    assert.equal(instance!.stopped, true);
+    await assert.rejects(reader.recognize(image), /Đã hủy/);
+  } finally { reader.terminate(); globalThis.Worker = originalWorker; globalThis.document = originalDocument; }
+});
+
+test('Sắc thái chỉ hiện đúng khả năng của giọng, nhận diện tự động cần cấu hình', () => {
+  assert.deepEqual(expressionOptions([], true), [{ value: 'neutral', label: 'Tự nhiên' }]);
+  assert.deepEqual(expressionOptions(['cheerful', 'sad', 'sad', '<bad>']).map(item => item.value), ['neutral', 'cheerful', 'sad']);
+  assert.deepEqual(expressionOptions(['cheerful'], true).map(item => item.value), ['neutral', 'auto', 'cheerful']);
+  assert.match(expressionHint('azure'), /Danh sách giọng cũ/);
+  assert.doesNotMatch(expressionHint('azure', []), /Danh sách giọng cũ/);
+  assert.doesNotMatch(expressionHint('elevenlabs'), /Danh sách giọng cũ/);
+});
+
+test('OCR nhận dạng bố cục tự động, chỉnh nghiêng và giữ dấu tiếng Việt', async () => {
+  let settings: unknown, rotation: unknown;
+  const worker = {
+    setParameters: async (value: unknown) => { settings = value; },
+    recognize: async (_: unknown, value: unknown) => { rotation = value; return { data: { text: ' Tiếng Việt ', confidence: 87 } }; },
+  };
+  assert.equal(await recognizeText(worker, {} as HTMLCanvasElement), ' Tiếng Việt ');
+  assert.deepEqual(settings, { tessedit_pageseg_mode: '3', preserve_interword_spaces: '1', user_defined_dpi: '300' });
+  assert.deepEqual(rotation, { rotateAuto: true });
+  const controller = new AbortController(); controller.abort();
+  await assert.rejects(recognizeText(worker, {} as HTMLCanvasElement, { signal: controller.signal }), /Đã hủy/);
+});
+
+test('Căn giấy giữ bốn góc theo thứ tự và không dùng tứ giác thiếu góc', () => {
+  assert.deepEqual(paperCorners([{ x: 800, y: 1000 }, { x: 40, y: 30 }, { x: 100, y: 950 }, { x: 850, y: 80 }]),
+    [{ x: 40, y: 30 }, { x: 850, y: 80 }, { x: 100, y: 950 }, { x: 800, y: 1000 }]);
+  assert.deepEqual(paperCorners([{ x: 1, y: 1 }, { x: 3, y: 3 }, { x: 2, y: 2 }]), []);
+});
 
 test('Chia tài liệu giữ đủ nội dung, giới hạn phần và cặp UTF-16', () => {
   for (const text of ['Xin chào. '.repeat(15000), '日本語'.repeat(12000), 'a'.repeat(1999) + '🌏'.repeat(2000), 'a'.repeat(2000) + ' '.repeat(4000) + 'b']) {

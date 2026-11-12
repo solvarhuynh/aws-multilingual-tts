@@ -27,6 +27,11 @@ VALID = {
 
 
 class VoicesTest(unittest.TestCase):
+    def test_empty_styles_are_distinct_from_old_catalog_without_metadata(self):
+        self.assertNotIn('styles', app.public_voice({'id': 'v1', 'gender': 'F'}))
+        self.assertEqual(app.public_voice({'id': 'v1', 'gender': 'F', 'styles': []})['styles'], [])
+        self.assertEqual(app.public_voice({'id': 'v1', 'gender': 'F', 'styles': ['cheerful']})['styles'], ['cheerful'])
+
     def call(self, registry):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "voices.json"

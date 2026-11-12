@@ -60,6 +60,10 @@ Parameters:
     Type: String
     Default: 'false'
     AllowedValues: ['true', 'false']
+  GeminiEmotionEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
   GeminiApiParameterName:
     Type: String
     Default: ''
@@ -110,6 +114,10 @@ Resources:
         TranslatorApiParameterName: !Ref TranslatorApiParameterName
         AzureTranslatorRegion: !Ref AzureTranslatorRegion
 
+        GeminiEmotionEnabled: !Ref GeminiEmotionEnabled
+        GeminiApiParameterName: !Ref GeminiApiParameterName
+        GeminiModel: !Ref GeminiModel
+
   Submit:
     Type: AWS::Serverless::Application
     Properties:
@@ -128,6 +136,7 @@ Resources:
         TranslatorApiParameterName: !Ref TranslatorApiParameterName
         AzureTranslatorRegion: !Ref AzureTranslatorRegion
         GeminiTypoEnabled: !Ref GeminiTypoEnabled
+        GeminiEmotionEnabled: !Ref GeminiEmotionEnabled
         GeminiApiParameterName: !Ref GeminiApiParameterName
         GeminiModel: !Ref GeminiModel
         GeminiTranslationEnabled: !Ref GeminiTranslationEnabled

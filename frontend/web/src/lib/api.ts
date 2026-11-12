@@ -69,6 +69,7 @@ function isJob(value: unknown): value is Job {
   )
     return false;
   if (["text", "lang", "sourceLang"].some(key => value[key] != null && typeof value[key] !== "string")) return false;
+  if (['style', 'resolvedStyle'].some(key => value[key] !== undefined && typeof value[key] !== 'string')) return false;
   if (value.translated !== undefined && typeof value.translated !== "boolean") return false;
   return true;
 }
@@ -200,14 +201,16 @@ export const api = {
           typeof l.provider === "string" &&
           Array.isArray(l.voices) &&
           l.voices.every((v) => !!v && typeof v.id === "string" && typeof v.gender === "string" &&
-            (v.name === undefined || typeof v.name === "string")),
+            (v.name === undefined || typeof v.name === "string") &&
+            (v.styles === undefined || (Array.isArray(v.styles) && v.styles.every(style => typeof style === 'string')))),
       )
     )
       throw new ApiError("Danh sách giọng đọc chưa đúng định dạng.", "INVALID_RESPONSE");
-    const catalog = data as typeof data & { limits?: { maxChars?: number }; features?: { translation?: boolean } };
+    const catalog = data as typeof data & { limits?: { maxChars?: number }; features?: { translation?: boolean; autoEmotion?: boolean } };
     const limit = catalog.limits?.maxChars;
     if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) throw new ApiError("Giới hạn máy chủ chưa hợp lệ.", "INVALID_RESPONSE");
-    return data.languages.map(language => ({ ...language, maxChars: Math.min(MAX_CHARS, limit ?? MAX_CHARS), translationEnabled: catalog.features?.translation }));
+    return data.languages.map(language => ({ ...language, maxChars: Math.min(MAX_CHARS, limit ?? MAX_CHARS), translationEnabled: catalog.features?.translation,
+      ...(typeof catalog.features?.autoEmotion === 'boolean' ? { autoEmotionEnabled: catalog.features.autoEmotion } : {}) }));
   },
   async synthesize(input: SynthesizeInput, context = ''): Promise<Job> {
     if (!DEMO) {
@@ -220,7 +223,7 @@ export const api = {
         if (result.status === 'DONE' || result.status === 'FAILED') await submissions.finish(result.jobId);
         return result;
       } catch (error) {
-        if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'UNSUPPORTED_SPEED', 'FEATURE_NOT_ENABLED', 'TRANSLATION_NOT_CONFIGURED'].includes(error.code)) await submissions.reject(digest);
+        if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'UNSUPPORTED_SPEED', 'UNSUPPORTED_STYLE', 'EMOTION_NOT_CONFIGURED', 'FEATURE_NOT_ENABLED', 'TRANSLATION_NOT_CONFIGURED'].includes(error.code)) await submissions.reject(digest);
         throw error;
       }
     }

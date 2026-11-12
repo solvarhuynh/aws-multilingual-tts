@@ -117,7 +117,9 @@ def build_registry(items, target_languages, region):
             voice = next((v for v in candidates if v["Gender"] == gender), None)
             if voice:
                 selected.append({"id": voice["ShortName"], "gender": "F" if gender == "Female" else "M",
-                                 "name": VI_NAMES.get(voice["ShortName"]) or voice.get("LocalName") or voice.get("DisplayName") or voice["ShortName"]})
+                                 "name": VI_NAMES.get(voice["ShortName"]) or voice.get("LocalName") or voice.get("DisplayName") or voice["ShortName"],
+                                 "styles": sorted({style for style in (voice.get("StyleList") if isinstance(voice.get("StyleList"), list) else [])
+                                                   if isinstance(style, str) and re.fullmatch(r"[a-z][a-z0-9_-]{0,59}", style)})})
         if selected:
             registry[lang] = {"provider": "azure", "engine": None, "languageCode": locale,
                               "speedRange": [0.7, 1.2], "voices": selected}

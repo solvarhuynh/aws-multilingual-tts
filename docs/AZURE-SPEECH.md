@@ -763,7 +763,7 @@ bash deployment/scripts/sandbox.sh web
 
 `status` kiểm cấu hình provider Speech chung như trước; chưa phải nghiệm thu Translator. Chủ lab có thể xem Lambda Environment: worker/submit có `TRANSLATOR_API_PARAMETER_NAME` và `AZURE_TRANSLATOR_REGION` (chỉ tên/vùng, không phải key). `/voices` trả `features.translation=true` khi đã nối tên parameter; cờ này không kiểm key/quota đang hợp lệ. Nghiệm thu bằng bước 4.
 
-Upload web cần Node theo README và `npm ci` đầy đủ. `prepare`/`prebuild` tự sinh `dist/ocr/` gồm worker, WASM và sáu model; không upload riêng vài file JS hoặc bỏ thư mục OCR. Worker/model chỉ tải khi nhập scan, không tải toàn bộ khi mở trang.
+Upload web cần Node theo README và `npm ci` đầy đủ. `prepare`/`prebuild` tự sinh `dist/ocr/` gồm worker, WASM, model Paddle/VietOCR và sáu gói Tesseract; không upload riêng vài file JS hoặc bỏ thư mục OCR. Worker/model chỉ tải khi nhập scan, không tải toàn bộ khi mở trang.
 
 ### 4. Nghiệm thu Dịch và đọc trên URL CloudFront
 
@@ -780,7 +780,7 @@ Theo [giới hạn Speech](https://learn.microsoft.com/en-us/azure/ai-services/s
 ### 5. Nghiệm thu scan và tài liệu
 
 - **Tạo giọng đọc** hoặc **Dịch và đọc** → **Nhập tệp**: TXT/DOCX/PDF có chữ, ảnh JPG/PNG/WebP, PDF scan và PDF gồm cả trang chữ/trang ảnh. Kiểm đầu/giữa/cuối và số trang, sửa chữ OCR trước khi tạo giọng.
-- **Chụp tài liệu**: điện thoại mở camera qua file picker nếu trình duyệt hỗ trợ; desktop chọn ảnh. Đặt đúng ngôn ngữ trước OCR. Web có model Việt/Anh/Nhật/Hàn/Trung giản thể/phồn thể; các ngôn ngữ khác hiện dùng OCR Anh, không tự tuyên bố nhận dạng tốt mọi script.
+- **Chụp tài liệu**: điện thoại mở camera qua file picker nếu trình duyệt hỗ trợ; desktop chọn ảnh. Chọn **Ngôn ngữ tài liệu**, độc lập giọng đọc, trước OCR. Web/app có model Việt/Anh/Nhật/Hàn/Trung giản thể/phồn thể; các ngôn ngữ khác hiện dùng OCR Anh, không tự tuyên bố nhận dạng tốt mọi script.
 - Giới hạn tệp: **50 × 1024 × 1024 byte**; nội dung sau nhập **200.000 đơn vị UTF-16, 50.000 từ**; PDF **200 trang, tối đa 30 trang scan**; ảnh tối đa 40 megapixel, được giảm kích thước trước OCR.
 - Thử tệp vượt 50 MB, PDF khóa mật khẩu, ảnh không có chữ và hủy khi OCR đang chạy. Phải báo rõ, không xóa bản nháp hoặc nhập thiếu trang như thành công. Kiểm lại trên điện thoại thật vì tốc độ và bộ nhớ khác máy tính.
 - Trên tài liệu nhiều phần: chọn **Tạo phần N** hoặc **Tạo các phần còn lại**. Mỗi phần có job/MP3 riêng. Hết quota/lỗi/dừng thì giữ các phần đã xong trong phiên; sau reload cần đối chiếu Lịch sử, chưa có manifest tài liệu bền vững.
@@ -816,3 +816,25 @@ Kết quả: `results.json` và các MP3 trong thư mục ngoài repo; không gh
 | Kết luận | Tách MP3 kỹ thuật đạt với chất lượng đã nghe đạt, không tick chung mọi ngôn ngữ |
 
 Ghi kết quả đã che dữ liệu vào CHANGELOG của owner chạy nghiệm thu theo AGENTS. Không nâng trạng thái của M2/M3/M5 chỉ vì M4 build hoặc mock pass.
+
+## Giọng đọc có cảm xúc
+
+Tính năng này mở rộng Azure hiện có, không chuyển TTS sang ElevenLabs. Azure chỉ hỗ trợ styles trên một số giọng. [Danh sách Microsoft](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support) hiện liệt kê Jenny/Guy tiếng Anh với nhiều sắc thái; Hoài My/Nam Minh tiếng Việt không có styles. Giao diện dùng danh mục thực của resource, không bật lựa chọn giả cho giọng chưa hỗ trợ. Xem [SSML express-as](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-synthesis-markup-voice#use-speaking-styles-and-roles).
+
+### Thử trên máy cá nhân
+
+1. Giữ Speech key/vùng hiện có trong env Python. Sau khi cập nhật source/dependency, chạy `npm run dev -- --refresh-voices` để lấy lại catalog có `StyleList`; thao tác này gọi Azure thật, chưa tạo MP3. Không chỉnh catalog bằng tay hoặc chép voice ID từ ví dụ vào registry.
+2. Chọn **Tạo giọng đọc → Tiếng Anh (Mỹ) → Jenny → Cài đặt giọng → Sắc thái**. Chọn Vui vẻ/Buồn/Thì thầm nếu resource công bố. Tạo câu ngắn đúng ngôn ngữ và nghe lại; tính năng chọn sắc thái cụ thể không cần Gemini.
+3. Để nhận diện tự động, trong `deployment/local/.env.local` dùng `GEMINI_API_KEY` và `GEMINI_MODEL` đã cấu hình cho tài khoản của mình, thêm `GEMINI_EMOTION_ENABLED=true`. Dừng bằng Ctrl+C rồi chạy lại. Không sửa env web/app, không cần bật typo hoặc dịch Gemini. Cờ mới có sẵn trong `.env.example`; file env thật không được sửa hoặc đọc trong kiểm thử tự động.
+4. Trên giao diện chọn **Tự chọn theo nội dung**. Đây là đồng ý gửi đoạn văn cho Gemini để chọn một sắc thái chủ đạo, không viết lại nội dung. Nếu Dịch và đọc, worker phân tích bản dịch. Mỗi phần người dùng tạo riêng là một lượt phân tích; các chunk nội bộ của cùng job dùng một kết quả đã checkpoint.
+5. Lỗi Gemini/quota trả FAILED kèm hướng dẫn chọn sắc thái cụ thể; không đọc trung tính rồi báo đã nhận diện thành công. Tắt cờ thì lựa chọn tự động biến mất, các sắc thái Azure cụ thể vẫn dùng được.
+
+### Đưa vào Sandbox khi được giao triển khai
+
+1. Cập nhật code, chạy lại `azure.py configure --region VUNG_AZURE` trong CloudShell để đồng bộ styles vào registry M2 và Layer M3, rồi `plan`, review changeset và `apply` theo mục 7–9. Upload web theo mục 10. Không copy env local lên AWS.
+2. Chọn sắc thái Azure cụ thể có thể dùng ngay sau cập nhật registry/backend. Nhận diện tự động mặc định tắt. Để bật, chủ lab tạo hoặc dùng **SSM SecureString cho key Gemini riêng**, kiểm LabRole đọc được và key có quota/model hợp lệ. Không thay tham số chứa Speech key bằng key Gemini.
+3. Trong **CloudFormation → stack gốc tts-dev → Update stack → Use current template → Parameters**, đặt `GeminiApiParameterName` bằng **tên** SecureString, `GeminiModel` bằng model đã kiểm với key và `GeminiEmotionEnabled=true`. Giữ các parameter khác, tạo/review changeset rồi thực thi theo quy trình của nhóm; không sửa trực tiếp env ba Lambda để tránh lệch cấu hình. M1 review root wiring, M2 kiểm worker/catalog, M3 kiểm CAS/counter, M5 kiểm submit.
+4. Root truyền tên key/model/cờ vào worker và voices M2 cùng submit M5, không tạo AWS service/role mới. `EMOTION_DAILY_CALL_LIMIT` của worker mặc định 100; counter CAS riêng `emotion-usage/`, không dùng counter typo/dịch. Mỗi call tối đa 15 giây, một lần/job trước checkpoint, có thể gọi lại sau crash chưa kịp ghi. Google nhận nội dung, request đặt `store=false`; không cam kết nội dung không chịu chính sách lưu giữ của provider.
+5. Nghiệm thu câu ngắn ở Tự nhiên/Vui vẻ/Buồn và tự động; kiểm `style`/`resolvedStyle` của job, nghe và nhận xét thực tế. Thử giọng không hỗ trợ (400 trước tạo job), cấu hình thiếu (503), Gemini timeout/quota (FAILED không giả thành công), retry giữ sắc thái đã ghi. Dùng hạn mức đã chốt và không bật tự động cho demo công khai khi chưa nghiệm thu.
+
+Trạng thái bàn giao: có code và kiểm thử mock; chưa gọi Gemini/Azure để nghe cảm xúc, chưa xác minh trên Sandbox hoặc điện thoại thật.

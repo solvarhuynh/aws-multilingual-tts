@@ -5,6 +5,7 @@ import { DEFAULT_SPEED, readStored, samples, storeValue, validateInput } from ".
 import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, TextCorrection } from "../lib/types";
 import { MAX_DOCUMENT_CHARS, checkedDocument, splitDocument } from '../../../shared/documents';
 import { HISTORY_SYNC_INTERVAL, mergeHistoryPage } from '../../../shared/history';
+import { expressionOptions } from '../../../shared/expression';
 
 type Review = { input: SynthesizeInput; correction: TextCorrection; documentText: string; partIndex: number; partLimit?: number };
 type Notify = (message: string, error?: boolean) => void;
@@ -186,6 +187,7 @@ export function useEditor(
   const [lang, setLang] = useState("vi-VN");
   const [voice, setVoice] = useState("");
   const [speed, setSpeed] = useState(DEFAULT_SPEED);
+  const [selectedStyle, setStyle] = useState('neutral');
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [review, setReview] = useState<Review | null>(null);
@@ -193,6 +195,8 @@ export function useEditor(
   const revision = useRef(0);
   const [readingFile, setReadingFile] = useState(false);
   const [importProgress, setImportProgress] = useState('');
+  const [documentLang, setDocumentLang] = useState('vi-VN');
+  const [importWarning, setImportWarning] = useState('');
   const importController = useRef<AbortController | null>(null);
   const partLimit = languages.find(item => item.lang === (translateTo || lang))?.maxChars;
   const parts = useMemo(() => splitDocument(text, partLimit), [text, partLimit]);
@@ -230,6 +234,9 @@ export function useEditor(
   }, [languages]);
 
   const language = languages.find((l) => l.lang === (translateTo || lang));
+  const styles = expressionOptions(language?.voices.find(v => v.id === voice)?.styles, language?.autoEmotionEnabled);
+  const style = styles.some(item => item.value === selectedStyle) ? selectedStyle : 'neutral';
+  const expression = style === 'neutral' ? {} : { style };
   useEffect(() => {
     setVoice((previous) =>
       language?.voices.some((v) => v.id === previous) ? previous : language?.voices[0]?.id || "",
@@ -240,6 +247,7 @@ export function useEditor(
     revision.current++;
     cancelReview();
     setText(value);
+    setImportWarning('');
     if (!value.trim()) setFileName("");
     setError("");
   }
@@ -261,8 +269,8 @@ export function useEditor(
     revision.current++;
     const pending = reviewRef.current?.input;
     if (pending && (reviewRef.current?.documentText !== text || pending.lang !== lang || pending.voice !== voice ||
-      pending.speed !== speed || pending.translateTo !== translateTo || reviewRef.current?.partLimit !== partLimit)) cancelReview();
-  }, [text, lang, voice, speed, translateTo, partLimit]);
+      pending.speed !== speed || (pending.style ?? 'neutral') !== style || pending.translateTo !== translateTo || reviewRef.current?.partLimit !== partLimit)) cancelReview();
+  }, [text, lang, voice, speed, style, translateTo, partLimit]);
 
   async function generate() {
     if (submitLock.current || fileLock.current || reviewRef.current || batchLock.current) return;
@@ -283,7 +291,7 @@ export function useEditor(
       setError("Hãy chọn ngôn ngữ đích khác với ngôn ngữ gốc.");
       return;
     }
-    return runSynthesis({ text: part, lang, voice, speed, translateTo }, true);
+    return runSynthesis({ text: part, lang, voice, speed, translateTo, ...expression }, true);
   }
 
   async function resolveReview(corrected: boolean) {
@@ -372,7 +380,7 @@ export function useEditor(
     if (translateTo && language?.translationEnabled === false) { setError("Chưa kết nối Azure Translator. Nhờ quản trị viên cấu hình dịch vụ dịch."); return; }
     if (translateTo === lang) { setError('Hãy chọn ngôn ngữ đích khác với ngôn ngữ gốc.'); return; }
     if (!voice || !language?.voices.some(item => item.id === voice)) { setError('Vui lòng chọn giọng đọc.'); return; }
-    const inputs = parts.map((part, index) => ({ index, input: { text: part, lang, voice, speed, translateTo } })).filter(({ input }) => input.text.trim());
+    const inputs = parts.map((part, index) => ({ index, input: { text: part, lang, voice, speed, translateTo, ...expression } })).filter(({ input }) => input.text.trim());
     if (inputs.some(({ input }) => validateInput(input.text, input.speed))) { setError('Thiết lập phần đọc không hợp lệ.'); return; }
     batchLock.current = true; stopBatch.current = false;
     let done = inputs.filter(({ input, index }) => completed.current.has(completionKey(index, input))).length;
@@ -388,19 +396,22 @@ export function useEditor(
     } finally { batchLock.current = false; if (mounted.current) setBatch(null); }
   }
 
-  async function importFile(file?: File) {
+  async function importFile(file?: File, scan = false) {
     if (!file || submitLock.current || fileLock.current || batchLock.current) return;
     fileLock.current = true;
-    setReadingFile(true);
+    setReadingFile(true); setImportWarning('');
     setError("");
     const controller = new AbortController();
     importController.current = controller;
     setImportProgress('Đang mở tài liệu…');
+    let warning = '';
     try {
-      const content = await extractDocument(file, { lang, signal: controller.signal,
+      const content = await extractDocument(file, { lang: documentLang, scan, signal: controller.signal,
+        onWarning: message => { warning = message; },
         onProgress: message => { if (mounted.current) setImportProgress(message); } });
       if (!mounted.current) return;
       updateText(content);
+      setImportWarning(warning);
       setFileName(file.name);
       setPartIndex(0);
       notify(`Đã nhập ${file.name}.`);
@@ -426,6 +437,7 @@ export function useEditor(
     chooseVoice,
     speed,
     setSpeed,
+    style, setStyle, styles,
     busy: busy || !!batch,
     batch,
     generateAll,
@@ -439,6 +451,7 @@ export function useEditor(
     resolveReview,
     readingFile,
     importProgress,
+    documentLang, setDocumentLang, importWarning,
     cancelImport: () => importController.current?.abort(),
     fileName,
     setVoice,

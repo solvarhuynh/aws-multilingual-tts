@@ -9,7 +9,7 @@ export default function Help() {
   return <Page title="Hướng dẫn">
     <Section title="Từ văn bản đến giọng đọc" />
     {[
-      ['Nhập nội dung', 'Nhập văn bản hoặc chọn PDF, Word, TXT, Markdown hay ảnh JPG/PNG/WebP. Tệp tối đa 50 MB, 200.000 ký tự và 50.000 từ. OCR chạy tại thiết bị, tối đa 30 trang scan/lần; cần mạng để tải bộ nhận dạng. Tài liệu dài được chia thành các bản thu tối đa 2.000 ký tự, có thể tạo từng phần hoặc lần lượt các phần còn lại.'],
+      ['Nhập nội dung', 'Nhập văn bản, chọn tài liệu hoặc chụp ảnh. Bộ đọc tiếng Việt chạy trên thiết bị; lần đầu cần tải model. Chọn ngôn ngữ tài liệu riêng với giọng đọc và kiểm tra chữ sau khi quét. Tệp tối đa 50 MB; mỗi phần đọc tối đa 10.000 ký tự theo giới hạn máy chủ.'],
       ['Chọn giọng', 'Chạm tên giọng để nghe thử và chọn. Trong cài đặt giọng, kéo thanh tốc độ từ 0,7× đến 1,2×.'],
       ['Tạo và nghe', 'Chạm Tạo giọng đọc. Khi máy chủ có đề xuất sửa lỗi đánh máy, bạn chọn giữ nguyên hoặc dùng bản đề xuất.'],
       ['Lưu và chia sẻ', 'Mở Bản thu để tìm, nghe lại hoặc xóa. Bản thu MP3 có thể lưu vào Tệp hoặc gửi qua bảng chia sẻ của iPhone.'],

@@ -21,6 +21,14 @@ def validate(body, **settings):
 
 
 class ValidationTest(unittest.TestCase):
+    def test_emotion_requires_verified_style_and_explicit_auto_configuration(self):
+        body = {"text": "Hello!", "lang": "en-US", "voice": "en-verified", "style": "auto"}
+        options = {"verified_voices": VOICES, "voice_styles": {"en-verified": ["cheerful"]}}
+        with self.assertRaisesRegex(ValidationError, "Chưa bật"):
+            validate(body, **options)
+        self.assertEqual(validate(body, **options, auto_emotion_enabled=True)["style"], "auto")
+        self.assert_error({**body, "style": "sad"}, "UNSUPPORTED_STYLE", **options)
+
     def assert_error(self, body, code, **settings):
         with self.assertRaises(ValidationError) as caught:
             validate(body, **settings)

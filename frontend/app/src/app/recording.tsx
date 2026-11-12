@@ -7,6 +7,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Action, Circle, Glass, Icon, Label, Wave } from '../components/ui';
 import { Header, PageScroll, ScreenFrame } from '../components/layout';
 import Sheet from '../components/Sheet';
+import { expressionName } from '../../../shared/expression';
 import { useLayout } from '../hooks/useLayout';
 import { useStudio } from '../state/Studio';
 import { usePlayback } from '../state/Playback';
@@ -36,7 +37,8 @@ function Player() {
         </View>
         <View style={[styles.details, wide && { flex: 1 }]}>
           <View style={{ gap: 8 }}><Label size={24} weight="600" lines={3} style={{ lineHeight: 32 }}>{current.text}</Label>
-            <Label size={14} muted lines={2}>{voiceName(languages, current.voice)} · {languageNames[current.lang] ?? current.lang}</Label>
+            <Label size={14} muted lines={2}>{voiceName(languages, current.voice)} · {languageNames[current.lang] ?? current.lang}
+              {current.resolvedStyle && current.resolvedStyle !== 'neutral' ? ` · ${expressionName(current.resolvedStyle)}` : ''}</Label>
             <Label size={12} muted>{date(current.createdAt)}{current.local ? ' · Giọng trên thiết bị' : ' · Bản thu MP3'}</Label></View>
           <View>
             <Slider accessibilityLabel="Vị trí phát" disabled={!canSeek} value={Math.min(position, total || 1)} minimumValue={0} maximumValue={total || 1}
@@ -55,7 +57,6 @@ function Player() {
               <Icon name="library" size={23} color={colors.secondary} /></Pressable>
           </View>
           <Action icon="file" onPress={() => setTextOpen(true)}>Xem nội dung</Action>
-          <Action icon="download" disabled={sharing} onPress={() => void share()}>{sharing ? 'Đang chuẩn bị…' : current.audioUrl ? 'Lưu hoặc chia sẻ MP3' : 'Chia sẻ văn bản'}</Action>
         </View>
       </View>
     </PageScroll>

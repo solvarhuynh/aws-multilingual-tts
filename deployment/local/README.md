@@ -16,7 +16,7 @@ npm run dev
 - Vào **Cài đặt → Mã truy cập** trên cả web/app, nhập `DEMO_TOKEN` đã điền trong env backend. Lệnh không in mã hoặc tự đưa mã vào bundle.
 - **Ctrl+C:** dừng API, Vite, Metro và các tiến trình con. Một dịch vụ lỗi thì các dịch vụ còn lại cũng dừng. Cổng bận sẽ báo lỗi, không tự tắt ứng dụng khác hoặc đổi cổng ngầm.
 
-Lệnh chỉ đọc env backend; truyền API base cho hai frontend trong phiên chạy, không sửa các file env đang có. Nếu catalog thiếu hoặc khác vùng và đã có Speech key, lệnh tự gọi Azure lấy catalog một lần trước khi mở ba dịch vụ; chưa tạo MP3. Những lần sau dùng lại catalog local. Không cần lệnh `voices` riêng trong cách chạy này. API mở trên mạng nội bộ để điện thoại truy cập; dùng mã demo riêng và mạng tin cậy.
+Lệnh chỉ đọc env backend; truyền API base cho hai frontend trong phiên chạy, không sửa các file env đang có. Nếu catalog thiếu, khác vùng hoặc là bản cũ chưa có dữ liệu sắc thái và đã có Speech key, lệnh tự gọi Azure lấy catalog một lần trước khi mở ba dịch vụ; chưa tạo MP3. Những lần sau dùng lại catalog local. Không cần lệnh `voices` riêng trong cách chạy này. API mở trên mạng nội bộ để điện thoại truy cập; dùng mã demo riêng và mạng tin cậy.
 
 Máy có nhiều mạng/VPN thì chỉ định đúng IP Wi-Fi của máy:
 
@@ -201,5 +201,7 @@ npm --prefix frontend/web run build
 Kiểm thử runtime dùng provider giả, không tiêu quota Azure. Để kiểm catalog/giọng/dịch thật, người chạy phải điền key và chủ động thực hiện bước 2/3. Chỉ ghi nghiệm thu Azure khi đã nghe/tải MP3 thật.
 
 ## Sau khi local đạt
+
+Sắc thái Azure cụ thể không cần thêm key. Lấy lại catalog bằng `npm run dev -- --refresh-voices` sau khi cập nhật code, rồi chọn giọng có hỗ trợ. Nhận diện tự động dùng cờ backend `GEMINI_EMOTION_ENABLED=true` với key/model Gemini hiện có; mặc định tắt, cần mở lại runtime sau khi đổi env. Không đưa key vào web/app. Quy trình và giới hạn: [Giọng đọc có cảm xúc](../../docs/AZURE-SPEECH.md#giọng-đọc-có-cảm-xúc).
 
 Làm theo [AZURE-SPEECH.md](../../docs/AZURE-SPEECH.md) trong CloudShell: `configure`, `configure-translator`, `plan`, review, `apply`, `sandbox.sh web`. Không upload/copy `.env.local` lên AWS. Lambda tiếp tục đọc key từ SSM SecureString, không dùng key plaintext của máy. Script upload build với domain CloudFront và ghi đè API base local; không upload một bản build `/api` thủ công rồi coi là đã nối backend Sandbox.

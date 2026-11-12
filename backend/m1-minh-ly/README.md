@@ -96,3 +96,5 @@ Khi được giao thao tác lab, theo [hướng dẫn Azure](../../docs/AZURE-SP
 ## Local API trước khi triển khai
 
 `deployment/local/server.py` nạp env Python và dùng lại router này qua invoker hiện có; handler M2/M3/M5 giữ nguyên. S3/SSM được Moto mô phỏng trong RAM, dispatch vào một worker thread; không tạo role/bucket/Lambda trên AWS. Các adapter Azure đọc key từ SSM mô phỏng, nguồn là `.env.local` phía Python. Runtime local không được đóng gói vào Lambda và không thay secret mechanism Sandbox. Xem [cấu hình/cách chạy](../../deployment/local/README.md). Suite M1 bổ sung `test_local_runtime.py`; cài requirements local để chạy, nếu thiếu dependency thì các ca runtime được skip rõ ràng.
+
+Tích hợp M4 được giao 11/11 bổ sung root parameter `GeminiEmotionEnabled=false`, chuyển tên SSM/model/cờ cho worker/voices M2 và submit M5; không đổi route, logical ID, role hoặc AWS service. M1 cần review wiring/changeset trước triển khai. [Contract](../../docs/CONVENTIONS.md#sắc-thái-giọng-đọc--bổ-sung-11112026), [cấu hình/acceptance](../../docs/AZURE-SPEECH.md#giọng-đọc-có-cảm-xúc); log tích hợp ở CHANGELOG frontend.

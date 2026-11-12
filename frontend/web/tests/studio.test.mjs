@@ -9,7 +9,7 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
   const { useStudio } = await env.load("hooks/useStudio.ts");
   assert.equal(DEMO, false);
   const languages = [{ lang: "vi-VN", voices: [{ id: "Linh", gender: "F" }], provider: "external", engine: null },
-    { lang: "en-US", voices: [{ id: "English", gender: "F" }], provider: "azure", engine: null, translationEnabled: true }];
+    { lang: "en-US", voices: [{ id: "English", gender: "F", styles: ['cheerful', 'sad'] }], provider: "azure", engine: null, translationEnabled: true, autoEmotionEnabled: true }];
   let studio, revision = 0, checked = [], submitted = [];
   const correction = (text) => ({ status: "checked", language: "vi-VN", hasTypos: true, originalText: text,
     correctedText: "tôi muốn nghe", changes: [{ from: "toi", to: "tôi", start: 0, end: 3 }] });
@@ -25,6 +25,27 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
     await act(() => studio.updateText(text));
   }
   try {
+    await suite.test('ngôn ngữ OCR độc lập giọng đọc, mặc định giữ dấu tiếng Việt', async () => {
+      await mount();
+      assert.equal(studio.documentLang, 'vi-VN');
+      await act(() => studio.chooseVoice('en-US', 'English'));
+      assert.equal(studio.documentLang, 'vi-VN');
+      await act(() => studio.setDocumentLang('ja-JP'));
+      await act(() => studio.chooseVoice('vi-VN', 'Linh'));
+      assert.equal(studio.documentLang, 'ja-JP');
+    });
+    await suite.test('sắc thái gửi đúng lên API và bỏ khi đổi sang giọng không hỗ trợ', async () => {
+      await mount('Nội dung để đọc.');
+      await act(() => studio.chooseVoice('en-US', 'English'));
+      await act(() => studio.setStyle('auto'));
+      assert.equal(studio.style, 'auto');
+      await act(async () => { await studio.generate(); });
+      assert.equal(submitted[0].style, 'auto');
+      await act(() => studio.chooseVoice('vi-VN', 'Linh'));
+      assert.equal(studio.style, 'neutral');
+      await act(async () => { await studio.generate(); });
+      assert.equal(submitted.at(-1).style, undefined);
+    });
     await suite.test("double click chỉ kiểm tra và tạo job một lần; giữ nguyên khoảng trắng", async () => {
       await mount("  Nội dung nguyên bản.  ");
       await act(async () => { await Promise.all([studio.generate(), studio.generate()]); });

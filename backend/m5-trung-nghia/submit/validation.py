@@ -25,6 +25,8 @@ def validate_synthesize_request(
     max_chars: int | None = None,
     translation_enabled: bool = False,
     speed_range: tuple[float, float] | None = None,
+    voice_styles: Mapping[str, Collection[str]] | None = None,
+    auto_emotion_enabled: bool = False,
 ) -> dict[str, object]:
     """Return validated public fields without changing the original text.
 
@@ -94,5 +96,16 @@ def validate_synthesize_request(
 
     if "translateTo" in body:
         validated["translateTo"] = target
+
+    style = body.get("style", "neutral")
+    if not isinstance(style, str):
+        raise ValidationError("UNSUPPORTED_STYLE", "Sắc thái không hợp lệ.")
+    if style != "neutral":
+        styles = (voice_styles or {}).get(validated.get("voice", ""), ())
+        if not styles or (style != "auto" and style not in styles):
+            raise ValidationError("UNSUPPORTED_STYLE", "Giọng chưa hỗ trợ sắc thái này.")
+        if style == "auto" and not auto_emotion_enabled:
+            raise ValidationError("EMOTION_NOT_CONFIGURED", "Chưa bật nhận diện cảm xúc.")
+        validated["style"] = style
 
     return validated

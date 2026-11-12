@@ -16,8 +16,8 @@ export default function VoiceList({ onSelect, selected, onlyLanguage }: { onSele
     normalize(`${v.name ?? v.id} ${languageNames[v.lang] ?? v.lang} ${v.gender === 'F' ? 'Nữ' : 'Nam'}`).includes(normalize(query)));
   return <>
     <SearchField label="Tìm giọng đọc" placeholder="Tìm tên giọng, ngôn ngữ…" value={query} onChange={setQuery} />
-    <ScrollView horizontal style={{ flexGrow: 0, flexShrink: 0 }} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
-      {[{ id: 'all', title: 'Tất cả' }, { id: 'saved', title: 'Đã lưu' }, ...languages.map(l => ({ id: l.lang, title: languageNames[l.lang] ?? l.lang }))].map(item =>
+    <ScrollView testID="voice-filters" horizontal style={{ flexGrow: 0, flexShrink: 0 }} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+      {[{ id: 'all', title: 'Tất cả' }, { id: 'saved', title: 'Đã lưu' }, ...languages.filter(l => !onlyLanguage || l.lang === onlyLanguage).map(l => ({ id: l.lang, title: languageNames[l.lang] ?? l.lang }))].map(item =>
         <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected: filter === item.id }} onPress={() => setFilter(item.id)}
           style={[styles.chip, { backgroundColor: filter === item.id ? colors.text : colors.raised }]}><Label size={14} weight="500"
           style={{ color: filter === item.id ? colors.bg : colors.secondary }}>{item.title}</Label></Pressable>)}
@@ -35,7 +35,7 @@ export default function VoiceList({ onSelect, selected, onlyLanguage }: { onSele
         <Pressable accessibilityRole="button" accessibilityLabel={`Chọn giọng ${v.name ?? v.id}, ${languageNames[v.lang]}`} accessibilityState={{ selected: isSelected }}
           onPress={() => { if (!selected) selectVoice(v.lang, v.id); haptic(); onSelect?.(v.lang, v.id); }} style={styles.voiceSelect}>
           <View style={[styles.avatar, { backgroundColor: avatarColors[index % avatarColors.length] }]}><Label size={24} weight="500" style={{ color: '#FFFFFF' }}>{(v.name ?? v.id).charAt(0)}</Label></View>
-          <View style={{ flex: 1, minWidth: 0, gap: 6 }}><Label size={18} weight="600" lines={1}>{v.name ?? v.id}</Label><Label size={13} muted>{languageNames[v.lang] ?? v.lang} · {v.gender === 'F' ? 'Nữ' : 'Nam'}</Label></View>
+          <View style={{ flex: 1, minWidth: 0, gap: 6 }}><Label size={18} weight="600" lines={1}>{v.name ?? v.id}</Label><Label size={13} muted>{languageNames[v.lang] ?? v.lang} · {v.gender === 'F' ? 'Nữ' : 'Nam'}{v.styles?.length ? ' · Có sắc thái' : ''}</Label></View>
           {isSelected && <Icon name="check" color={colors.blue} size={19} />}
         </Pressable>
         <View style={[styles.voiceFooter, { borderColor: colors.line }]}>
@@ -56,7 +56,7 @@ export default function VoiceList({ onSelect, selected, onlyLanguage }: { onSele
 }
 const avatarColors = ['#659AAD', '#A18BAB', '#729994', '#B28A6E', '#7C8CB7', '#9B7A8D'];
 const styles = StyleSheet.create({
-  chip: { borderRadius: 22, paddingHorizontal: 17, paddingVertical: 12 },
+  chip: { minHeight: 44, justifyContent: 'center', borderRadius: 22, paddingHorizontal: 17, paddingVertical: 12 },
   voice: { borderWidth: 1, borderRadius: 27, padding: 17, gap: 16 },
   voiceSelect: { flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 54 },
   avatar: { width: 54, height: 54, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },

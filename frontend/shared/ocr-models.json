@@ -1,0 +1,29 @@
+{
+  "release": "vietocr-onnx-ocr-v1",
+  "base": "https://github.com/duchoa1297/vietocr-onnx/releases/download/ocr-v1/",
+  "models": {
+    "det.onnx": {
+      "bytes": 9929594,
+      "sha256": "090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f"
+    },
+    "vietocr_encoder.onnx": {
+      "bytes": 84317562,
+      "sha256": "7375c11ad23d52547a344ec5f53adf89db8302f035ceb3f1e67cff2c04069ae7"
+    },
+    "vietocr_decoder.onnx": {
+      "bytes": 5140562,
+      "sha256": "73b92cd370563952b345703ecdce84d8374a9f0a7018afee062170efe04f21f5"
+    }
+  },
+  "recognition": {
+    "source": "VietOCR vgg_seq2seq (Apache-2.0, https://github.com/pbcquoc/vietocr), exported to ONNX",
+    "image_height": 32,
+    "image_min_width": 32,
+    "image_max_width": 512,
+    "max_seq_length": 128,
+    "sos": 1,
+    "eos": 2,
+    "offset": 4,
+    "vocab": "aAàÀảẢãÃáÁạẠăĂằẰẳẲẵẴắẮặẶâÂầẦẩẨẫẪấẤậẬbBcCdDđĐeEèÈẻẺẽẼéÉẹẸêÊềỀểỂễỄếẾệỆfFgGhHiIìÌỉỈĩĨíÍịỊjJkKlLmMnNoOòÒỏỎõÕóÓọỌôÔồỒổỔỗỖốỐộỘơƠờỜởỞỡỠớỚợỢpPqQrRsStTuUùÙủỦũŨúÚụỤưƯừỪửỬữỮứỨựỰvVwWxXyYỳỲỷỶỹỸýÝỵỴzZ0123456789!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~ "
+  }
+}

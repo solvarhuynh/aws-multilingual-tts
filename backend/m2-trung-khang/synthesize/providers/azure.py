@@ -11,6 +11,7 @@ from .common import MAX_AUDIO_BYTES, OPENER, is_mp3, read_api_key
 
 
 OUTPUT_FORMAT = "audio-24khz-96kbitrate-mono-mp3"
+ET.register_namespace("mstts", "https://www.w3.org/2001/mstts")
 
 
 def error_for_status(status):
@@ -24,7 +25,7 @@ def error_for_status(status):
 
 
 class AzureSpeechProvider(TTSProvider):
-    def __init__(self, region, language, timeout=30.0, key_reader=read_api_key, opener=OPENER):
+    def __init__(self, region, language, timeout=30.0, key_reader=read_api_key, opener=OPENER, style=None):
         if not isinstance(region, str) or not re.fullmatch(r"[a-z][a-z0-9]{1,39}", region):
             raise PermanentProviderError("TTS_NOT_CONFIGURED", "Vùng Azure Speech chưa hợp lệ.")
         if not isinstance(language, str) or not re.fullmatch(r"[a-z]{2,3}-[A-Z]{2}", language):
@@ -32,12 +33,17 @@ class AzureSpeechProvider(TTSProvider):
         self.endpoint = f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
         self.language, self.timeout = language, timeout
         self.key_reader, self.opener = key_reader, opener
+        if style is not None and (not isinstance(style, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,59}", style)):
+            raise PermanentProviderError("UNSUPPORTED_STYLE", "Sắc thái giọng đọc không hợp lệ.")
+        self.style = style
 
     def build_request(self, text, voice, speed):
         if isinstance(speed, bool) or not isinstance(speed, (int, float)) or not math.isfinite(speed) or not 0.7 <= speed <= 1.2:
             raise PermanentProviderError("UNSUPPORTED_SPEED", "Tốc độ đọc cần nằm trong khoảng 0,7 đến 1,2.")
         root = ET.Element("speak", {"version": "1.0", "xmlns": "http://www.w3.org/2001/10/synthesis", "xml:lang": self.language})
         speaker = ET.SubElement(root, "voice", {"name": voice})
+        if self.style and self.style != "neutral":
+            speaker = ET.SubElement(speaker, "{https://www.w3.org/2001/mstts}express-as", {"style": self.style})
         ET.SubElement(speaker, "prosody", {"rate": f"{(speed - 1) * 100:+.1f}%"}).text = text
         return urllib.request.Request(self.endpoint, data=ET.tostring(root, encoding="utf-8"), headers={
             "Ocp-Apim-Subscription-Key": self.key_reader(),
