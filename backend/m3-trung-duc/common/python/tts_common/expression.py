@@ -2,6 +2,7 @@ import os
 import re
 import json
 import time
+import math
 
 from . import aws, config
 
@@ -33,6 +34,14 @@ def validate_style(entry, voice, style):
     if style == "auto" and entry.get("provider") != "gemini" and not auto_enabled():
         raise ValueError("EMOTION_NOT_CONFIGURED")
     return style
+
+
+def validate_intensity(style, value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0.1 <= value <= 2.0:
+        raise ValueError("UNSUPPORTED_STYLE_INTENSITY")
+    if style == "neutral" and value != 1.0:
+        raise ValueError("UNSUPPORTED_STYLE_INTENSITY")
+    return float(value)
 
 
 def reserve_analysis_call(limit, prefix="emotion-usage"):

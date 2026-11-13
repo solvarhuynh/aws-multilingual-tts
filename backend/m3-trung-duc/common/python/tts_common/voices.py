@@ -20,6 +20,16 @@ GEMINI_STYLES = {
     "serious": "Serious, composed and professional.",
     "narration": "Expressive storytelling with natural dramatic pauses.",
     "whispering": "Whisper softly while remaining intelligible.",
+    "fearful": "Fearful and uneasy, while keeping every word clear.",
+    "surprised": "Surprised, with a natural rising intonation.",
+    "anxious": "Anxious and tense, without rushing the words.",
+    "curious": "Curious and inquisitive, with attentive intonation.",
+    "sarcastic": "Dry and sarcastic, without changing the words.",
+    "gentle": "Gentle and soft, while remaining intelligible.",
+    "urgent": "Urgent and focused, with clear articulation.",
+    "reassuring": "Reassuring and steady, with a comforting tone.",
+    "hopeful": "Hopeful and optimistic, without exaggeration.",
+    "mysterious": "Mysterious and restrained, with deliberate pauses.",
 }
 
 

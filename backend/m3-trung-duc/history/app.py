@@ -34,6 +34,7 @@ def _public_job(job):
         "sourceLang": job.get("sourceLang"),
         "translated": job.get("translated", False),
         "style": style,
+        "styleIntensity": job.get("styleIntensity", 1.0),
         "provider": job.get("provider"),
         "engine": job.get("engine"),
         **({"resolvedStyle": resolved} if resolved is not None else {}),

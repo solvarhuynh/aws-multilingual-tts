@@ -190,7 +190,7 @@ def fail_job(job, message):
     return _write(job, status="FAILED", leaseUntil=None, errorMessage=message)
 
 
-def create_job(user_id, text, lang, voice, speed, translate_to=None, provider=None, engine=None, job_id=None, style=None):
+def create_job(user_id, text, lang, voice, speed, translate_to=None, provider=None, engine=None, job_id=None, style=None, style_intensity=1.0):
     """Tạo job PENDING; If-None-Match chặn ghi đè nếu trùng mã."""
     job_id = job_id if job_id is not None else make_job_id()
     if not are_valid_ids(user_id, job_id):
@@ -210,6 +210,7 @@ def create_job(user_id, text, lang, voice, speed, translate_to=None, provider=No
         "engine": engine,
         "speed": speed,
         **({"style": style} if style and style != "neutral" else {}),
+        **({"styleIntensity": style_intensity} if style_intensity != 1.0 else {}),
         "status": "PENDING",
         "createdAt": timestamp,
         "updatedAt": timestamp,
