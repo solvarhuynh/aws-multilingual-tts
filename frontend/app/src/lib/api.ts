@@ -41,6 +41,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export function checkedJob(value: Job): Job {
   if (!value || typeof value.jobId !== 'string' || !['PENDING', 'PROCESSING', 'DONE', 'FAILED'].includes(value.status) ||
     (value.style !== undefined && typeof value.style !== 'string') || (value.resolvedStyle !== undefined && typeof value.resolvedStyle !== 'string') ||
+    (value.styleIntensity !== undefined && (typeof value.styleIntensity !== 'number' || !Number.isFinite(value.styleIntensity) || value.styleIntensity < 0.1 || value.styleIntensity > 2)) ||
     !(value.audioUrl === null || (typeof value.audioUrl === 'string' && /^https?:\/\//.test(value.audioUrl))))
     throw new Error('Thông tin bản thu chưa đúng định dạng.');
   return value;

@@ -68,6 +68,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const target = languages.some(l => l.lang === selectedTarget) ? selectedTarget : languages.find(l => l.lang !== lang)?.lang ?? lang;
   const [targetVoice, setTargetVoice] = useState('Joanna');
   const [selectedStyle, setStyle] = useState('neutral');
+  const [styleIntensity, setStyleIntensity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState('');
   const [error, setError] = useState('');
@@ -103,7 +104,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const availableVoice = voiceLanguage?.voices.find(v => v.id === (mode === 'translation' ? selectedTargetVoice : voice));
   const styleOptions = expressionOptions(availableVoice?.styles, voiceLanguage?.autoEmotionEnabled);
   const style = styleOptions.some(item => item.value === selectedStyle) ? selectedStyle : 'neutral';
-  const expression = { ...(style === 'neutral' ? {} : { style }), ...(voiceLanguage?.provider === 'gemini' ? { provider: 'gemini' } : {}) };
+  const expression = { ...(style === 'neutral' ? {} : { style, ...(styleIntensity !== 1 ? { styleIntensity } : {}) }), ...(voiceLanguage?.provider === 'gemini' ? { provider: 'gemini' } : {}) };
   const finish = () => { locked.current = false; submitting.current = false; setBusy(false); setStage(''); };
   const submit = async (input: Input, id: number, batchMode = false, index = selectedPart) => {
     if (submitting.current) return;
@@ -333,11 +334,19 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       </View>
       {styleOptions.length < 2 && availableVoice && <Label size={13} muted>{expressionHint(voiceLanguage?.provider, availableVoice.styles)}</Label>}
       {style === 'auto' && <Label size={13} muted>{studio.provider === 'gemini' ? 'Gemini tự điều chỉnh cảm xúc khi đọc theo nội dung.' : 'Gửi đoạn đọc cho Gemini để chọn sắc thái.'}</Label>}
+      {style !== 'neutral' && availableVoice?.styleIntensityRange && <>
+        <Label size={18} weight="600">Cường độ sắc thái · {styleIntensity.toFixed(1).replace('.', ',')}×</Label>
+        <Slider accessibilityLabel="Cường độ sắc thái" value={styleIntensity} onValueChange={value => setStyleIntensity(Math.round(value * 10) / 10)}
+          minimumValue={0.1} maximumValue={2} step={0.1} minimumTrackTintColor={colors.blue} maximumTrackTintColor={colors.line}
+          thumbTintColor={colors.blue} style={{ width: '100%', height: 44 }} />
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Label size={13} muted>Nhẹ · 0,1</Label><Label size={13} muted>Mạnh · 2,0</Label></View>
+        {studio.provider === 'gemini' && <Label size={12} muted>Mức tương đối; âm thanh có thể khác Azure.</Label>}
+      </>}
       <Label size={18} weight="600">Tốc độ đọc</Label><Label size={34} weight="600" style={{ color: colors.blue }}>{speed.toFixed(2).replace('.', ',')}×</Label>
       <Slider accessibilityLabel="Tốc độ đọc" value={speed} onValueChange={value => setSpeed(Math.round(value * 100) / 100)} minimumValue={MIN_SPEED} maximumValue={MAX_SPEED} step={0.05}
         minimumTrackTintColor={colors.blue} maximumTrackTintColor={colors.line} thumbTintColor={colors.blue} style={{ width: '100%', height: 44 }} />
       <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}><Label size={13} muted>Chậm · 0,7×</Label><Label size={13} muted>Nhanh · 1,2×</Label></View>
-      <Action onPress={() => { setSpeed(DEFAULT_SPEED); setStyle('neutral'); }}>Đặt lại</Action>
+      <Action onPress={() => { setSpeed(DEFAULT_SPEED); setStyle('neutral'); setStyleIntensity(1); }}>Đặt lại</Action>
     </Sheet>
     <Sheet title={sheet === 'source' ? 'Ngôn ngữ gốc' : 'Dịch sang'} visible={sheet === 'source' || sheet === 'target'} close={() => setSheet(null)}>
       {languages.filter(l => l.voices.length).map(l => <Action key={l.lang} onPress={() => {

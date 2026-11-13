@@ -16,6 +16,11 @@ test('Chặn nội dung rỗng, quá dài và tốc độ sai', () => {
   for (const speed of [0, 0.5, 1.3, 2, 2.1, NaN, Infinity]) assert.ok(validate({ ...input, speed }));
   assert.ok(validate({ ...input, translateTo: 'vi-VN' }));
 });
+test('Cường độ chỉ hợp lệ khi đã chọn sắc thái', () => {
+  for (const styleIntensity of [0.1, 1, 2]) assert.equal(validate({ ...input, style: 'cheerful', styleIntensity }), null);
+  for (const styleIntensity of [0, 2.1, NaN, Infinity]) assert.ok(validate({ ...input, style: 'cheerful', styleIntensity }));
+  assert.ok(validate({ ...input, style: 'neutral', styleIntensity: 1.5 }));
+});
 test('Hiển thị tên giọng, không lộ ID ngẫu nhiên', () => {
   const languages = [{ lang: 'vi-VN', provider: 'elevenlabs', engine: null, voices: [{ id: 'XrExE9', gender: 'F', name: 'Matilda' }, { id: 'Linh', gender: 'F' }] }];
   assert.equal(voiceName(languages, 'XrExE9'), 'Matilda');

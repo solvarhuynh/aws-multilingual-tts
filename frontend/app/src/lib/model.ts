@@ -3,10 +3,10 @@ import type { CatalogLanguage as Language } from '../../../shared/voices';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type EditorMode = 'speech' | 'translation';
 export type { CatalogVoice as Voice, CatalogLanguage as Language } from '../../../shared/voices';
-export interface Input { text: string; lang: string; voice: string; speed: number; translateTo: string | null; style?: string; provider?: string }
+export interface Input { text: string; lang: string; voice: string; speed: number; translateTo: string | null; style?: string; styleIntensity?: number; provider?: string }
 export interface Job {
   provider?: string | null; engine?: string | null;
-  style?: string; resolvedStyle?: string;
+  style?: string; resolvedStyle?: string; styleIntensity?: number;
   text?: string; lang?: string; translated?: boolean; sourceLang?: string | null;
   jobId: string;
   status: 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED';
@@ -66,6 +66,7 @@ export function validate(input: Input): string | null {
   if (!Number.isFinite(input.speed) || input.speed < MIN_SPEED || input.speed > MAX_SPEED) return 'Tốc độ đọc cần từ 0,7× đến 1,2×.';
   if (!input.lang || !input.voice) return 'Hãy chọn ngôn ngữ và giọng đọc.';
   if (input.translateTo === input.lang) return 'Hãy chọn ngôn ngữ đích khác ngôn ngữ gốc.';
+  if (input.styleIntensity !== undefined && (!Number.isFinite(input.styleIntensity) || input.styleIntensity < 0.1 || input.styleIntensity > 2 || !input.style || input.style === 'neutral')) return 'Cường độ sắc thái cần từ 0,1 đến 2,0 và cần chọn sắc thái.';
   return null;
 }
 export function isRecording(value: unknown): value is Recording {
@@ -73,6 +74,7 @@ export function isRecording(value: unknown): value is Recording {
   const r = value as Recording;
   return typeof r.jobId === 'string' && typeof r.text === 'string' && typeof r.lang === 'string' &&
     (r.style === undefined || typeof r.style === 'string') && (r.resolvedStyle === undefined || typeof r.resolvedStyle === 'string') &&
+    (r.styleIntensity === undefined || typeof r.styleIntensity === 'number' && Number.isFinite(r.styleIntensity) && r.styleIntensity >= 0.1 && r.styleIntensity <= 2) &&
     typeof r.voice === 'string' && typeof r.charCount === 'number' && Number.isFinite(r.charCount) &&
     typeof r.createdAt === 'string' && Number.isFinite(Date.parse(r.createdAt)) &&
     ['PENDING', 'PROCESSING', 'DONE', 'FAILED'].includes(r.status) &&
