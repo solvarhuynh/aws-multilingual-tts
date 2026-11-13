@@ -17,6 +17,11 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 
 ## NHẬT KÝ
 
+### 2026-11-13: TTS-EMOTION-02 — sắc thái và cường độ (coded, locally tested)
+
+- M5 nhận `styleIntensity` 0,1–2,0 khi có style, lưu vào job M3 và fingerprint idempotency; giá trị mặc định 1,0 giữ replay cũ. Manual style bỏ qua phân tích auto. M2 bổ sung style Gemini và `styledegree` Azure theo capability từng voice; M4 thêm slider web/app. M3/M2/M4 cần owner review các diff tương ứng.
+- Kiểm local: M1 36 tests (13 skip), M2 114, M3 53, M5 106; web 105 UI tests và production build; app 64 tests, typecheck/lint. Không gọi provider thật, AWS hoặc deploy; cần nghe audio thật trên voice/style được catalog báo hỗ trợ.
+
 ### 2026-11-06: Tái cấu trúc tài liệu phân công theo AWS-first
 
 - Đã làm: kiểm tra code và hạ tầng hiện có; cập nhật phân công, contract, IAM, handoff, kiến trúc, task M1–M5, hướng dẫn deploy và khung báo cáo. Giao diện M4 được giữ làm deliverable hiện có; không giao lại task xây UI.
