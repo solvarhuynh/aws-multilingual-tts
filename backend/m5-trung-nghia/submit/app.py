@@ -18,7 +18,7 @@ from tts_common import aws, config, db
 from tts_common.errors import error_response, json_response, log_json
 from tts_common.utils import get_user_id
 from tts_common.voices import load_registry
-from tts_common.expression import validate_style
+from tts_common.expression import validate_style, validate_intensity
 
 
 AUTO_LANGS = {None, "", "auto"}
@@ -131,16 +131,18 @@ def _synthesize(event):
     style = body.get("style", "neutral")
     try:
         validate_style(entry, voice, style)
+        style_intensity = validate_intensity(style, body.get("styleIntensity", 1.0))
     except ValueError as error:
         code = str(error)
-        raise InvalidRequest(400 if code == "UNSUPPORTED_STYLE" else 503, code,
-                             "Giọng đã chọn chưa hỗ trợ sắc thái này." if code == "UNSUPPORTED_STYLE"
-                             else "Chưa bật nhận diện cảm xúc bằng Gemini ở máy chủ.") from None
+        raise InvalidRequest(503 if code == "EMOTION_NOT_CONFIGURED" else 400, code,
+                             "Chưa bật nhận diện cảm xúc bằng Gemini ở máy chủ." if code == "EMOTION_NOT_CONFIGURED"
+                             else "Cường độ cần từ 0,1 đến 2,0 và cần chọn sắc thái." if code == "UNSUPPORTED_STYLE_INTENSITY"
+                             else "Giọng đã chọn chưa hỗ trợ sắc thái này.") from None
 
     if request_key is not None:
         return idempotency.submit_first(
             user_id, request_key, request_fingerprint, text, body["lang"], voice, speed,
-            entry.get("provider"), entry.get("engine"), _dispatch, translate_to=target, style=style,
+            entry.get("provider"), entry.get("engine"), _dispatch, translate_to=target, style=style, style_intensity=style_intensity,
         )
 
     if not db.reserve_chars(len(text)):
@@ -148,7 +150,7 @@ def _synthesize(event):
     try:
         job = db.create_job(
             user_id, text, body["lang"], voice, speed, translate_to=target,
-            provider=entry.get("provider"), engine=entry.get("engine"), style=style
+            provider=entry.get("provider"), engine=entry.get("engine"), style=style, style_intensity=style_intensity
         )
     except Exception as error:
         # S3 can persist the job before a connection error hides the response.

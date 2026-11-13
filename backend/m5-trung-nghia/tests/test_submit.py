@@ -89,11 +89,29 @@ class SubmitTest(FlowTestCase):
             from tts_common import db
             self.assertEqual(db.get_job("demo", result["jobId"])["style"], "cheerful")
 
+    def test_intensity_is_saved_and_visible_without_extra_dispatch(self):
+        registry = {"vi-VN": {"provider": "azure", "voices": [{"id": MATILDA, "styles": ["cheerful"]}]}}
+        with mock.patch.object(submit, "load_registry", return_value=registry):
+            status, result = self.post(**self.good(style="cheerful", styleIntensity=1.6))
+            self.assertEqual(status, 202)
+            from tts_common import db
+            self.assertEqual(db.get_job("demo", result["jobId"])["styleIntensity"], 1.6)
+            self.assertEqual(history._get_job("demo", result["jobId"])["statusCode"], 200)
+            public = json.loads(history._get_job("demo", result["jobId"])["body"])
+            self.assertEqual(public["styleIntensity"], 1.6)
+            self.assertEqual(len(self.events), 1)
+            bad, body = self.post(**self.good(style="cheerful", styleIntensity=2.1))
+            self.assertEqual((bad, body["error"]["code"]), (400, "UNSUPPORTED_STYLE_INTENSITY"))
+            self.assertEqual(len(self.events), 1)
+
     def test_idempotency_distinguishes_emotion_and_preserves_legacy_hash(self):
         import idempotency
         original = self.good()
         self.assertEqual(idempotency.fingerprint(original), idempotency.fingerprint({**original, "style": "neutral"}))
         self.assertNotEqual(idempotency.fingerprint(original), idempotency.fingerprint({**original, "style": "cheerful"}))
+        styled = {**original, "style": "cheerful"}
+        self.assertEqual(idempotency.fingerprint(styled), idempotency.fingerprint({**styled, "styleIntensity": 1.0}))
+        self.assertNotEqual(idempotency.fingerprint(styled), idempotency.fingerprint({**styled, "styleIntensity": 1.7}))
 
     def test_azure_registry_is_shared_by_voices_submit_and_worker(self):
         from tts_common import voices as voice_registry

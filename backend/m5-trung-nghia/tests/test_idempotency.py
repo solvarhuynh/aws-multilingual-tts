@@ -40,6 +40,17 @@ class IdempotencyTest(FlowTestCase):
         self.assertEqual((status, body["error"]["code"]), (409, "IDEMPOTENCY_CONFLICT"))
         self.assertEqual((len(self._jobs()), len(self.events), self._usage()), (1, 1, 8))
 
+    def test_same_key_changed_intensity_conflicts_without_new_quota_or_event(self):
+        registry = {"vi-VN": {"provider": "azure", "voices": [{"id": "XrExE9yKIg1WjnnlVkGX", "styles": ["cheerful"]}]}}
+        with mock.patch.object(submit, "load_registry", return_value=registry):
+            status, first = self.keyed(style="cheerful", styleIntensity=1.2)
+            self.assertEqual(status, 202)
+            status, replay = self.keyed(style="cheerful", styleIntensity=1.2)
+            self.assertEqual((status, replay["jobId"], replay["styleIntensity"]), (202, first["jobId"], 1.2))
+            status, changed = self.keyed(style="cheerful", styleIntensity=1.8)
+        self.assertEqual((status, changed["error"]["code"]), (409, "IDEMPOTENCY_CONFLICT"))
+        self.assertEqual((len(self._jobs()), len(self.events), self._usage()), (1, 1, 8))
+
     def test_replay_uses_saved_job_even_if_voice_registry_changes(self):
         first = self.keyed()[1]
         with mock.patch.object(submit, "load_registry", side_effect=OSError("registry changed")):

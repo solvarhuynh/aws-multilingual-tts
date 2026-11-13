@@ -36,6 +36,8 @@ def fingerprint(body):
     fields = [body.get(name) for name in ("text", "lang", "voice", "speed", "translateTo")]
     if body.get("style", "neutral") != "neutral":
         fields.append(body["style"])
+    if body.get("styleIntensity", 1.0) != 1.0:
+        fields.append({"styleIntensity": body["styleIntensity"]})
     if body.get("provider") is not None:
         fields.append({"provider": body["provider"]})
     canonical = json.dumps(fields, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
@@ -57,7 +59,7 @@ def _job_response(job):
     audio_url = storage.get_audio_url(job["audioKey"]) if status == "DONE" and job.get("audioKey") else None
     return json_response(200 if status in {"DONE", "FAILED"} else 202,
                          {"jobId": job["jobId"], "status": status, "audioUrl": audio_url, "cached": False,
-                          **{key: job[key] for key in ("style", "resolvedStyle") if key in job}})
+                          **{key: job[key] for key in ("style", "resolvedStyle", "styleIntensity") if key in job}})
 
 
 def _replay_record(user_id, record, expected_fingerprint):
@@ -88,7 +90,7 @@ def replay_if_present(user_id, key, expected_fingerprint):
     return _replay_record(user_id, record, expected_fingerprint) if record is not None else None
 
 
-def submit_first(user_id, key, expected_fingerprint, text, lang, voice, speed, provider, engine, dispatch, translate_to=None, style=None):
+def submit_first(user_id, key, expected_fingerprint, text, lang, voice, speed, provider, engine, dispatch, translate_to=None, style=None, style_intensity=1.0):
     """Claim before quota and job creation; only the claim winner may dispatch."""
     try:
         created, record = db.create_idempotency(user_id, key, expected_fingerprint, make_job_id())
@@ -100,7 +102,7 @@ def submit_first(user_id, key, expected_fingerprint, text, lang, voice, speed, p
             return _quota_error()
         record = db.update_idempotency(user_id, key, record, "RESERVED")
         db.create_job(user_id, text, lang, voice, speed, translate_to=translate_to,
-                      provider=provider, engine=engine, job_id=job_id, style=style)
+                      provider=provider, engine=engine, job_id=job_id, style=style, style_intensity=style_intensity)
         record = db.update_idempotency(user_id, key, record, "JOB_CREATED")
         record = db.update_idempotency(user_id, key, record, "DISPATCHING")
     except Exception as error:

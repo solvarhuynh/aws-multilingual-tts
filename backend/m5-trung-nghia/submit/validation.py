@@ -114,4 +114,12 @@ def validate_synthesize_request(
             raise ValidationError("EMOTION_NOT_CONFIGURED", "Chưa bật nhận diện cảm xúc.")
         validated["style"] = style
 
+    intensity = body.get("styleIntensity", 1.0)
+    if (isinstance(intensity, bool) or not isinstance(intensity, (int, float)) or
+            not math.isfinite(intensity) or not 0.1 <= intensity <= 2.0 or
+            (style == "neutral" and intensity != 1.0)):
+        raise ValidationError("UNSUPPORTED_STYLE_INTENSITY", "Cường độ sắc thái cần từ 0,1 đến 2,0 và cần chọn sắc thái.")
+    if intensity != 1.0:
+        validated["styleIntensity"] = float(intensity)
+
     return validated

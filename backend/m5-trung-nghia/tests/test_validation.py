@@ -29,6 +29,15 @@ class ValidationTest(unittest.TestCase):
         self.assertEqual(validate(body, **options, auto_emotion_enabled=True)["style"], "auto")
         self.assert_error({**body, "style": "sad"}, "UNSUPPORTED_STYLE", **options)
 
+    def test_style_intensity_requires_supported_style_and_finite_range(self):
+        base = {"text": "Hello!", "lang": "en-US", "voice": "en-verified", "style": "cheerful"}
+        options = {"verified_voices": VOICES, "voice_styles": {"en-verified": ["cheerful"]}}
+        for value in (0.1, 1, 2):
+            self.assertEqual(validate({**base, "styleIntensity": value}, **options).get("styleIntensity", 1), value)
+        for value in (0, 2.01, True, "1", float("nan"), float("inf")):
+            self.assert_error({**base, "styleIntensity": value}, "UNSUPPORTED_STYLE_INTENSITY", **options)
+        self.assert_error({**base, "style": "neutral", "styleIntensity": 1.5}, "UNSUPPORTED_STYLE_INTENSITY", **options)
+
     def assert_error(self, body, code, **settings):
         with self.assertRaises(ValidationError) as caught:
             validate(body, **settings)
