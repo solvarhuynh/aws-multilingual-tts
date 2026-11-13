@@ -88,3 +88,36 @@ test('Storage hỏng ngăn submit trước khi gửi mạng', async () => {
   assert.equal(calls, 0);
   configureSubmissionStore({}, async () => {});
 });
+
+test('Catalog Gemini giữ provider, model, cảm xúc và ngôn ngữ trùng Azure tách biệt', async () => {
+  const azure = { lang: 'vi-VN', provider: 'azure', engine: null, voices: [{ id: 'HoaiMy', gender: 'F' }] };
+  const gemini = { lang: 'vi-VN', provider: 'gemini', engine: 'gemini-3.8-flash-tts', voices: [{ id: 'Kore', gender: 'N', description: 'Chắc giọng', styles: ['cheerful'] }] };
+  globalThis.fetch = async () => new Response(JSON.stringify({ languages: [azure], limits: { maxChars: 10000 }, providers: [
+    { id: 'gemini', model: 'gemini-3.8-flash-tts', enabled: false, nativeEmotion: true, languages: [gemini] }], features: { translation: true, autoEmotion: false } }));
+  const result = await api.voices();
+  assert.equal(result.length, 2);
+  assert.equal(result[0].provider, 'azure');
+  assert.equal(result[1].provider, 'gemini');
+  assert.equal(result[1].available, false);
+  assert.equal(result[1].autoEmotionEnabled, true);
+  assert.equal(result[1].model, 'gemini-3.8-flash-tts');
+  assert.equal(result[1].maxChars, 10000);
+  assert.equal(result[1].translationEnabled, true);
+});
+
+test('Gemini gửi provider và sắc thái; lỗi cấu hình trả ledger về trạng thái có thể gửi lại', async () => {
+  const calls: { body: string; key: string }[] = [];
+  let ready = false;
+  configureSubmissionStore({}, async () => {});
+  globalThis.fetch = async (_, init) => {
+    calls.push({ body: String(init?.body), key: (init?.headers as Record<string, string>)['Idempotency-Key'] });
+    return new Response(JSON.stringify(ready ? { jobId: 'gemini-1', status: 'PENDING', audioUrl: null } :
+      { error: { code: 'GEMINI_TTS_NOT_CONFIGURED', message: 'Chưa bật Gemini' } }), { status: ready ? 202 : 503 });
+  };
+  const input = { text: 'Bản thử.', lang: 'vi-VN', voice: 'Kore', provider: 'gemini', style: 'cheerful', speed: 1, translateTo: null };
+  await assert.rejects(api.synthesize(input), /Chưa bật Gemini/);
+  ready = true; await api.synthesize(input);
+  assert.equal(JSON.parse(calls[0].body).provider, 'gemini');
+  assert.equal(JSON.parse(calls[0].body).style, 'cheerful');
+  assert.notEqual(calls[0].key, calls[1].key);
+});

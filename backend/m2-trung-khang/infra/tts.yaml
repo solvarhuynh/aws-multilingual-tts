@@ -27,6 +27,19 @@ Parameters:
     Type: String
     Default: azure
     AllowedValues: [elevenlabs, azure]
+  GeminiTtsEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  GeminiTtsModel:
+    Type: String
+    Default: gemini-3.8-flash-tts
+    AllowedValues: [gemini-3.8-flash-tts]
+  GeminiTtsDailyCallLimit:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    MaxValue: 10000
   GeminiEmotionEnabled:
     Type: String
     Default: 'false'
@@ -101,10 +114,13 @@ Resources:
           AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
           TRANSLATOR_API_PARAMETER_NAME: !Ref TranslatorApiParameterName
           AZURE_TRANSLATOR_REGION: !Ref AzureTranslatorRegion
+          GEMINI_TTS_ENABLED: !Ref GeminiTtsEnabled
+          GEMINI_TTS_MODEL: !Ref GeminiTtsModel
           GEMINI_EMOTION_ENABLED: !Ref GeminiEmotionEnabled
           GEMINI_API_PARAMETER_NAME: !Ref GeminiApiParameterName
           GEMINI_MODEL: !Ref GeminiModel
           EMOTION_DAILY_CALL_LIMIT: 100
+          GEMINI_TTS_DAILY_CALL_LIMIT: !Ref GeminiTtsDailyCallLimit
 
   # EventInvokeConfig duy nhất của worker; không tạo cái thứ hai cho cùng function.
   SynthesizeEventInvokeConfig:
@@ -133,6 +149,8 @@ Resources:
           TRANSLATOR_API_PARAMETER_NAME: !Ref TranslatorApiParameterName
           TTS_PROVIDER: !Ref TtsProvider
           AZURE_SPEECH_REGION: !Ref AzureSpeechRegion
+          GEMINI_TTS_ENABLED: !Ref GeminiTtsEnabled
+          GEMINI_TTS_MODEL: !Ref GeminiTtsModel
           GEMINI_EMOTION_ENABLED: !Ref GeminiEmotionEnabled
           GEMINI_API_PARAMETER_NAME: !Ref GeminiApiParameterName
           GEMINI_MODEL: !Ref GeminiModel

@@ -60,6 +60,19 @@ Parameters:
     Type: String
     Default: 'false'
     AllowedValues: ['true', 'false']
+  GeminiTtsEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  GeminiTtsModel:
+    Type: String
+    Default: gemini-3.8-flash-tts
+    AllowedValues: [gemini-3.8-flash-tts]
+  GeminiTtsDailyCallLimit:
+    Type: Number
+    Default: 100
+    MinValue: 1
+    MaxValue: 10000
   GeminiEmotionEnabled:
     Type: String
     Default: 'false'
@@ -120,12 +133,15 @@ Resources:
         JobsPrefix: !Ref JobsPrefix
         AudioBucket: !GetAtt Storage.Outputs.AudioBucketName
         TtsApiParameterName: !Ref TtsApiParameterName
+        GeminiTtsDailyCallLimit: !Ref GeminiTtsDailyCallLimit
         TtsProvider: !Ref TtsProvider
         AzureSpeechRegion: !Ref AzureSpeechRegion
         MaxChars: !Ref MaxChars
         TranslatorApiParameterName: !Ref TranslatorApiParameterName
         AzureTranslatorRegion: !Ref AzureTranslatorRegion
 
+        GeminiTtsEnabled: !Ref GeminiTtsEnabled
+        GeminiTtsModel: !Ref GeminiTtsModel
         GeminiEmotionEnabled: !Ref GeminiEmotionEnabled
         GeminiApiParameterName: !Ref GeminiApiParameterName
         GeminiModel: !Ref GeminiModel
@@ -151,6 +167,8 @@ Resources:
         GeminiOcrModel: !Ref GeminiOcrModel
         OcrDailyCallLimit: !Ref OcrDailyCallLimit
         GeminiTypoEnabled: !Ref GeminiTypoEnabled
+        GeminiTtsEnabled: !Ref GeminiTtsEnabled
+        GeminiTtsModel: !Ref GeminiTtsModel
         GeminiEmotionEnabled: !Ref GeminiEmotionEnabled
         GeminiApiParameterName: !Ref GeminiApiParameterName
         GeminiModel: !Ref GeminiModel

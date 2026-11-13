@@ -11,7 +11,8 @@ from .base import PermanentProviderError, TransientProviderError
 from .common import OPENER, read_parameter
 
 
-LANGUAGES = {"cmn-CN": "zh-Hans", "zh-CN": "zh-Hans", "zh-TW": "zh-Hant", "zh-HK": "yue", "nb-NO": "nb", "fil-PH": "fil"}
+LANGUAGES = {"cmn-CN": "zh-Hans", "zh-CN": "zh-Hans", "zh-TW": "zh-Hant", "zh-HK": "yue", "nb-NO": "nb", "fil-PH": "fil",
+             "sr-RS": "sr-Cyrl", "mn-MN": "mn-Cyrl"}
 
 
 def http_failure(error):

@@ -95,7 +95,7 @@ export function Empty({ title, detail, icon = 'wave' }: { title: string; detail:
   return <View style={[styles.empty, { backgroundColor: colors.surface, borderColor: colors.line }]}><Icon name={icon} size={30} color={colors.blue} />
     <Label size={18} weight="600">{title}</Label><Label muted style={{ textAlign: 'center', lineHeight: 23 }}>{detail}</Label></View>;
 }
-export function Wave({ compact = false, moving = true }: { compact?: boolean; moving?: boolean }) {
+export function Wave({ compact = false, moving = true, size }: { compact?: boolean; moving?: boolean; size?: number }) {
   const { reducedMotion, active, isDark } = useStudio();
   const [phase] = useState(() => new Animated.Value(0));
   useEffect(() => {
@@ -106,11 +106,12 @@ export function Wave({ compact = false, moving = true }: { compact?: boolean; mo
     ])); loop.start(); return () => loop.stop();
   }, [phase, reducedMotion, active, moving]);
   const heights = [31, 55, 78, 104, 81, 57, 34];
+  const factor = size === undefined ? 1 : size / (compact ? 80 : 174);
   return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ height: compact ? 70 : 150,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: compact ? 4 : 8, transform: [{ rotate: '-12deg' }] }}>
-    {heights.map((height, index) => <Animated.View key={index} style={{ width: compact ? 8 : 18, height: height * (compact ? 0.52 : 1),
+    width: size, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: (compact ? 4 : 8) * factor, transform: [{ rotate: '-12deg' }] }}>
+    {heights.map((height, index) => <Animated.View key={index} style={{ width: (compact ? 8 : 18) * factor, height: height * (compact ? 0.52 : 1) * factor,
       borderRadius: 20, overflow: 'hidden', boxShadow: '3px 7px 9px rgba(0,80,135,0.18)', transform: [
-        { translateY: phase.interpolate({ inputRange: [0, 1], outputRange: index % 2 ? [-7, 8] : [8, -7] }) },
+        { translateY: phase.interpolate({ inputRange: [0, 1], outputRange: (index % 2 ? [-7, 8] : [8, -7]).map(value => value * factor) }) },
         { scaleY: phase.interpolate({ inputRange: [0, 1], outputRange: index % 2 ? [0.72, 1.12] : [1.12, 0.72] }) },
       ] }}><LinearGradient colors={isDark ? ['#C6EEFF', '#66BCED', '#2487BC', '#07517E'] : ['#C2E8FA', '#66B9E3', '#2A8DBC', '#126492']}
       start={{ x: 0, y: 0 }} end={{ x: 1, y: 0.35 }} style={StyleSheet.absoluteFill} /></Animated.View>)}

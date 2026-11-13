@@ -15,6 +15,7 @@ import Sheet from '../components/Sheet';
 import VoiceList from '../components/VoiceList';
 import PdfReader from '../components/PdfReader';
 import DocumentReview from '../components/DocumentReview';
+import ProviderPicker from '../components/ProviderPicker';
 import { DOCUMENT_MODES, type DocumentMode } from '../../../shared/vision';
 import { useStudio } from '../state/Studio';
 import { usePlayback } from '../state/Playback';
@@ -63,7 +64,8 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const importPreview = useRef<string | undefined>(undefined);
   const [importWarning, setImportWarning] = useState('');
   const [viewportHeight, setViewportHeight] = useState(usableHeight);
-  const [target, setTarget] = useState('en-US');
+  const [selectedTarget, setTarget] = useState('en-US');
+  const target = languages.some(l => l.lang === selectedTarget) ? selectedTarget : languages.find(l => l.lang !== lang)?.lang ?? lang;
   const [targetVoice, setTargetVoice] = useState('Joanna');
   const [selectedStyle, setStyle] = useState('neutral');
   const [busy, setBusy] = useState(false);
@@ -101,7 +103,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const availableVoice = voiceLanguage?.voices.find(v => v.id === (mode === 'translation' ? selectedTargetVoice : voice));
   const styleOptions = expressionOptions(availableVoice?.styles, voiceLanguage?.autoEmotionEnabled);
   const style = styleOptions.some(item => item.value === selectedStyle) ? selectedStyle : 'neutral';
-  const expression = style === 'neutral' ? {} : { style };
+  const expression = { ...(style === 'neutral' ? {} : { style }), ...(voiceLanguage?.provider === 'gemini' ? { provider: 'gemini' } : {}) };
   const finish = () => { locked.current = false; submitting.current = false; setBusy(false); setStage(''); };
   const submit = async (input: Input, id: number, batchMode = false, index = selectedPart) => {
     if (submitting.current) return;
@@ -139,6 +141,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     } catch (reason) { if (id === token.current) { setError(reason instanceof Error ? reason.message : 'Chưa tạo được giọng đọc.'); finish(); } return false; }
   };
   const generate = async () => {
+    if (voiceLanguage?.available === false) { setError('Chưa bật Gemini TTS ở máy chủ.'); return; }
     if (locked.current || importLock.current) return;
     if (mode === 'translation' && languages.find(item => item.lang === target)?.translationEnabled === false) {
       setError('Chưa cấu hình Azure Translator.'); return;
@@ -160,6 +163,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     await submit(input, id);
   };
   const generateAll = async () => {
+    if (voiceLanguage?.available === false) { setError('Chưa bật Gemini TTS ở máy chủ.'); return; }
     if (locked.current || importLock.current || !availableVoice) return;
     try { checkedDocument(draft); } catch (reason) { setError((reason as Error).message); return; }
     const inputs = parts.map((text, index) => ({ index, input: { text, lang, voice: mode === 'translation' ? selectedTargetVoice : voice, speed, translateTo: mode === 'translation' ? target : null, ...expression } })).filter(({ input }) => input.text.trim());
@@ -249,6 +253,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       <Header title={title} left={<Circle name="close" label="Đóng trang soạn thảo" disabled={busy} onPress={close} />}
         right={keyboard.visible ? <Circle name="keyboard" label="Ẩn bàn phím" onPress={Keyboard.dismiss} /> : undefined} />
       <PageScroll onLayout={event => setViewportHeight(event.nativeEvent.layout.height)} contentContainerStyle={{ flexGrow: 1, gap: 12 }}>
+        {!keyboard.visible && <ProviderPicker disabled={busy || importing} />}
         {mode === 'translation' && <View style={styles.translation}>
           <Pressable accessibilityRole="button" onPress={() => setSheet('source')} disabled={busy} style={[styles.language, { backgroundColor: colors.raised }]}><Label size={12} muted>Từ</Label><Label weight="600">{languageNames[lang]}</Label></Pressable>
           <Icon name="arrow" color={colors.secondary} />
@@ -313,7 +318,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       catch (error) { setError((error as Error).message); }
     }} />}
     <Sheet title="Chọn giọng đọc" visible={sheet === 'voices'} close={() => setSheet(null)}>
-      <VoiceList onlyLanguage={mode === 'translation' ? target : undefined} selected={mode === 'translation' ? { lang: target, voice: selectedTargetVoice } : undefined}
+      <VoiceList showProvider={false} onlyLanguage={mode === 'translation' ? target : undefined} selected={mode === 'translation' ? { lang: target, voice: selectedTargetVoice } : undefined}
         onSelect={(_, id) => { if (mode === 'translation') setTargetVoice(id); setSheet(null); }} />
     </Sheet>
     <Sheet title="Cài đặt giọng đọc" visible={sheet === 'settings'} close={() => setSheet(null)}>
@@ -327,7 +332,7 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
         </Pressable>)}
       </View>
       {styleOptions.length < 2 && availableVoice && <Label size={13} muted>{expressionHint(voiceLanguage?.provider, availableVoice.styles)}</Label>}
-      {style === 'auto' && <Label size={13} muted>Gửi đoạn đọc cho Gemini để chọn sắc thái.</Label>}
+      {style === 'auto' && <Label size={13} muted>{studio.provider === 'gemini' ? 'Gemini tự điều chỉnh cảm xúc khi đọc theo nội dung.' : 'Gửi đoạn đọc cho Gemini để chọn sắc thái.'}</Label>}
       <Label size={18} weight="600">Tốc độ đọc</Label><Label size={34} weight="600" style={{ color: colors.blue }}>{speed.toFixed(2).replace('.', ',')}×</Label>
       <Slider accessibilityLabel="Tốc độ đọc" value={speed} onValueChange={value => setSpeed(Math.round(value * 100) / 100)} minimumValue={MIN_SPEED} maximumValue={MAX_SPEED} step={0.05}
         minimumTrackTintColor={colors.blue} maximumTrackTintColor={colors.line} thumbTintColor={colors.blue} style={{ width: '100%', height: 44 }} />

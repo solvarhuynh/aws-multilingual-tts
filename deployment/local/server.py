@@ -74,6 +74,7 @@ def settings(path=ENV_FILE, *, host=None, public_url=None):
         'AZURE_TRANSLATOR_KEY': '', 'AZURE_TRANSLATOR_REGION': 'global',
         'GEMINI_API_KEY': '', 'GEMINI_MODEL': '', 'GEMINI_TYPO_ENABLED': 'false', 'GEMINI_TRANSLATION_ENABLED': 'false', 'GEMINI_EMOTION_ENABLED': 'false',
         'GEMINI_OCR_ENABLED': 'false', 'GEMINI_OCR_MODEL': 'gemini-3.5-flash-lite', 'OCR_DAILY_CALL_LIMIT': '100',
+        'GEMINI_TTS_ENABLED': 'false', 'GEMINI_TTS_MODEL': 'gemini-3.8-flash-tts', 'GEMINI_TTS_DAILY_CALL_LIMIT': '100',
         'DEMO_TOKEN': '', 'MAX_CHARS': '10000', 'DAILY_CHAR_LIMIT': '30000',
     }
     if values.keys() - result.keys():
@@ -85,6 +86,12 @@ def settings(path=ENV_FILE, *, host=None, public_url=None):
         result['LOCAL_PUBLIC_URL'] = public_url
     for name in result:
         result[name] = result[name].strip()
+    if result['GEMINI_TTS_ENABLED'] not in {'true', 'false'}:
+        raise ValueError('GEMINI_TTS_ENABLED dùng true hoặc false.')
+    if result['GEMINI_TTS_ENABLED'] == 'true' and (not result['GEMINI_API_KEY'] or result['GEMINI_TTS_MODEL'] != 'gemini-3.8-flash-tts'):
+        raise ValueError('Gemini TTS cần GEMINI_API_KEY và GEMINI_TTS_MODEL=gemini-3.8-flash-tts.')
+    if not result['GEMINI_TTS_DAILY_CALL_LIMIT'].isdigit() or not 1 <= int(result['GEMINI_TTS_DAILY_CALL_LIMIT']) <= 10000:
+        raise ValueError('GEMINI_TTS_DAILY_CALL_LIMIT từ 1 đến 10000.')
     gemini_flags = ['GEMINI_TYPO_ENABLED', 'GEMINI_TRANSLATION_ENABLED', 'GEMINI_EMOTION_ENABLED']
     for name in gemini_flags:
         if result[name] not in {'true', 'false'}:
@@ -199,6 +206,9 @@ class Runtime:
             'GEMINI_EMOTION_ENABLED': self.values['GEMINI_EMOTION_ENABLED'],
             'GEMINI_OCR_ENABLED': self.values['GEMINI_OCR_ENABLED'],
             'GEMINI_OCR_MODEL': self.values['GEMINI_OCR_MODEL'],
+            'GEMINI_TTS_ENABLED': self.values.get('GEMINI_TTS_ENABLED', 'false'),
+            'GEMINI_TTS_MODEL': self.values.get('GEMINI_TTS_MODEL', 'gemini-3.8-flash-tts'),
+            'GEMINI_TTS_DAILY_CALL_LIMIT': self.values.get('GEMINI_TTS_DAILY_CALL_LIMIT', '100'),
             'OCR_DAILY_CALL_LIMIT': self.values['OCR_DAILY_CALL_LIMIT'],
             'GEMINI_TRANSLATION_ENABLED': self.values['GEMINI_TRANSLATION_ENABLED'],
             'GEMINI_API_PARAMETER_NAME': '/local/gemini' if self.values['GEMINI_API_KEY'] else '',

@@ -11,7 +11,7 @@ Nhận common/schema/CAS và bucket outputs từ M3, async policy từ M5, quy�
 | File/thư mục trong module | Làm việc gì |
 |---|---|
 | `synthesize/app.py` | Worker: claim lease, gọi provider, lưu MP3 và chuyển trạng thái. |
-| `synthesize/providers/` | Azure mặc định, ElevenLabs tương thích; lỗi provider, đọc key và kiểm MP3. |
+| `synthesize/providers/` | Azure mặc định, Gemini TTS tùy chọn, ElevenLabs tương thích; lỗi provider, đọc key và kiểm MP3. |
 | `synthesize/registry.py` | Dùng voice registry từ common Layer. |
 | `voices/` | GET /voices trả catalog và giới hạn đang cấu hình. |
 | `config/` | Registry nguồn; voices.azure.json được configure lấy từ Azure. |
@@ -122,3 +122,9 @@ Các lệnh `--live`, cấu hình và tiêu chí nghe: [hướng dẫn Azure](..
 ## Sắc thái giọng đọc
 
 Tích hợp M4 được giao 11/11: `providers/emotion.py` chọn một style chủ đạo bằng Gemini tùy chọn; `azure.py` áp dụng `express-as`. Worker checkpoint `resolvedStyle` trước audio, dùng lại qua chunks/retry; catalog có styles thực từ Azure. Không fake cảm xúc cho giọng thiếu khả năng. M2 cần review/kiểm nghe riêng; log tích hợp ở CHANGELOG frontend. [Contract](../../docs/CONVENTIONS.md#sắc-thái-giọng-đọc--bổ-sung-11112026), [cấu hình/acceptance](../../docs/AZURE-SPEECH.md#giọng-đọc-có-cảm-xúc). Cờ mặc định tắt; không tự deploy/live.
+
+## Bàn giao Gemini TTS — 13/11/2026
+
+Theo yêu cầu mới của người dùng, `synthesize/providers/gemini.py` tạo giọng bằng `gemini-3.8-flash-tts`, không thay Azure mặc định. `config/voices.gemini.json` chứa 30 giọng/71 locale theo tài liệu Google; bản Layer M3 phải khớp byte. Catalog công bố nhóm provider riêng; worker lấy provider/engine đã lưu, cảm xúc cụ thể hoặc auto trực tiếp qua metadata TTS. Không chuyển sang Azure khi lỗi. WAV hoàn tất được kiểm format/kích thước rồi mã hóa MP3 bằng `lameenc==1.8.1`.
+
+M2 review adapter, đầu ra MP3/ghép đoạn 1.000 ký tự, quota CAS `tts-gemini-usage/`, lỗi và retry có giới hạn; nghiệm thu nghe trên các ngôn ngữ có người đánh giá. Hai mẫu Việt/Anh đã gọi thật trên local/Moto, chưa phải Sandbox hoặc kiểm toàn catalog; xem log M4. Khi deploy, dùng bước staging wheel Linux cp312 trong `azure.py plan`, không ZIP source thuần hay binary macOS. [Hợp đồng](../../docs/CONVENTIONS.md#gemini-tts-tùy-chọn--bổ-sung-13112026), [local](../../deployment/local/README.md#gemini-tts--thêm-nguồn-tạo-giọng), [Sandbox](../../docs/AZURE-SPEECH.md#gemini-tts-trên-sandbox).

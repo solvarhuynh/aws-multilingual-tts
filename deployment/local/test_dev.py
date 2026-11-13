@@ -91,6 +91,22 @@ class LauncherTests(unittest.TestCase):
                 dev.cloud_api(value)
             self.assertNotIn('secret', str(error.exception))
 
+    def test_gemini_tts_requires_key_and_its_own_model_without_modifying_env(self):
+        with tempfile.TemporaryDirectory() as folder:
+            env = Path(folder) / '.env.local'
+            valid = 'DEMO_TOKEN=fixture\nGEMINI_API_KEY=private-fixture\nGEMINI_TTS_ENABLED=true\n'
+            env.write_text(valid)
+            values = dev.server.settings(env)
+            self.assertEqual(values['GEMINI_TTS_MODEL'], 'gemini-3.8-flash-tts')
+            self.assertEqual(values['GEMINI_TTS_DAILY_CALL_LIMIT'], '100')
+            self.assertEqual(env.read_text(), valid)
+            for content in [valid.replace('GEMINI_API_KEY=private-fixture\n', ''),
+                            valid + 'GEMINI_TTS_MODEL=ocr-model\n', valid + 'GEMINI_TTS_DAILY_CALL_LIMIT=0\n']:
+                env.write_text(content)
+                with self.subTest(content=content.replace('private-fixture', '[REDACTED]')), self.assertRaises(ValueError) as caught:
+                    dev.server.settings(env)
+                self.assertNotIn('private-fixture', str(caught.exception))
+
     def test_cloud_mode_never_reads_local_keys_or_starts_python_api(self):
         with patch.object(sys, 'argv', ['dev.py', '--api-url', 'https://demo.cloudfront.net']), \
              patch('sys.stdout', new_callable=io.StringIO), patch.object(dev, 'check_dependencies') as dependencies, \

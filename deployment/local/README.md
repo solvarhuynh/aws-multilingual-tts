@@ -223,3 +223,23 @@ Ctrl+C tiến trình dev rồi chạy `npm run dev` từ gốc repo; nhập cùn
 Mỗi ảnh sau chuẩn bị tối đa 2 MiB, một trang tối đa 20.000 ký tự; bộ nhập vẫn giữ 50 MiB/tệp, 200 trang PDF/30 trang scan và 200.000 ký tự toàn tài liệu. Không cắt thiếu trang để báo thành công. Mỗi trang dùng một lượt quota riêng; lỗi/hủy không tự hoàn lượt đã dùng. Key/model/quota/timeout báo rõ, không chuyển ngầm sang OCR cũ. Nếu `OCR_NOT_CONFIGURED`, kiểm cờ/env và khởi động lại API; app dùng AWS thì phải bật trên stack AWS, không dùng env local.
 
 Backend không lưu ảnh/chữ OCR vào S3/log hoặc tạo TTS job. Ảnh được gửi tới Gemini; `store=false` chỉ tắt lưu trạng thái interaction, không thay chính sách dữ liệu của Google. Xem [model](https://aistudio.google.com/docs/models/gemini-3.5-flash-lite), [đọc ảnh](https://aistudio.google.com/docs/image-understanding) và [lưu trạng thái](https://aistudio.google.com/docs/interactions-overview#data-storage-retention). Không tự gọi model khác khi model cấu hình không được key hỗ trợ. Mặc định OCR đã chuyển sang `gemini-3.5-flash-lite` sau các lượt 3.8/3.6 quá tải; ba loại ảnh tổng hợp có kết quả đọc đúng được ghi trong [CHANGELOG M4](../../frontend/CHANGELOG.md). Dịch vụ vẫn có thể quá tải/timeout, vì vậy cần đối chiếu chữ trước khi dùng; không tự đổi model hoặc gọi lại vô hạn.
+
+## Gemini TTS — thêm nguồn tạo giọng
+
+Azure vẫn là mặc định. Gemini TTS trực tiếp tạo âm thanh bằng **`gemini-3.8-flash-tts`**, độc lập với model OCR/dịch/sửa lỗi. Trong `deployment/local/.env.local`, giữ `GEMINI_API_KEY` hiện có và thêm:
+
+```dotenv
+GEMINI_TTS_ENABLED=true
+GEMINI_TTS_MODEL=gemini-3.8-flash-tts
+GEMINI_TTS_DAILY_CALL_LIMIT=100
+```
+
+Cài dependency mới bằng `.venv/bin/python -m pip install -r deployment/local/requirements.txt`, dừng lệnh dev bằng Ctrl+C rồi chạy lại `npm run dev`. Không thêm key/token vào env web/app. Trong **Tạo giọng đọc → Nguồn giọng đọc**, chọn **Gemini TTS**; app có nút **Gemini** ngay trên ô chọn giọng. Chọn ngôn ngữ/vùng, giọng và sắc thái trong cài đặt giọng đọc. Mã demo và API base vẫn dùng như Azure.
+
+Catalog hiện đưa vào 71 lựa chọn ngôn ngữ/vùng và 30 giọng dựng sẵn theo tài liệu Google; chưa kiểm nghe toàn bộ các tổ hợp. Giọng Gemini dùng chung giữa nhiều ngôn ngữ, vì vậy danh sách chỉ hiện các giọng của ngôn ngữ đang chọn để tránh hàng nghìn thẻ lặp. Không dùng giọng thiết bị để giả nghe thử Gemini. `Tự chọn theo nội dung` điều khiển trực tiếp cách đọc của model TTS, không cần bật `GEMINI_EMOTION_ENABLED` và không gọi thêm model phân tích. Tốc độ là hướng dẫn nhịp đọc, không bảo đảm chính xác hệ số thời lượng như SSML.
+
+Luồng vẫn là submit → worker → MP3 → S3 mô phỏng → lịch sử/phát/tải, chung với Azure. WAV 24 kHz từ Gemini được kiểm định và mã hóa thành MP3 thật. Lượt dài chia theo phần 1.000 ký tự bên trong job; mỗi phần/retry dùng một lượt trong `GEMINI_TTS_DAILY_CALL_LIMIT`. Quota tài khoản Google và quota ký tự demo còn áp dụng riêng. `store=false` không thay điều khoản dữ liệu của Google. Lỗi key/model/quota/kết nối hiển thị rõ; không tự đổi sang Azure hoặc model khác.
+
+Dịch và đọc vẫn dịch bằng **Azure Translator**, sau đó dùng nguồn TTS đã chọn. Bật Gemini TTS không bật lại Gemini dịch văn bản. Tắt bằng `GEMINI_TTS_ENABLED=false` và khởi động lại backend. File env thật giữ riêng, không được commit.
+
+Nguồn: [model Gemini 3.8 Flash TTS](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash-tts), [giọng/ngôn ngữ/cách điều khiển](https://ai.google.dev/gemini-api/docs/speech-generation), [giá và Free tier](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-flash-tts). Quota và quyền model cần kiểm theo dự án Google của nhóm; không cam kết miễn phí vô hạn hoặc chất lượng luôn hơn Azure.

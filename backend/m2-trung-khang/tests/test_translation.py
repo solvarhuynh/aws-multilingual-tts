@@ -36,7 +36,8 @@ class TranslationTest(unittest.TestCase):
         self.assertEqual(json.loads(request.data), [{'Text': 'Xin chào'}])
 
     def test_locale_mapping(self):
-        for lang, code in [('vi-VN','vi'), ('en-GB','en'), ('zh-TW','zh-Hant'), ('zh-HK','yue'), ('nb-NO','nb')]:
+        for lang, code in [('vi-VN','vi'), ('en-GB','en'), ('zh-TW','zh-Hant'), ('zh-HK','yue'), ('nb-NO','nb'),
+                           ('sr-RS','sr-Cyrl'), ('mn-MN','mn-Cyrl')]:
             self.assertEqual(translation.language_code(lang), code)
         for lang in [None, [], 'auto', 'en-US&to=xx']:
             with self.assertRaises(PermanentProviderError): translation.language_code(lang)

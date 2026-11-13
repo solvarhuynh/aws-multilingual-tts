@@ -53,6 +53,14 @@ Parameters:
     Type: String
     Default: 'false'
     AllowedValues: ['true', 'false']
+  GeminiTtsEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+  GeminiTtsModel:
+    Type: String
+    Default: gemini-3.8-flash-tts
+    AllowedValues: [gemini-3.8-flash-tts]
   GeminiEmotionEnabled:
     Type: String
     Default: 'false'
@@ -147,6 +155,8 @@ Resources:
           GEMINI_OCR_MODEL: !Ref GeminiOcrModel
           OCR_DAILY_CALL_LIMIT: !Ref OcrDailyCallLimit
           GEMINI_TYPO_ENABLED: !Ref GeminiTypoEnabled
+          GEMINI_TTS_ENABLED: !Ref GeminiTtsEnabled
+          GEMINI_TTS_MODEL: !Ref GeminiTtsModel
           GEMINI_EMOTION_ENABLED: !Ref GeminiEmotionEnabled
           GEMINI_API_PARAMETER_NAME: !Ref GeminiApiParameterName
           GEMINI_MODEL: !Ref GeminiModel

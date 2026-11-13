@@ -19,7 +19,7 @@ Tài liệu EC2 trong M1 là phương án lịch sử, không phải lệnh tri�
 | Module | Thành viên | Thư mục chính | Sở hữu |
 |---|---|---|---|
 | M1 | Minh Lý | `backend/m1-minh-ly/` | HTTP router, URL/policy Lambda, root SAM, quyền LabRole, CloudWatch/SNS |
-| M2 | Trung Khang | `backend/m2-trung-khang/` | Provider Azure/ElevenLabs, worker, voices, giới hạn provider, cấu hình async worker |
+| M2 | Trung Khang | `backend/m2-trung-khang/` | Provider Azure/Gemini TTS/ElevenLabs, worker, voices, giới hạn provider, cấu hình async worker |
 | M3 | Trung Đức | `backend/m3-trung-duc/` | Common Layer, schema/S3 repository, jobs/audio, history, presign, retention |
 | M4 | Nguyên Khang | `frontend/` | Web, app, API client, phát âm thanh, S3 hosting, CloudFront/OAC, upload web |
 | M5 | Trung Nghĩa | `backend/m5-trung-nghia/` | Submit, validation, dispatch/idempotency/recovery, telemetry, kiểm thử luồng; typo/stats sau MVP |
@@ -225,3 +225,13 @@ Người dùng đồng ý gửi ảnh/trang scan qua backend tới Gemini để 
 Người dùng yêu cầu tiếp tục thử và cho phép đổi model để OCR hoạt động. `gemini-3.8-flash`/3.6 gặp 503; mặc định OCR chuyển **gemini-3.5-flash-lite**, đã có kết quả thật cho ba loại ảnh tổng hợp qua handler/web. Giữ mức thinking low; thử minimal có lỗi nên không tích hợp. Không thay model của typo/dịch/cảm xúc hoặc thêm fallback tự động.
 
 Được cập nhật hai trường OCR trong env local theo yêu cầu này (`GEMINI_OCR_MODEL`, `GEMINI_OCR_ENABLED`), giữ nguyên key và cấu hình khác. Ngoài thao tác được giao đó vẫn giữ quy tắc không tự sửa env. Kết quả thử được ghi ở CHANGELOG frontend, không nâng thành Sandbox verified: AWS trong RAM bằng Moto, Gemini thật; chưa deploy AWS hoặc kiểm thiết bị native thật. Có lượt quá tải/timeout bên cạnh kết quả đúng, không hứa mọi ảnh đều chính xác hoặc dịch vụ luôn sẵn sàng.
+
+## 15. Gemini TTS được giao 13/11/2026
+
+Người dùng giao bổ sung Gemini trực tiếp tạo giọng bên cạnh Azure trên web/app, có ngôn ngữ/vùng, giọng và sắc thái. Phạm vi cho phép sửa M2/M3/M5, runtime/deploy wiring và frontend liên quan; không tự deploy/AWS live. Người dùng cho phép **tối đa hai bản thu mẫu** bằng key Gemini backend; đã dùng hết hai lượt cho câu mẫu Việt/Anh trong Moto local, không gọi thêm khi chưa có giao việc mới. Không sửa env thật; dùng cấu hình trong phiên cho phép thử.
+
+Gemini TTS chọn `gemini-3.8-flash-tts` theo tài liệu chính thức hiện hành, độc lập model OCR/typo/dịch/cảm xúc Azure. Azure vẫn mặc định, ElevenLabs giữ tương thích. Không fallback giữa nguồn/model. Catalog nguồn `backend/m2-trung-khang/config/voices.gemini.json`, bản Layer tương ứng phải khớp byte; 71 locale/30 giọng theo docs không phải bằng chứng đã nghe toàn bộ. `auto` Gemini là điều khiển trực tiếp TTS, không gọi phân tích thứ hai; không gán resolvedStyle giả. Key ở backend/SSM, client chỉ gửi provider/voice/lang/style đã chọn.
+
+Giữ các paths cũ, thêm provider tùy chọn trong `/synthesize`, nhóm providers trong `/voices`, public provider/engine trong jobs/history. Ghi provider/model đã chọn vào job qua các trường sẵn có, giữ fingerprint request cũ khi thiếu provider. MP3 phải được mã hóa từ WAV thật bằng `lameenc`, không đổi phần mở rộng. Dùng chunk/checkpoint/CAS/parts/quota sẵn có, counter riêng `tts-gemini-usage/`; không thêm service AWS hay EventInvokeConfig. Đóng gói bằng `azure.py plan --gemini-tts true`: wheel Linux cp312 trong staging tạm, không binary macOS hoặc source ZIP thiếu encoder. Cờ mặc định tắt; key/quota/model cần kiểm theo từng dự án. Chi tiết: [hợp đồng](docs/CONVENTIONS.md#gemini-tts-tùy-chọn--bổ-sung-13112026), [local](deployment/local/README.md#gemini-tts--thêm-nguồn-tạo-giọng), [Sandbox](docs/AZURE-SPEECH.md#gemini-tts-trên-sandbox). Log tích hợp chỉ bổ sung CHANGELOG M4, giữ lịch sử owner khác.
+
+Trong yêu cầu tiếp theo cùng ngày, người dùng giao bật Gemini TTS local: được đặt riêng `GEMINI_TTS_ENABLED=true` trong env thật và khởi động lại bộ dev; giữ nguyên key/cấu hình khác. Đã kiểm catalog enabled qua backend và proxy web, không gọi thêm provider. Quyền này không mở rộng số lượt thử thật hoặc cho phép deploy AWS.

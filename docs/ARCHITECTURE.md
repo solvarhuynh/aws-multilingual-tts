@@ -14,7 +14,7 @@ flowchart LR
     H["M1 Function URL và HTTP router candidate"]
     S["M5 tts-submit"]
     X["M2 tts-synthesize"]
-    P["Azure Speech - TTS ngoài AWS"]
+    P["Azure Speech / Gemini TTS - ngoài AWS"]
     V["M2 tts-voices"]
     R["M3 tts-history"]
     J["M3 S3 JSON jobs"]
@@ -105,3 +105,9 @@ Web/app dùng chung bộ sinh worker/WASM, model Paddle/VietOCR và sáu gói Te
 ### Runtime local bằng env
 
 Trước Sandbox, web `/api` qua Vite → Python local → router/submit/worker/history hiện có. Moto thay S3/SSM trong RAM; key từ env backend được đưa vào SSM mô phỏng, không tạo tài nguyên AWS. Catalog Azure chỉ tải khi người vận hành chạy `server.py voices`; giọng/dịch thật chỉ gọi khi người dùng yêu cầu. Media local có link ký + Range, không giả presigned URL AWS. Dữ liệu runtime mất khi tắt; đây không phải bằng chứng IAM/OAC/Lambda trên Sandbox. Xem [hướng dẫn local](../deployment/local/README.md).
+
+## Gemini TTS tùy chọn (13/11/2026)
+
+Worker M2 hỗ trợ thêm Gemini 3.8 Flash TTS, dùng chung submit M5, Common Layer/jobs/audio M3, polling/history và giao diện M4. Azure vẫn mặc định; lựa chọn provider đi trong request và được lưu vào job, không suy theo provider đang chọn ở giao diện khi worker chạy. Không có endpoint/Lambda/AWS service mới. Gemini nhận văn bản và style metadata, trả WAV PCM; encoder LAME đóng gói Linux chuyển thành MP3 thật trước S3. Model OCR/typo/dịch không thay đổi. Dịch vẫn Azure Translator rồi TTS được chọn, không khôi phục giao diện dịch Gemini.
+
+Cấu hình/quota riêng, không fallback, giới hạn chunk/response, đóng gói và trạng thái nghiệm thu ở [CONVENTIONS](CONVENTIONS.md#gemini-tts-tùy-chọn--bổ-sung-13112026), [local](../deployment/local/README.md#gemini-tts--thêm-nguồn-tạo-giọng) và [Sandbox](AZURE-SPEECH.md#gemini-tts-trên-sandbox). Hai mẫu provider thật trên Moto không chứng minh đã triển khai AWS hoặc đạt thay thế Polly theo đề.

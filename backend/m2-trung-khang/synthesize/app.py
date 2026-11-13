@@ -53,13 +53,15 @@ def _synthesize(job: dict, context) -> bytes:
         raise PermanentProviderError("INVALID_INPUT", "Văn bản cần đọc đang trống.")
     speed = float(job.get("speed") or 1.0)
     voice = job.get("voice")
-    entry = find_entry(job.get("lang"), voice, speed)
+    entry = find_entry(job.get("lang"), voice, speed, job.get("provider"))
+    if entry["provider"] == "gemini" and job.get("engine") != entry.get("engine"):
+        raise PermanentProviderError("GEMINI_TTS_MODEL", "Model tạo giọng đã đổi. Hãy tạo yêu cầu mới sau khi kiểm tra cấu hình.")
     style = job.get("resolvedStyle", job.get("style", "neutral"))
     try:
         validate_style(entry, voice, style)
     except ValueError:
         raise PermanentProviderError("UNSUPPORTED_STYLE", "Giọng đọc không còn hỗ trợ sắc thái đã chọn. Hãy tải lại danh sách giọng.") from None
-    if style == "auto":
+    if style == "auto" and entry["provider"] != "gemini":
         raise PermanentProviderError("EMOTION_UNAVAILABLE", "Chưa xác định được sắc thái giọng đọc.")
     timeout = min(PROVIDER_TIMEOUT_SECONDS, _remaining_seconds(context) - CLEANUP_SECONDS)
     if timeout <= 0:
@@ -100,8 +102,8 @@ def _produce_audio(job: dict, context, checkpoint) -> str:
         job = checkpoint(text=translated, sourceLang=job["lang"], translated=True,
                          charCount=len(translated)).data
     job = {**job, "lang": job.get("translateTo") or job["lang"]}
-    if job.get("style") == "auto" and "resolvedStyle" not in job:
-        entry = find_entry(job["lang"], job.get("voice"), float(job.get("speed") or 1))
+    if job.get("style") == "auto" and job.get("provider") != "gemini" and "resolvedStyle" not in job:
+        entry = find_entry(job["lang"], job.get("voice"), float(job.get("speed") or 1), job.get("provider"))
         styles = voice_styles(entry, job.get("voice"))
         if not styles:
             raise PermanentProviderError("UNSUPPORTED_STYLE", "Giọng đọc không hỗ trợ cảm xúc.")
@@ -111,12 +113,13 @@ def _produce_audio(job: dict, context, checkpoint) -> str:
         resolved = detect_style(job["text"], styles, timeout)
         stored = checkpoint(resolvedStyle=resolved).data
         job = {**stored, "lang": stored.get("translateTo") or stored["lang"]}
-    chunks = [part for part in split_text(job["text"], job.get("chunkSize", config.CHUNK_SIZE)) if part.strip()]
+    chunk_size = job.get("chunkSize", 1000 if job.get("provider") == "gemini" else config.CHUNK_SIZE)
+    chunks = [part for part in split_text(job["text"], chunk_size) if part.strip()]
     if not chunks or len(chunks) > 100:
         raise PermanentProviderError("INVALID_INPUT", "Nội dung không hợp lệ hoặc quá dài.")
     if len(chunks) == 1:
         return storage.put_audio(user_id, job_id, _synthesize(job, context))
-    checkpoint(chunkCount=len(chunks), chunkSize=job.get("chunkSize", config.CHUNK_SIZE))
+    checkpoint(chunkCount=len(chunks), chunkSize=chunk_size)
     audio = []
     for index, chunk in enumerate(chunks):
         data = storage.read_part(user_id, job_id, index)

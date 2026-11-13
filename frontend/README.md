@@ -109,7 +109,7 @@ npm run dev
 
 Web cần Node ≥20.19. `npm run build` tạo dist; `npm run test:ui` chạy kiểm thử local. Upload từ CloudShell bằng `bash deployment/scripts/sandbox.sh web` ở gốc repo, script tự lấy domain/bucket từ Outputs; không cần quy trình ZIP hosting riêng.
 
-Vite đọc `VITE_API_BASE_URL` lúc khởi động dev server và lúc build. Đổi env cần mở lại dev server/build. Bảy API cũ được giữ nguyên; M5 bổ sung `/text/translate` cho Gemini ở backend. **Dịch và đọc** trên web và app chỉ dùng Azure Translator → Azure Speech; lựa chọn Gemini đã gỡ khỏi giao diện ngày 10/11/2026. Cấu hình local chung cho web/app: [local README](../deployment/local/README.md#gemini-tùy-chọn-sau-khi-gộp-m5).
+Vite đọc `VITE_API_BASE_URL` lúc khởi động dev server và lúc build. Đổi env cần mở lại dev server/build. **Dịch và đọc** dùng Azure Translator rồi nguồn TTS đã chọn; không có giao diện dịch văn bản bằng Gemini. Gemini TTS là lựa chọn tạo giọng riêng từ ngày 13/11/2026, độc lập OCR/dịch/typo; [cấu hình backend](../deployment/local/README.md#gemini-tts--thêm-nguồn-tạo-giọng).
 
 ### App iOS/Android
 
@@ -128,6 +128,10 @@ npm start -- --clear
 Dùng Expo Go tương thích SDK 58 của package.json. iPhone quét QR bằng Camera, Android dùng Expo Go; điện thoại kết nối được Metro trên máy cá nhân. Với iPhone thật, CLI và Expo Go phải đăng nhập cùng tài khoản, launcher không ép offline; xem [đăng nhập Expo](../deployment/local/README.md#đăng-nhập-expo-trên-iphone-thật). Đổi env cần khởi động lại dev server.
 
 Trong app Cài đặt → Kết nối → Mã truy cập; nhập mã do chủ lab cấp. Không đặt mã/key vào EXPO_PUBLIC_* hoặc VITE_*. Không có API base thì nghe giọng thiết bị và lưu dữ liệu mẫu cục bộ, chưa có MP3 từ AWS.
+
+Trang chủ: chạm trực tiếp vào sóng âm trong thẻ **Tạo giọng đọc** để mở trình soạn thảo. Sóng phản hồi khi chạm, chuyển sang màn soạn thảo toàn màn hình; chế độ giảm chuyển động bỏ hiệu ứng. Văn bản mẫu nằm trong một nhóm để giảm chiều cao và số khung riêng.
+
+Web có bộ chọn **Nguồn giọng đọc** trong cài đặt giọng; app chọn **Azure/Gemini** phía trên ô giọng hoặc ở trang Giọng đọc. Gemini có 30 giọng theo tài liệu, 71 lựa chọn ngôn ngữ/vùng và sắc thái trong cài đặt giọng. Bản nháp giữ nguyên khi đổi nguồn. Gemini chưa bật báo rõ; không dùng giọng thiết bị để giả nghe thử Gemini. Catalog tách theo provider và chỉ hiển thị một ngôn ngữ khi duyệt giọng Gemini để tránh lặp hàng nghìn thẻ.
 
 Kiểm tra trong thư mục app:
 

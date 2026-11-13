@@ -7,7 +7,7 @@ registry; chưa có giọng nào thì trả 503 thay vì danh sách bịa. Modul
 import os
 from tts_common import config
 from tts_common.errors import error_response, json_response, log_json
-from tts_common.voices import load_registry
+from tts_common.voices import load_registry, gemini_registry, gemini_settings, GEMINI_MODEL
 from tts_common.expression import auto_enabled
 
 
@@ -16,6 +16,8 @@ def public_voice(voice):
     item = {"id": voice["id"], "gender": voice["gender"]}
     if voice.get("name"):
         item["name"] = voice["name"]
+    if voice.get("description"):
+        item["description"] = voice["description"]
     if "styles" in voice:
         item["styles"] = voice["styles"]
     return item
@@ -32,6 +34,7 @@ def build_languages(registry):
             "provider": entry["provider"],
             "engine": entry.get("engine"),
             "voices": [public_voice(voice) for voice in entry["voices"]],
+            **({"name": entry["name"]} if entry.get("name") else {}),
         })
     return languages
 
@@ -43,8 +46,13 @@ def handler(event, context):
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         log_json(module="M2", operation="voices", status="ERROR", errorCode=type(error).__name__)
         languages = []
+    gemini = {"id": "gemini", "name": "Gemini TTS", "model": GEMINI_MODEL,
+              "enabled": gemini_settings() is not None, "nativeEmotion": True,
+              "languages": build_languages(gemini_registry())}
+    if not languages and gemini["enabled"]:
+        languages = gemini["languages"]
     if not languages:
         return error_response(503, "VOICES_UNAVAILABLE", "Danh sách giọng đọc chưa sẵn sàng.")
-    return json_response(200, {"languages": languages, "limits": {"maxChars": config.MAX_CHARS},
+    return json_response(200, {"languages": languages, "providers": [gemini], "limits": {"maxChars": config.MAX_CHARS},
                                "features": {"translation": bool(os.environ.get("TRANSLATOR_API_PARAMETER_NAME")),
                                             "autoEmotion": auto_enabled()}})

@@ -6,6 +6,7 @@ import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, Text
 import { MAX_DOCUMENT_CHARS, checkedDocument, splitDocument } from '../../../shared/documents';
 import { HISTORY_SYNC_INTERVAL, mergeHistoryPage } from '../../../shared/history';
 import { expressionOptions } from '../../../shared/expression';
+import { providerOptions } from '../../../shared/voices';
 import { readDocumentPage, type DocumentMode } from '../../../shared/vision';
 
 type Review = { input: SynthesizeInput; correction: TextCorrection; documentText: string; partIndex: number; partLimit?: number };
@@ -22,7 +23,11 @@ function preferredLanguage(languages: Language[]) {
 
 /** Dữ liệu dùng chung mọi trang: danh sách giọng, lịch sử và bản thu đang mở. */
 export function useSession(notify: Notify) {
-  const [languages, setLanguages] = useState<Language[]>([]);
+  const [catalog, setLanguages] = useState<Language[]>([]);
+  const [selectedProvider, setProvider] = useState('');
+  const provider = catalog.some(l => l.provider === selectedProvider) ? selectedProvider : catalog[0]?.provider ?? '';
+  const languages = useMemo(() => catalog.filter(l => provider === 'gemini' ? l.provider === 'gemini' : l.provider !== 'gemini'), [catalog, provider]);
+  const providers = useMemo(() => providerOptions(catalog), [catalog]);
   const [loadingVoices, setLoadingVoices] = useState(true);
   const [voiceError, setVoiceError] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -157,6 +162,7 @@ export function useSession(notify: Notify) {
   }
 
   return {
+    provider, providers, setProvider, allLanguages: catalog,
     languages,
     loadingVoices,
     voiceError,
@@ -239,7 +245,7 @@ export function useEditor(
   const language = languages.find((l) => l.lang === (translateTo || lang));
   const styles = expressionOptions(language?.voices.find(v => v.id === voice)?.styles, language?.autoEmotionEnabled);
   const style = styles.some(item => item.value === selectedStyle) ? selectedStyle : 'neutral';
-  const expression = style === 'neutral' ? {} : { style };
+  const expression = { ...(style === 'neutral' ? {} : { style }), ...(language?.provider === 'gemini' ? { provider: 'gemini' } : {}) };
   useEffect(() => {
     setVoice((previous) =>
       language?.voices.some((v) => v.id === previous) ? previous : language?.voices[0]?.id || "",
@@ -272,10 +278,11 @@ export function useEditor(
     revision.current++;
     const pending = reviewRef.current?.input;
     if (pending && (reviewRef.current?.documentText !== text || pending.lang !== lang || pending.voice !== voice ||
-      pending.speed !== speed || (pending.style ?? 'neutral') !== style || pending.translateTo !== translateTo || reviewRef.current?.partLimit !== partLimit)) cancelReview();
-  }, [text, lang, voice, speed, style, translateTo, partLimit]);
+      pending.speed !== speed || (pending.style ?? 'neutral') !== style || pending.provider !== expression.provider || pending.translateTo !== translateTo || reviewRef.current?.partLimit !== partLimit)) cancelReview();
+  }, [text, lang, voice, speed, style, translateTo, partLimit, expression.provider]);
 
   async function generate() {
+    if (language?.available === false) { setError('Chưa bật Gemini TTS ở máy chủ.'); return; }
     if (documentReview) return;
     if (submitLock.current || fileLock.current || reviewRef.current || batchLock.current) return;
     try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }
@@ -379,6 +386,7 @@ export function useEditor(
   }
 
   async function generateAll() {
+    if (language?.available === false) { setError('Chưa bật Gemini TTS ở máy chủ.'); return; }
     if (documentReview) return;
     if (batchLock.current || submitLock.current || fileLock.current || reviewRef.current) return;
     try { checkedDocument(text); } catch (reason) { setError((reason as Error).message); return; }

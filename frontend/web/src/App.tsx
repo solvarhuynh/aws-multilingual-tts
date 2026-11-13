@@ -173,6 +173,7 @@ export default function App() {
   }
 
   const visibleVoices = studio.languages
+    .filter(l => studio.provider !== 'gemini' || l.lang === (languageFilter === 'all' ? studio.language?.lang ?? studio.lang : languageFilter))
     .flatMap((l) => l.voices.map((v) => ({ ...v, lang: l.lang, provider: l.provider })))
     .filter(
       (v) =>
@@ -316,6 +317,8 @@ export default function App() {
               onChange={(e) => setQuery(e.target.value)}
             />
           </label>
+          {!DEMO && studio.providers.length > 1 && <Select label="Nguồn giọng đọc" value={studio.provider} onValueChange={studio.setProvider}
+            options={studio.providers} disabled={studio.busy} />}
           <Select label="Lọc ngôn ngữ giọng đọc" value={languageFilter} onValueChange={setLanguageFilter}
             options={[{ value: "all", label: "Tất cả ngôn ngữ" }, ...studio.languages.map((l) => ({ value: l.lang, label: languageNames[l.lang] || l.lang }))]} />
         </div>
@@ -701,6 +704,13 @@ export default function App() {
                     <h2>Cài đặt giọng</h2>
                   </div>
                   <div className="setting-field">
+                    <label htmlFor="tts-provider">Nguồn giọng đọc</label>
+                    {!DEMO && studio.providers.length > 1 ? <Select id="tts-provider" label="Nguồn giọng đọc" value={studio.provider}
+                      onValueChange={studio.setProvider} options={studio.providers} disabled={studio.busy || studio.readingFile} /> :
+                      <div className="engine-label"><Icon name="layers" size={17} /><span>{DEMO ? 'Giọng trên máy' : providerLabel(studio.language?.provider)}</span></div>}
+                    {studio.provider === 'gemini' && <small>{studio.language?.available === false ? 'Chưa bật Gemini TTS ở máy chủ.' : 'Gemini 3.8 Flash TTS'}</small>}
+                  </div>
+                  <div className="setting-field">
                     <label htmlFor="language">{page === "translation" ? "Ngôn ngữ gốc" : "Ngôn ngữ"}</label>
                     <Select id="language" label={page === "translation" ? "Ngôn ngữ gốc" : "Ngôn ngữ"}
                       value={studio.lang} onValueChange={studio.setLang} disabled={studio.busy || studio.readingFile || studio.loadingVoices}
@@ -731,7 +741,7 @@ export default function App() {
                             : selectedVoice ? voiceLabel(studio.languages, selectedVoice.id) : "Chưa có giọng"}
                         </strong>
                         <small>
-                          {selectedVoice?.gender === "F" ? "Nữ" : selectedVoice?.gender === "M" ? "Nam" : ""}
+                          {selectedVoice?.gender === "F" ? "Nữ" : selectedVoice?.gender === "M" ? "Nam" : selectedVoice?.description || (selectedVoice ? "Giọng đọc" : "")}
                           {selectedVoice
                             ? ` · ${languageNames[studio.language?.lang || studio.lang] || studio.lang}`
                             : ""}
@@ -753,16 +763,7 @@ export default function App() {
                     <Select id="speaking-style" label="Sắc thái" value={studio.style} onValueChange={studio.setStyle}
                       options={studio.styles} disabled={studio.busy || studio.styles.length < 2} />
                     {studio.styles.length < 2 && selectedVoice && <small>{expressionHint(studio.language?.provider, selectedVoice.styles)}</small>}
-                    {studio.style === 'auto' && <small>Gửi đoạn đọc cho Gemini để chọn sắc thái.</small>}
-                  </div>
-                  <div className="setting-field">
-                    <span className="field-label">Nguồn giọng đọc</span>
-                    <div className="engine-label">
-                      <Icon name="layers" size={17} />
-                      <span>
-                        {DEMO ? "Giọng trên máy" : providerLabel(studio.language?.provider)}
-                      </span>
-                    </div>
+                    {studio.style === 'auto' && <small>{studio.provider === 'gemini' ? 'Gemini tự điều chỉnh cảm xúc khi đọc theo nội dung.' : 'Gửi đoạn đọc cho Gemini để chọn sắc thái.'}</small>}
                   </div>
                   <div className="setting-field speed-field">
                     <div className="field-heading">

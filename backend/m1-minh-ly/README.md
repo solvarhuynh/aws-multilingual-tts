@@ -103,3 +103,7 @@ Tích hợp M4 được giao 11/11 bổ sung root parameter `GeminiEmotionEnable
 ## Bàn giao đọc ảnh Gemini — 12/11/2026
 
 Theo chấp thuận gửi ảnh của người dùng, router bổ sung **POST `/documents/recognize`** → Submit M5. Giữ tám paths cũ, auth demo/header/hash và response JSON. Chỉ POST này có body cap 3 MiB để chứa ảnh base64 tối đa 2 MiB; route khác vẫn 250 KiB. Root SAM truyền `GeminiOcrEnabled`, `GeminiOcrModel`, `OcrDailyCallLimit` và tên SSM Gemini hiện có; không thêm resource/provider TTS. M4 thêm CloudFront `/documents/*` không cache. `azure.py plan` có flags OCR riêng, mặc định không đổi giá trị cũ; apply vẫn thủ công. M1 review wiring/permissions và nghiệm thu phiên lab theo [hợp đồng](../../docs/CONVENTIONS.md#post-documentsrecognize--đọc-ảnh-trực-tuyến-không-tạo-mp3), [hướng dẫn](../../docs/AZURE-SPEECH.md#đọc-ảnh-bằng-gemini-trên-sandbox). Log tích hợp nằm ở frontend/CHANGELOG; không coi mock là Sandbox đã đạt.
+
+## Bàn giao Gemini TTS — 13/11/2026
+
+Root SAM thêm `GeminiTtsEnabled=false`, `GeminiTtsModel=gemini-3.8-flash-tts`, `GeminiTtsDailyCallLimit=100`; chuyển cấu hình/SSM reference hiện có tới M2/M5, không đổi paths/role/AWS service hoặc tạo EventInvokeConfig mới. `azure.py plan --gemini-tts true` stage encoder Linux cp312 trước package, có flag hạn mức và dùng lại `--gemini-parameter`; apply vẫn thủ công sau review. M1 kiểm wiring/đóng gói/SSM/egress và changeset của phiên được giao; log local M4 không là bằng chứng AWS. [Triển khai](../../docs/AZURE-SPEECH.md#gemini-tts-trên-sandbox).

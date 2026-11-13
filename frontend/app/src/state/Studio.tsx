@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 import { AccessibilityInfo, Appearance, AppState, useColorScheme } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { api, configureSubmissionStore, DEMO, setDemoToken } from '../lib/api';
 import { DEFAULT_SPEED, demoLanguages, isRecording, type Language, type Preferences, type Recording } from '../lib/model';
 import { HISTORY_SYNC_INTERVAL, mergeHistoryPage } from '../../../shared/history';
+import { providerOptions } from '../../../shared/voices';
 
 const KEYS = { preferences: 'tts.app.preferences.v1', recordings: 'tts.app.recordings.v1', draft: 'tts.app.draft.v1', translationDraft: 'tts.app.draft.translation.v1', submissions: 'tts.app.submissions.v1' };
 const defaults: Preferences = { theme: 'system', reducedMotion: false, haptics: true, favorites: [], demoToken: '' };
@@ -30,11 +31,18 @@ function useStudioState() {
   const [active, setActive] = useState(true);
   const [ready, setReady] = useState(false);
   const [history, setHistory] = useState<Recording[]>([]);
-  const [languages, setLanguages] = useState<Language[]>(DEMO ? demoLanguages : []);
+  const [catalog, setLanguages] = useState<Language[]>(DEMO ? demoLanguages : []);
+  const [selectedProvider, setProvider] = useState('');
+  const provider = catalog.some(l => l.provider === selectedProvider) ? selectedProvider : catalog[0]?.provider ?? '';
+  const languages = useMemo(() => catalog.filter(l => provider === 'gemini' ? l.provider === 'gemini' : l.provider !== 'gemini'), [catalog, provider]);
+  const providers = useMemo(() => providerOptions(catalog), [catalog]);
   // Tạo giọng đọc và Dịch và đọc giữ bản nháp riêng; bản nháp cũ trước khi tách thuộc về Tạo giọng đọc.
   const [draft, setDraft] = useState('');
   const [translationDraft, setTranslationDraft] = useState('');
-  const [{ lang, voice }, setSelection] = useState({ lang: 'vi-VN', voice: 'Linh' });
+  const [selection, setSelection] = useState({ lang: 'vi-VN', voice: 'Linh' });
+  const selectedLanguage = languages.find(l => l.lang === selection.lang) ?? languages.find(l => l.lang === 'vi-VN') ?? languages[0];
+  const lang = selectedLanguage?.lang ?? selection.lang;
+  const voice = selectedLanguage?.voices.some(v => v.id === selection.voice) ? selection.voice : selectedLanguage?.voices[0]?.id ?? '';
   const [loadingVoices, setLoadingVoices] = useState(!DEMO);
   const [voiceError, setVoiceError] = useState('');
   const voiceRequest = useRef(0);
@@ -186,7 +194,7 @@ function useStudioState() {
   const haptic = () => {
     if (preferences.haptics) void Haptics.selectionAsync().catch(() => {});
   };
-  return { colors, isDark, preferences, updatePreferences, reducedMotion, active, ready, history, languages, draft, setDraft, translationDraft, setTranslationDraft,
+  return { colors, isDark, preferences, updatePreferences, reducedMotion, active, ready, history, languages, allLanguages: catalog, provider, providers, setProvider, draft, setDraft, translationDraft, setTranslationDraft,
     lang, voice, speed, setSpeed, selectVoice, loadingVoices, voiceError, reloadVoices, saveRecording, removeRecording, refresh, refreshing, cursor,
     notice, setNotice, haptic };
 }

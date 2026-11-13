@@ -7,14 +7,17 @@ python3 deployment/scripts/azure.py status      # Chỉ đọc cấu hình Lambd
 """
 
 import argparse
+from contextlib import contextmanager
 import getpass
 import hashlib
 import json
 import secrets
 import re
 import subprocess
+import shutil
 import sys
 import time
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -275,8 +278,50 @@ def ocr_overrides(enabled=None, model=None, daily_calls=None, parameter=None):
     return result
 
 
-def plan(daily_char_limit=None, *, gemini_ocr=None, ocr_model=None, ocr_daily_calls=None, gemini_parameter=None):
+@contextmanager
+def packaged_template(work, gemini_tts=False):
+    if not gemini_tts:
+        yield ROOT / "deployment/template.yaml"
+        return
+    # CloudFormation package chỉ ZIP source; encoder phải là wheel Linux, kể cả máy build là macOS.
+    with tempfile.TemporaryDirectory(prefix="tts-package-", dir=work) as temporary:
+        stage = Path(temporary)
+        source = ROOT / "backend/m2-trung-khang/synthesize"
+        target = stage / "synthesize"
+        shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        result = subprocess.run([sys.executable, "-m", "pip", "install", "--only-binary=:all:", "--no-deps", "--no-compile",
+                                 "--platform", "manylinux2014_x86_64", "--python-version", "3.12", "--implementation", "cp", "--abi", "cp312",
+                                 "--target", str(target), "-r", str(source / "requirements.txt")], capture_output=True)
+        if result.returncode:
+            raise ValueError("Không đóng gói được encoder MP3 Linux. Kiểm tra pip và mạng; chưa tạo changeset.")
+        child = (ROOT / "backend/m2-trung-khang/infra/tts.yaml").read_text(encoding="utf-8")
+        child = child.replace("CodeUri: ../synthesize", "CodeUri: " + json.dumps(str(target)))
+        child = child.replace("CodeUri: ../voices", "CodeUri: " + json.dumps(str(ROOT / "backend/m2-trung-khang/voices")))
+        (stage / "tts.yaml").write_text(child, encoding="utf-8")
+        root = (ROOT / "deployment/template.yaml").read_text(encoding="utf-8")
+        def location(match):
+            path = (ROOT / "deployment" / match[1]).resolve()
+            if path == ROOT / "backend/m2-trung-khang/infra/tts.yaml":
+                path = stage / "tts.yaml"
+            return "Location: " + json.dumps(str(path))
+        root = re.sub(r"Location: ([^\n]+)", location, root)
+        template = stage / "template.yaml"
+        template.write_text(root, encoding="utf-8")
+        yield template
+
+
+def plan(daily_char_limit=None, *, gemini_ocr=None, ocr_model=None, ocr_daily_calls=None, gemini_parameter=None,
+         gemini_tts=None, tts_daily_calls=None):
     ocr = ocr_overrides(gemini_ocr, ocr_model, ocr_daily_calls, gemini_parameter)
+    if gemini_tts is not None:
+        if gemini_tts not in {"true", "false"}:
+            raise ValueError("--gemini-tts phải là true hoặc false")
+        ocr["GeminiTtsEnabled"] = gemini_tts
+        ocr["GeminiTtsModel"] = "gemini-3.8-flash-tts"
+    if tts_daily_calls is not None:
+        if type(tts_daily_calls) is not int or not 1 <= tts_daily_calls <= 10000:
+            raise ValueError("Hạn mức Gemini TTS/ngày từ 1 đến 10.000")
+        ocr["GeminiTtsDailyCallLimit"] = str(tts_daily_calls)
     if daily_char_limit is not None and (type(daily_char_limit) is not int or daily_char_limit < 1):
         raise ValueError("Hạn mức ký tự/ngày phải là số nguyên dương")
     state = read_state()
@@ -288,14 +333,17 @@ def plan(daily_char_limit=None, *, gemini_ocr=None, ocr_model=None, ocr_daily_ca
     previous = {p["ParameterKey"]: p.get("ParameterValue", "") for p in (stack or {}).get("Parameters", [])}
     if gemini_ocr == "true" and not (gemini_parameter or previous.get("GeminiApiParameterName")):
         raise ValueError("Cần --gemini-parameter trỏ tới SSM chứa key trước khi bật đọc ảnh")
+    if gemini_tts == "true" and not (gemini_parameter or previous.get("GeminiApiParameterName")):
+        raise ValueError("Cần --gemini-parameter trỏ tới SSM chứa key trước khi bật Gemini TTS")
 
     account = aws("sts", "get-caller-identity")["Account"]
     work = Path.home() / "tts-sandbox"
     work.mkdir(exist_ok=True)
     packaged = work / "azure-packaged.yaml"
     bucket = artifact_bucket(account)
-    aws("cloudformation", "package", "--template-file", str(ROOT / "deployment/template.yaml"),
-        "--s3-bucket", bucket, "--output-template-file", str(packaged), parse_json=False)
+    with packaged_template(work, gemini_tts == "true" or previous.get("GeminiTtsEnabled") == "true") as template:
+        aws("cloudformation", "package", "--template-file", str(template),
+            "--s3-bucket", bucket, "--output-template-file", str(packaged), parse_json=False)
     overrides = {"TtsProvider": "azure", "AzureSpeechRegion": state["region"], "TtsApiParameterName": PARAMETER}
     overrides.update(translator_overrides())
     overrides.update(ocr)
@@ -374,11 +422,13 @@ def main():
     parser.add_argument("--ocr-model", help="Model Gemini dành riêng cho đọc ảnh")
     parser.add_argument("--ocr-daily-calls", type=int, help="Giới hạn lượt đọc trang/ngày, từ 1 đến 10.000")
     parser.add_argument("--gemini-parameter", help="Đường dẫn SSM chứa key Gemini đã lưu, không phải API key")
+    parser.add_argument("--gemini-tts", choices=("true", "false"), help="Chỉ dùng với plan; bật/tắt Gemini tạo giọng")
+    parser.add_argument("--tts-daily-calls", type=int, help="Hạn mức request Gemini TTS/ngày, gồm từng đoạn và retry")
     args = parser.parse_args()
     if args.daily_char_limit is not None and args.action != "plan":
         parser.error("--daily-char-limit chỉ dùng với plan")
-    if args.action != "plan" and any(value is not None for value in (args.gemini_ocr, args.ocr_model, args.ocr_daily_calls, args.gemini_parameter)):
-        parser.error("Các tùy chọn Gemini OCR chỉ dùng với plan")
+    if args.action != "plan" and any(value is not None for value in (args.gemini_ocr, args.ocr_model, args.ocr_daily_calls, args.gemini_parameter, args.gemini_tts, args.tts_daily_calls)):
+        parser.error("Các tùy chọn Gemini chỉ dùng với plan")
     try:
         if args.action == "configure":
             configure(args.region)
@@ -386,7 +436,8 @@ def main():
             configure_translator(args.region)
         elif args.action == "plan":
             plan(args.daily_char_limit, gemini_ocr=args.gemini_ocr, ocr_model=args.ocr_model,
-                 ocr_daily_calls=args.ocr_daily_calls, gemini_parameter=args.gemini_parameter)
+                 ocr_daily_calls=args.ocr_daily_calls, gemini_parameter=args.gemini_parameter,
+                 gemini_tts=args.gemini_tts, tts_daily_calls=args.tts_daily_calls)
         else:
             {"apply": apply, "status": status}[args.action]()
     except urllib.error.HTTPError as error:

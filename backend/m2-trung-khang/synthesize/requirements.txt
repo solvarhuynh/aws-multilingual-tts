@@ -1,1 +1,1 @@
-# boto3 đã có sẵn trong môi trường Lambda; thêm thư viện khác ở đây nếu cần
+lameenc==1.8.1

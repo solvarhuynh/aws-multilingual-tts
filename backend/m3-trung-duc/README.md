@@ -101,3 +101,7 @@ Common bổ sung `checkpoint_job` chỉ ghi các trường worker được phép
 API job/history bổ sung text bản dịch và ngôn ngữ âm thanh, `translated`, `sourceLang`; metadata `lang` vẫn là nguồn, `translateTo` là đích. Đây là thay đổi code/local test; M3 cần nghiệm thu quyền đọc/xóa parts và retention trên phiên lab thật. Parts còn sau FAILED được dọn khi xóa bản thu hoặc theo lifecycle audio bucket hiện có.
 
 Tích hợp M4 được giao 11/11 bổ sung metadata tùy chọn `style`, checkpoint CAS `resolvedStyle` và công bố ở jobs/history. `common/python/tts_common/expression.py` giữ validation theo registry, cờ cấu hình và counter CAS riêng `emotion-usage/` (100 call/ngày mặc định) cho phân tích Gemini. Giữ ETag/lease hiện hành, không đổi repository/database hoặc URL. M3 cần review helper/counter/retention trước Sandbox; log mock ở CHANGELOG frontend. [Contract sắc thái](../../docs/CONVENTIONS.md#sắc-thái-giọng-đọc--bổ-sung-11112026).
+
+## Bàn giao Gemini TTS — 13/11/2026
+
+Registry Gemini đóng gói trong Layer, giữ bản nguồn M2 khớp byte. Metadata provider/engine dùng trường sẵn có, polling/history công bố lại để phân biệt bản thu; không đổi schema version, kho dữ liệu hoặc presign. `expression.py` hỗ trợ styles Gemini và counter CAS riêng `tts-gemini-usage/` cho từng call/chunk/retry; Azure giữ luồng cũ. M3 review quota concurrency, retention và đọc/xóa parts cùng history trên Sandbox được giao; bằng chứng tích hợp ở CHANGELOG M4. [Hợp đồng](../../docs/CONVENTIONS.md#gemini-tts-tùy-chọn--bổ-sung-13112026).

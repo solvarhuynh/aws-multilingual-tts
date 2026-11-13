@@ -1,3 +1,4 @@
+import { catalogLanguages } from '../../../shared/voices';
 import { demoLanguages, MAX_CHARS, readStored, storeValue } from "./data";
 import type { HistoryItem, HistoryResponse, Job, Language, SynthesizeInput, Stats, TextCorrection, Translation } from "./types";
 import { SubmissionLedger } from '../../../shared/submissions';
@@ -200,27 +201,11 @@ export const api = {
   },
   async voices(): Promise<Language[]> {
     if (DEMO) return demoLanguages;
-    const data = await request<{ languages: Language[] }>("/voices");
-    if (
-      !data ||
-      !Array.isArray(data.languages) ||
-      !data.languages.every(
-        (l) =>
-          !!l &&
-          typeof l.lang === "string" &&
-          typeof l.provider === "string" &&
-          Array.isArray(l.voices) &&
-          l.voices.every((v) => !!v && typeof v.id === "string" && typeof v.gender === "string" &&
-            (v.name === undefined || typeof v.name === "string") &&
-            (v.styles === undefined || (Array.isArray(v.styles) && v.styles.every(style => typeof style === 'string')))),
-      )
-    )
-      throw new ApiError("Danh sách giọng đọc chưa đúng định dạng.", "INVALID_RESPONSE");
-    const catalog = data as typeof data & { limits?: { maxChars?: number }; features?: { translation?: boolean; autoEmotion?: boolean } };
-    const limit = catalog.limits?.maxChars;
-    if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) throw new ApiError("Giới hạn máy chủ chưa hợp lệ.", "INVALID_RESPONSE");
-    return data.languages.map(language => ({ ...language, maxChars: Math.min(MAX_CHARS, limit ?? MAX_CHARS), translationEnabled: catalog.features?.translation,
-      ...(typeof catalog.features?.autoEmotion === 'boolean' ? { autoEmotionEnabled: catalog.features.autoEmotion } : {}) }));
+    try { return catalogLanguages(await request('/voices'), MAX_CHARS); }
+    catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(error instanceof Error ? error.message : 'Danh sách giọng đọc chưa hợp lệ.', 'INVALID_RESPONSE');
+    }
   },
   async synthesize(input: SynthesizeInput, context = ''): Promise<Job> {
     if (!DEMO) {
@@ -233,7 +218,7 @@ export const api = {
         if (result.status === 'DONE' || result.status === 'FAILED') await submissions.finish(result.jobId);
         return result;
       } catch (error) {
-        if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'UNSUPPORTED_SPEED', 'UNSUPPORTED_STYLE', 'EMOTION_NOT_CONFIGURED', 'FEATURE_NOT_ENABLED', 'TRANSLATION_NOT_CONFIGURED'].includes(error.code)) await submissions.reject(digest);
+        if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'INVALID_PROVIDER', 'GEMINI_TTS_NOT_CONFIGURED', 'UNSUPPORTED_SPEED', 'UNSUPPORTED_STYLE', 'EMOTION_NOT_CONFIGURED', 'FEATURE_NOT_ENABLED', 'TRANSLATION_NOT_CONFIGURED'].includes(error.code)) await submissions.reject(digest);
         throw error;
       }
     }

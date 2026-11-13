@@ -1,3 +1,4 @@
+import { catalogLanguages } from '../../../shared/voices';
 import { MAX_CHARS, type Correction, type Input, type Job, type Language, type Recording, isRecording } from './model';
 import { sha256Hex } from './sha256';
 import { SubmissionLedger } from '../../../shared/submissions';
@@ -50,15 +51,11 @@ export const api = {
     return checkedRecognition(await request<DocumentResult>('/documents/recognize', { method: 'POST', body: JSON.stringify(page), signal }));
   },
   async voices(): Promise<Language[]> {
-    const data = await request<{ languages: Language[]; limits?: { maxChars?: number }; features?: { translation?: boolean; autoEmotion?: boolean } }>('/voices');
-    if (!Array.isArray(data?.languages) || !data.languages.every(l => typeof l?.lang === 'string' && Array.isArray(l.voices) &&
-      l.voices.every(v => typeof v?.id === 'string' && typeof v.gender === 'string' && (v.name === undefined || typeof v.name === 'string') &&
-        (v.styles === undefined || (Array.isArray(v.styles) && v.styles.every(style => typeof style === 'string')))))) throw new Error('Danh sách giọng đọc chưa hợp lệ.');
-    const limit = data.limits?.maxChars;
-    if (limit !== undefined && (!Number.isInteger(limit) || limit < 2 || limit > MAX_CHARS)) throw new Error('Giới hạn giọng đọc chưa hợp lệ.');
-    return data.languages.map(language => ({ ...language, ...(limit !== undefined ? { maxChars: limit } : {}),
-      ...(typeof data.features?.autoEmotion === 'boolean' ? { autoEmotionEnabled: data.features.autoEmotion } : {}),
-      ...(typeof data.features?.translation === 'boolean' ? { translationEnabled: data.features.translation } : {}) }));
+    try { return catalogLanguages(await request('/voices'), MAX_CHARS, true); }
+    catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(error instanceof Error ? error.message : 'Danh sách giọng đọc chưa hợp lệ.', 'INVALID_RESPONSE');
+    }
   },
   async correct(text: string, lang: string): Promise<Correction | null> {
     const data = await request<Correction>('/text/correct', { method: 'POST', body: JSON.stringify({ text, lang }) });
@@ -84,7 +81,7 @@ export const api = {
       if (result.status === 'DONE' || result.status === 'FAILED') await submissions.finish(result.jobId);
       return result;
     } catch (error) {
-      if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'UNSUPPORTED_SPEED', 'UNSUPPORTED_STYLE', 'EMOTION_NOT_CONFIGURED', 'FEATURE_NOT_ENABLED', 'TRANSLATION_NOT_CONFIGURED'].includes(error.code)) await submissions.reject(digest);
+      if (error instanceof ApiError && ['TOO_MANY_REQUESTS', 'INVALID_INPUT', 'LANG_REQUIRED', 'LANG_NOT_SUPPORTED', 'TEXT_TOO_LONG', 'INVALID_PROVIDER', 'GEMINI_TTS_NOT_CONFIGURED', 'UNSUPPORTED_SPEED', 'UNSUPPORTED_STYLE', 'EMOTION_NOT_CONFIGURED', 'FEATURE_NOT_ENABLED', 'TRANSLATION_NOT_CONFIGURED'].includes(error.code)) await submissions.reject(digest);
       throw error;
     }
   },

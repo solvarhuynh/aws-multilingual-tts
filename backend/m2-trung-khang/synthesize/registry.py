@@ -4,10 +4,10 @@ from providers.base import PermanentProviderError
 from tts_common.voices import load_registry
 
 
-def find_entry(lang, voice: str, speed: float) -> dict:
+def find_entry(lang, voice: str, speed: float, provider=None) -> dict:
     """Kiểm tra ngôn ngữ, giọng, tốc độ trước khi tốn credit gọi provider."""
     try:
-        registry = load_registry()
+        registry = load_registry(provider=provider) if provider else load_registry()
     except (OSError, ValueError):
         raise PermanentProviderError("VOICES_UNAVAILABLE", "Danh sách giọng đọc chưa sẵn sàng.") from None
     entry = registry.get(lang) if isinstance(lang, str) and not lang.startswith("_") else None

@@ -5,6 +5,7 @@ import os
 from .azure import AzureSpeechProvider
 from .base import PermanentProviderError
 from .elevenlabs import ElevenLabsProvider
+from .gemini import GeminiTTSProvider
 
 
 def get_provider(entry: dict, timeout: float, style=None):
@@ -22,4 +23,6 @@ def get_provider(entry: dict, timeout: float, style=None):
             language_code=entry.get("languageCode"),
             timeout=timeout,
         )
+    if entry.get("provider") == "gemini":
+        return GeminiTTSProvider(entry["languageCode"], timeout, style)
     raise PermanentProviderError("PROVIDER_NOT_ENABLED", "Nhà cung cấp giọng đọc chưa được bật.")

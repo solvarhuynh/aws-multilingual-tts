@@ -876,3 +876,28 @@ Giới hạn: **2 MiB/ảnh sau chuẩn bị**, **3 MiB body JSON**, **20.000 k�
 | HTML/404 hoặc bộ đọc cũ | Hosting behavior `/documents/*`, bundle static và cache CloudFront; cập nhật cả backend lẫn web/app. |
 
 Để tắt qua changeset: `python3 deployment/scripts/azure.py plan --gemini-ocr false`, review rồi apply khi được giao. Backend không lưu ảnh/chữ vào S3/log; chỉ counter `ocr-usage/`. Google nhận ảnh inline; `store=false` tắt lưu trạng thái interaction nhưng không thay điều khoản dữ liệu của Google. Không cam kết mô hình không sai hoặc gọi đây là OCR chính xác nhất.
+
+## Gemini TTS trên Sandbox
+
+Gemini TTS là lựa chọn tạo giọng thêm bên cạnh Azure, không thay provider mặc định hay model OCR. Model chọn cho chất lượng biểu cảm là `gemini-3.8-flash-tts`; hỗ trợ thực theo quyền/quota Google AI Studio của dự án. Xem [giọng/ngôn ngữ và giới hạn](CONVENTIONS.md#gemini-tts-tùy-chọn--bổ-sung-13112026). Kết quả local hai bản thu không chứng minh Lambda/Sandbox hoặc mọi giọng/ngôn ngữ đã đạt.
+
+1. Kiểm local theo [hướng dẫn](../deployment/local/README.md#gemini-tts--thêm-nguồn-tạo-giọng), kiểm nghe và hạn mức trước. Không xuất credentials AWS ra máy cá nhân, không đưa env local lên AWS.
+2. Trong CloudShell/Lab được giao, dùng **SSM SecureString Gemini đã có** của OCR nếu cùng dự án. Nếu chưa có, thực hiện bước lưu key kín trong [hướng dẫn OCR](#đọc-ảnh-bằng-gemini-trên-sandbox); không nhập key vào tham số CLI. M1 xác minh LabRole đọc parameter và egress Google trong phiên hiện tại.
+3. Lấy đúng source mới, chuẩn bị Azure stack như các bước trước. Tạo changeset, thay đường dẫn SSM bên dưới bằng tên của nhóm:
+
+```bash
+python3 deployment/scripts/azure.py plan --gemini-tts true --tts-daily-calls 100 --gemini-parameter /tts/dev/gemini
+```
+
+`plan` giữ Azure mặc định, thêm cờ/model TTS cho M2/M5. Khi bật/giữ Gemini TTS, script cài wheel `lameenc` cho **Linux x86_64/Python 3.12** vào thư mục đóng gói tạm trước `cloudformation package`; không đóng gói binary macOS, không thêm role/Lambda/Layer riêng. Cần Python có pip và Internet tới PyPI. Không bỏ bước này rồi ZIP source thủ công vì Lambda sẽ thiếu bộ mã hóa MP3. Source và các giấy phép trong wheel được giữ. Nếu bước đóng gói lỗi, dừng trước changeset.
+
+4. Review changeset, chỉ apply khi được giao thao tác và đã kiểm nội dung:
+
+```bash
+python3 deployment/scripts/azure.py apply
+bash deployment/scripts/sandbox.sh web
+```
+
+5. Mở URL CloudFront mới/bản mới, nhập mã demo, chọn **Gemini TTS**, tạo một câu tiếng Việt với cảm xúc cụ thể. Kiểm `DONE`, phát/tải MP3, mở lại lịch sử trên web/app chung API; kiểm tiếng Anh và một ngôn ngữ nhóm có người nghe được. Xem CloudWatch chỉ lấy jobId/status/errorCode, không key/text/presigned URL. Kiểm quota/lỗi rõ và xác nhận Azure vẫn dùng được. Có thể tải mẫu local ở máy cá nhân, không lấy file/env riêng làm evidence công khai.
+
+Tắt bằng `plan --gemini-tts false`, review rồi apply thủ công. `--tts-daily-calls` tính cả đoạn nhỏ và retry, không phải số tài liệu. Quota Google riêng có thể thấp hơn trần demo; không tự nâng gói trả phí, gọi vô hạn hoặc đổi sang Azure khi Gemini lỗi. `store=false` chỉ tắt lưu trạng thái interaction, không thay điều khoản Google.

@@ -27,6 +27,7 @@ def validate_synthesize_request(
     speed_range: tuple[float, float] | None = None,
     voice_styles: Mapping[str, Collection[str]] | None = None,
     auto_emotion_enabled: bool = False,
+    supported_providers: Collection[str] = ("azure", "elevenlabs", "gemini"),
 ) -> dict[str, object]:
     """Return validated public fields without changing the original text.
 
@@ -57,6 +58,11 @@ def validate_synthesize_request(
         raise ValidationError("LANG_NOT_SUPPORTED", "Ngôn ngữ chưa được hỗ trợ.")
 
     validated: dict[str, object] = {"text": text, "lang": lang}
+    if "provider" in body:
+        provider = body["provider"]
+        if not isinstance(provider, str) or provider not in supported_providers:
+            raise ValidationError("INVALID_PROVIDER", "Nguồn giọng đọc không hợp lệ.")
+        validated["provider"] = provider
 
     target = body.get("translateTo")
     voice_lang = lang
@@ -104,7 +110,7 @@ def validate_synthesize_request(
         styles = (voice_styles or {}).get(validated.get("voice", ""), ())
         if not styles or (style != "auto" and style not in styles):
             raise ValidationError("UNSUPPORTED_STYLE", "Giọng chưa hỗ trợ sắc thái này.")
-        if style == "auto" and not auto_emotion_enabled:
+        if style == "auto" and validated.get("provider") != "gemini" and not auto_emotion_enabled:
             raise ValidationError("EMOTION_NOT_CONFIGURED", "Chưa bật nhận diện cảm xúc.")
         validated["style"] = style
 

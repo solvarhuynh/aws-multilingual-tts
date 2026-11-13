@@ -36,6 +36,8 @@ def fingerprint(body):
     fields = [body.get(name) for name in ("text", "lang", "voice", "speed", "translateTo")]
     if body.get("style", "neutral") != "neutral":
         fields.append(body["style"])
+    if body.get("provider") is not None:
+        fields.append({"provider": body["provider"]})
     canonical = json.dumps(fields, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

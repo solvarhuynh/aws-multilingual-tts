@@ -7,7 +7,7 @@ from . import aws, config
 
 
 def voice_styles(entry, voice):
-    if entry.get("provider") != "azure":
+    if entry.get("provider") not in {"azure", "gemini"}:
         return []
     item = next((item for item in entry.get("voices", []) if item.get("id") == voice), {})
     raw = item.get("styles")
@@ -30,14 +30,16 @@ def validate_style(entry, voice, style):
     styles = voice_styles(entry, voice)
     if not styles or (style != "auto" and style not in styles):
         raise ValueError("UNSUPPORTED_STYLE")
-    if style == "auto" and not auto_enabled():
+    if style == "auto" and entry.get("provider") != "gemini" and not auto_enabled():
         raise ValueError("EMOTION_NOT_CONFIGURED")
     return style
 
 
-def reserve_analysis_call(limit):
+def reserve_analysis_call(limit, prefix="emotion-usage"):
+    if prefix not in {"emotion-usage", "tts-gemini-usage"}:
+        raise ValueError("Invalid usage prefix")
     client = aws.s3()
-    key = f"emotion-usage/{time.strftime('%Y-%m-%d', time.gmtime())}.json"
+    key = f"{prefix}/{time.strftime('%Y-%m-%d', time.gmtime())}.json"
     for _ in range(3):
         try:
             response = client.get_object(Bucket=config.JOBS_BUCKET, Key=key)

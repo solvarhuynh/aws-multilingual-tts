@@ -42,43 +42,7 @@ export const demoLanguages: Language[] = [
     voices: [{ id: "Seoyeon", gender: "F" }],
   },
 ];
-export const languageNames: Record<string, string> = {
-  "vi-VN": "Tiếng Việt",
-  "en-US": "Tiếng Anh (Mỹ)",
-  "en-GB": "Tiếng Anh (Anh)",
-  "ja-JP": "Tiếng Nhật",
-  "ko-KR": "Tiếng Hàn",
-  "cmn-CN": "Tiếng Trung giản thể",
-  "zh-TW": "Tiếng Trung phồn thể (Đài Loan)",
-  "zh-HK": "Tiếng Quảng Đông (Hồng Kông)",
-  "hi-IN": "Tiếng Hindi",
-  "id-ID": "Tiếng Indonesia",
-  "ms-MY": "Tiếng Mã Lai",
-  "fil-PH": "Tiếng Philippines",
-  "ta-IN": "Tiếng Tamil",
-  "ar-SA": "Tiếng Ả Rập",
-  "tr-TR": "Tiếng Thổ Nhĩ Kỳ",
-  "fr-FR": "Tiếng Pháp",
-  "de-DE": "Tiếng Đức",
-  "es-ES": "Tiếng Tây Ban Nha",
-  "pt-PT": "Tiếng Bồ Đào Nha",
-  "it-IT": "Tiếng Ý",
-  "nl-NL": "Tiếng Hà Lan",
-  "pl-PL": "Tiếng Ba Lan",
-  "ru-RU": "Tiếng Nga",
-  "uk-UA": "Tiếng Ukraina",
-  "sv-SE": "Tiếng Thụy Điển",
-  "nb-NO": "Tiếng Na Uy",
-  "da-DK": "Tiếng Đan Mạch",
-  "fi-FI": "Tiếng Phần Lan",
-  "el-GR": "Tiếng Hy Lạp",
-  "cs-CZ": "Tiếng Séc",
-  "sk-SK": "Tiếng Slovakia",
-  "ro-RO": "Tiếng Romania",
-  "hu-HU": "Tiếng Hungary",
-  "bg-BG": "Tiếng Bulgaria",
-  "hr-HR": "Tiếng Croatia",
-};
+export { languageNames } from '../../../shared/languages';
 export const samples: Record<string, string> = {
   "vi-VN":
     "Thư viện mở cửa từ tám giờ sáng đến sáu giờ chiều, từ thứ Hai đến thứ Bảy.\n\nBạn đọc có thể tra cứu tài liệu trực tuyến hoặc liên hệ quầy thông tin để được hỗ trợ. Vui lòng giữ yên lặng và trả sách đúng hạn.",
@@ -129,8 +93,7 @@ export const starterPresets = [
   },
 ];
 export const formatNumber = (n: number) => new Intl.NumberFormat("vi-VN").format(n);
-export const providerLabel = (provider?: string) =>
-  provider === "azure" ? "Azure Speech" : provider === "elevenlabs" ? "ElevenLabs" : provider === "polly" ? "Amazon Polly" : provider || "";
+export { providerName as providerLabel } from '../../../shared/voices';
 export const voiceLabel = (languages: Language[], id: string) =>
   languages.flatMap((l) => l.voices).find((v) => v.id === id)?.name ?? id.replace(" (demo)", "");
 export const formatTime = (seconds: number) =>

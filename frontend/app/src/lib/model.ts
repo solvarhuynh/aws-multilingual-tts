@@ -1,10 +1,11 @@
 import { MAX_PART_CHARS as MAX_CHARS } from "../../../shared/documents";
+import type { CatalogLanguage as Language } from '../../../shared/voices';
 export type ThemeMode = 'system' | 'light' | 'dark';
 export type EditorMode = 'speech' | 'translation';
-export interface Voice { id: string; gender: string; name?: string; styles?: string[] }
-export interface Language { lang: string; provider: string; engine: string | null; voices: Voice[]; maxChars?: number; translationEnabled?: boolean; autoEmotionEnabled?: boolean }
-export interface Input { text: string; lang: string; voice: string; speed: number; translateTo: string | null; style?: string }
+export type { CatalogVoice as Voice, CatalogLanguage as Language } from '../../../shared/voices';
+export interface Input { text: string; lang: string; voice: string; speed: number; translateTo: string | null; style?: string; provider?: string }
 export interface Job {
+  provider?: string | null; engine?: string | null;
   style?: string; resolvedStyle?: string;
   text?: string; lang?: string; translated?: boolean; sourceLang?: string | null;
   jobId: string;
@@ -23,43 +24,7 @@ export { MAX_PART_CHARS as MAX_CHARS } from "../../../shared/documents";
 export const MIN_SPEED = 0.7;
 export const MAX_SPEED = 1.2;
 export const DEFAULT_SPEED = 0.9;
-export const languageNames: Record<string, string> = {
-  'vi-VN': 'Tiếng Việt',
-  'en-US': 'Tiếng Anh (Mỹ)',
-  'en-GB': 'Tiếng Anh (Anh)',
-  'ja-JP': 'Tiếng Nhật',
-  'ko-KR': 'Tiếng Hàn',
-  'cmn-CN': 'Tiếng Trung giản thể',
-  'zh-TW': 'Tiếng Trung phồn thể (Đài Loan)',
-  'zh-HK': 'Tiếng Quảng Đông (Hồng Kông)',
-  'hi-IN': 'Tiếng Hindi',
-  'id-ID': 'Tiếng Indonesia',
-  'ms-MY': 'Tiếng Mã Lai',
-  'fil-PH': 'Tiếng Philippines',
-  'ta-IN': 'Tiếng Tamil',
-  'ar-SA': 'Tiếng Ả Rập',
-  'tr-TR': 'Tiếng Thổ Nhĩ Kỳ',
-  'fr-FR': 'Tiếng Pháp',
-  'de-DE': 'Tiếng Đức',
-  'es-ES': 'Tiếng Tây Ban Nha',
-  'pt-PT': 'Tiếng Bồ Đào Nha',
-  'it-IT': 'Tiếng Ý',
-  'nl-NL': 'Tiếng Hà Lan',
-  'pl-PL': 'Tiếng Ba Lan',
-  'ru-RU': 'Tiếng Nga',
-  'uk-UA': 'Tiếng Ukraina',
-  'sv-SE': 'Tiếng Thụy Điển',
-  'nb-NO': 'Tiếng Na Uy',
-  'da-DK': 'Tiếng Đan Mạch',
-  'fi-FI': 'Tiếng Phần Lan',
-  'el-GR': 'Tiếng Hy Lạp',
-  'cs-CZ': 'Tiếng Séc',
-  'sk-SK': 'Tiếng Slovakia',
-  'ro-RO': 'Tiếng Romania',
-  'hu-HU': 'Tiếng Hungary',
-  'bg-BG': 'Tiếng Bulgaria',
-  'hr-HR': 'Tiếng Croatia',
-};
+export { languageNames } from '../../../shared/languages';
 export const demoLanguages: Language[] = [
   { lang: 'vi-VN', provider: 'device', engine: null, voices: [{ id: 'Linh', gender: 'F' }, { id: 'Minh', gender: 'M' }] },
   { lang: 'en-US', provider: 'polly', engine: 'neural', voices: [{ id: 'Joanna', gender: 'F' }, { id: 'Matthew', gender: 'M' }] },

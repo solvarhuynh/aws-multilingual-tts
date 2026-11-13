@@ -2,12 +2,16 @@ export type Page =
   "dashboard" | "studio" | "translation" | "voices" | "library" | "settings" | "help";
 export type JobStatus = "PENDING" | "PROCESSING" | "DONE" | "FAILED";
 export interface Voice {
+  description?: string;
   styles?: string[];
   id: string;
   gender: string;
   name?: string;
 }
 export interface Language {
+  name?: string;
+  model?: string;
+  available?: boolean;
   autoEmotionEnabled?: boolean;
   maxChars?: number;
   translationEnabled?: boolean;
@@ -17,6 +21,7 @@ export interface Language {
   voices: Voice[];
 }
 export interface SynthesizeInput {
+  provider?: string;
   style?: string;
   text: string;
   lang: string;
@@ -38,6 +43,8 @@ export interface Translation {
   translatedText: string;
 }
 export interface Job {
+  provider?: string | null;
+  engine?: string | null;
   style?: string;
   resolvedStyle?: string;
   text?: string;

@@ -1,4 +1,5 @@
 const names: Record<string, string> = {
+  confident: 'Tự tin', narration: 'Kể chuyện',
   neutral: 'Tự nhiên', auto: 'Tự chọn theo nội dung', cheerful: 'Vui vẻ', sad: 'Buồn', angry: 'Giận dữ',
   excited: 'Hào hứng', friendly: 'Thân thiện', hopeful: 'Hy vọng', empathetic: 'Đồng cảm', calm: 'Điềm tĩnh',
   fearful: 'Lo lắng', terrified: 'Sợ hãi', shouting: 'Nói lớn', whispering: 'Thì thầm', serious: 'Nghiêm túc',

@@ -19,7 +19,7 @@
 
 Đồ án học phần **Điện toán đám mây**, xây dựng hệ thống chuyển văn bản thành giọng nói trên web và ứng dụng iOS/Android. Người dùng nhập văn bản hoặc đọc nội dung từ tài liệu, chọn ngôn ngữ và giọng đọc, tạo bản thu, phát trực tiếp, tải MP3 và quản lý lịch sử.
 
-Repository được tổ chức theo trách nhiệm của năm thành viên. Frontend dùng React/Vite và Expo; bản triển khai Sandbox hiện dùng Lambda, S3, CloudFront và Azure Speech. Ngôn ngữ ưu tiên là tiếng Việt, tiếng Anh và tiếng Nhật, theo catalog của resource Speech được cấu hình.
+Repository được tổ chức theo trách nhiệm của năm thành viên. Frontend dùng React/Vite và Expo; bản triển khai Sandbox hiện dùng Lambda, S3, CloudFront và Azure Speech. Gemini TTS là nguồn tạo giọng tùy chọn mới, cấu hình riêng ở backend; chưa nghiệm thu trên Sandbox. Ngôn ngữ ưu tiên là tiếng Việt, tiếng Anh và tiếng Nhật.
 
 **Lưu ý về yêu cầu học phần:** đề gốc yêu cầu API Gateway, Amazon Polly và DynamoDB. Bản Sandbox hiện dùng Function URL, Azure Speech và S3 JSON thay thế ba thành phần này. Phương án thay thế cần được giảng viên chấp thuận hoặc nhóm cần được cấp môi trường có quyền triển khai đúng đề; chưa coi việc demo Azure chạy được là đã đáp ứng đủ yêu cầu.
 
@@ -45,6 +45,7 @@ Repository được tổ chức theo trách nhiệm của năm thành viên. Fro
 |---|---|
 | Chuyển văn bản thành MP3 | Có backend async và giao diện web/app. Một stack/web hiện có đã được chuyển sang Azure và ghi nhận demo ngày 08/11/2026. |
 | Chọn ngôn ngữ, giọng và tốc độ | Lấy từ `/voices`; danh mục Azure được xác minh theo resource/vùng khi chạy `configure`. |
+| Gemini TTS tùy chọn | Gemini 3.8 Flash TTS; 30 giọng, 71 lựa chọn ngôn ngữ/vùng, sắc thái cụ thể hoặc tự chọn theo nội dung. Có hai MP3 local qua Gemini thật; các tổ hợp còn lại và Sandbox chưa nghiệm thu. [Bật local](deployment/local/README.md#gemini-tts--thêm-nguồn-tạo-giọng). |
 | Nhập tài liệu và OCR | Có trong Tạo giọng đọc và Dịch và đọc, mỗi trang giữ nội dung riêng. PDF, DOCX, TXT, Markdown và ảnh JPG/PNG/WebP; tối đa 50 MB, 200.000 ký tự và 50.000 từ. Hai chế độ: Gemini qua backend (đọc ảnh, duyệt chữ trước khi dùng) hoặc OCR tại thiết bị. Cần bật Gemini ở backend; không tự fallback. |
 | Tài liệu dài | Chia thành các bản thu tối đa 10.000 ký tự; chọn từng phần hoặc tạo tuần tự, dừng khi gặp lỗi/quota. Chưa kiểm chứng trên Sandbox/điện thoại thật. |
 | Phát và tải âm thanh | MP3 dùng URL có hạn; player web lấy thời gian từ tệp, hỗ trợ tạm dừng, tua, lặp lại và điều chỉnh âm lượng. |
@@ -87,6 +88,7 @@ flowchart LR
     SUBMIT -.->|Typo / dịch / đọc ảnh khi bật| GEMINI[Gemini · model đã cấu hình]
     SUBMIT -->|Invoke Event| WORKER[Lambda worker · M2]
     WORKER --> AZURE[Azure Speech]
+    WORKER -.->|Khi chọn và đã bật| GTTS[Gemini TTS]
     WORKER --> AUDIO[S3 audio]
     SUBMIT --> JOBS[S3 jobs JSON]
     WORKER --> JOBS
@@ -97,12 +99,12 @@ flowchart LR
 
 1. Frontend lấy catalog, người dùng chọn ngôn ngữ/giọng và gửi nội dung.
 2. Router kiểm request, mã demo và chuyển tới submit. Submit tạo job `PENDING`, gọi worker bằng Lambda Event và trả HTTP `202`.
-3. Worker nhận job, chuyển `PROCESSING`, đọc key từ SSM SecureString, gọi Azure, lưu MP3 vào S3 và cập nhật `DONE` hoặc `FAILED`.
+3. Worker nhận job, chuyển `PROCESSING`, đọc key từ SSM SecureString, gọi nguồn TTS đã chọn, lưu MP3 vào S3 và cập nhật `DONE` hoặc `FAILED`. Azure mặc định; Gemini TTS phải được bật rõ, không tự fallback.
 4. Frontend polling `/jobs/{id}`. Khi hoàn tất, backend cấp URL đọc có hạn để phát hoặc tải; mở lại bản thu sẽ lấy URL mới.
 
 Tài liệu dài được chia ở frontend thành nhiều request theo API này; mỗi phần có job và MP3 riêng. Chế độ Trên thiết bị không gửi ảnh; Gemini · Trực tuyến gửi từng ảnh/trang scan qua backend tới Gemini, giữ key ở máy chủ. PDF có lớp chữ vẫn đọc cục bộ. Xem [cấu hình đọc ảnh](deployment/local/README.md#đọc-ảnh-bằng-gemini). Bộ nhận dạng cần mạng để tải mã lõi/dữ liệu ngôn ngữ; người dùng kiểm tra và sửa chữ trước khi tạo giọng. PDF tối đa 200 trang, trong đó không quá 30 trang cần OCR/lần nhập. Chọn **Tạo các phần còn lại · bản gốc** để tạo lần lượt; phần đã thành công được bỏ qua trong phiên màn hình hiện tại. Tải lại trang/mở lại màn hình cần đối chiếu Lịch sử trước khi chạy cả tài liệu lần nữa.
 
-Màn **Dịch và đọc** mặc định dùng Azure Translator → Azure Speech, giữ bản gốc và hiển thị bản dịch kèm MP3. Giao diện web và app chỉ dùng Azure; lựa chọn Gemini đã gỡ khỏi màn này ngày 10/11/2026. API `/text/translate` (Gemini) của M5 vẫn còn ở backend, mặc định tắt và không có giao diện gọi. TTS vẫn tối đa 10.000 ký tự/lượt.
+Màn **Dịch và đọc** dùng Azure Translator rồi nguồn TTS đã chọn, giữ bản gốc và hiển thị bản dịch kèm MP3. Gemini TTS chỉ tạo giọng, không bật lại dịch bằng Gemini. API `/text/translate` của M5 vẫn giữ mặc định tắt, không có giao diện gọi. TTS vẫn tối đa 10.000 ký tự/lượt; Gemini chia nhỏ bên trong job và có quota lượt riêng.
 
 S3 web, jobs và audio là ba bucket riêng. Metadata không lưu presigned URL. S3 conditional write/lease giúp kiểm soát cập nhật đồng thời, nhưng không tạo giao dịch nhiều object hoặc bảo đảm provider chỉ bị tính phí đúng một lần.
 
@@ -117,7 +119,7 @@ Chi tiết routing, quyền, timeout và recovery: [ARCHITECTURE.md](docs/ARCHIT
 | Backend | Python 3.12, AWS SDK, Lambda handlers theo module |
 | Dữ liệu | S3 jobs JSON, S3 audio private, Common Lambda Layer |
 | Hạ tầng | AWS SAM/CloudFormation, CloudFront/OAC, SSM SecureString, CloudWatch/SNS theo template |
-| TTS mặc định | Azure Speech; adapter ElevenLabs được giữ cho tương thích và kiểm thử cũ |
+| TTS | Azure Speech mặc định, Gemini 3.8 Flash TTS tùy chọn; giữ adapter ElevenLabs tương thích. Gemini trả WAV được mã hóa thành MP3 bằng LAME. |
 | Sửa typo và dịch theo ngữ cảnh | Gemini qua backend M5; model phải được key hỗ trợ, mặc định tắt; có thể cấu hình ở runtime local chung |
 | Triển khai | Thủ công trong CloudShell/Lab IDE; review changeset trước khi áp dụng |
 

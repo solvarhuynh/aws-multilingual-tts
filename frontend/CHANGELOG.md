@@ -6,6 +6,32 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 **Người phụ trách:** Nguyên Khang
 **Danh sách việc:** [README](README.md)
 
+## 2026-11-13 — Bàn giao Gemini TTS cho các nhánh thành viên
+
+- Người dùng yêu cầu commit **`thêm TTS gemini, thêm sắc thái, thêm nhiều giọng đọc và quốc gia hơn`**, push `main` cùng năm nhánh M1–M5. Fetch xác nhận sáu nhánh remote cùng nền `d6ebefa`; gói bàn giao gồm Gemini TTS web/app/backend, catalog/cảm xúc, đóng gói Lambda và hướng dẫn cấu hình, kèm thẻ sóng âm trang chủ app đã hoàn thiện trước đó.
+- Đối chiếu bằng chứng **488 test local PASS**, web build/app TypeScript/lint, Expo export và các lượt kiểm giao diện ở mục tích hợp bên dưới. Kiểm diff/registry đồng bộ, loại env thật, key, output build và bản thu mẫu; giữ nguyên ba stash cũ. Bàn giao bằng fast-forward/atomic push tới sáu nhánh, không force-push. Commit/push không bật Gemini trên AWS và không thay bằng chứng nghiệm thu Sandbox.
+
+## 2026-11-13 — Bật Gemini TTS trong môi trường local
+
+- Theo yêu cầu trực tiếp của người dùng, đặt `GEMINI_TTS_ENABLED=true` trong env backend thật đã được ignore; kiểm các key và cấu hình còn lại giữ nguyên. Model hiệu lực `gemini-3.8-flash-tts`, hạn mức 100 lượt/ngày, encoder đã có.
+- Kiểm lịch sử local rỗng trước khi khởi động lại đúng launcher của repo. Mở lại API/web/Expo bằng `npm run dev -- --no-voices`, không gọi catalog Azure hoặc tạo thêm bản thu thử. API `/voices` trực tiếp và qua proxy web đều trả Gemini enabled, 71 locale/30 giọng; Expo `/status` đang chạy. Không gọi provider thật hoặc AWS, không deploy/commit/push.
+
+## 2026-11-13 — Thêm Gemini TTS trên web và app
+
+- Thêm nguồn **Gemini TTS**, giữ Azure mặc định và adapter ElevenLabs cũ. Dùng `gemini-3.8-flash-tts` qua Interactions API theo tài liệu Google; catalog gọn gồm 30 giọng và 71 ngôn ngữ/vùng, dùng chung cho web/app. Có 11 sắc thái cụ thể, Tự nhiên và Tự chọn theo nội dung; Gemini tự điều chỉnh cách đọc, không cần thêm request phân tích cảm xúc. Danh sách giọng lọc theo ngôn ngữ để tránh lặp hàng nghìn thẻ; đổi nguồn giữ bản nháp, không gửi cấu hình cũ sau khi đổi nguồn trong lúc kiểm chữ. Không phát giọng thiết bị để giả nghe thử Gemini; giữ sóng/kính/chuyển động hiện có.
+- Tích hợp M2/M3/M5 bằng trường provider/model và quota/CAS/chunk/checkpoint/MP3/history sẵn có, giữ route và fingerprint cũ khi không truyền provider. Chia Gemini theo 1.000 ký tự, kiểm WAV mono 24 kHz/16-bit rồi mã hóa MP3 thật bằng `lameenc`. Quota request riêng, lỗi auth/model/quota/audio rõ; timeout không tự gọi lại hoặc đổi model/provider. Dịch và đọc vẫn dùng Azure Translator trước nguồn TTS được chọn; bổ sung mapping Serbian/Mongolian Cyrillic.
+- Local thêm cờ/model/hạn mức trong env mẫu; không sửa env thật. SAM và `azure.py plan --gemini-tts true` có wiring và staging wheel Linux cp312 x86_64 để Lambda có encoder, không thêm service AWS, role hoặc EventInvokeConfig. Đã thử tải/kiểm wheel ELF và cfn-lint template staging tại máy cá nhân; chưa upload/package lên AWS. Cập nhật hướng dẫn local/Sandbox, hợp đồng và phân công owner.
+- **Kiểm local:** M1 **36**, M2 **111**, M3 **53**, M5 **103**, runtime/launcher **17**, web **105**, app **63** tests PASS (**488** tổng cộng), gồm dịch Azure → Gemini và validation cấu hình TTS riêng; web build, app TypeScript/lint, Expo export iOS/Android/web và cfn-lint root/template con PASS. Chrome kiểm hai luồng tạo MP3 với provider giả lập và 18 bố cục sáng/tối (web 320–1440 px, app web 320–844 px kể cả ngang): đổi nguồn/giọng/sắc thái đúng body, giữ nháp, không tràn ngang, không pageerror/request ra provider. AWS trong RAM bằng Moto; bộ mã hóa MP3 thật được kiểm trong test.
+- **Hai lượt Gemini thật theo quyền đã cấp, không gọi thêm:** mẫu vi-VN/Kore/Vui vẻ → DONE trong 5,15 giây, MP3 114.048 byte; mẫu en-US/Kore/Điềm tĩnh → DONE trong 5,60 giây, MP3 166.656 byte. ffprobe nhận đúng MP3 mono 24 kHz, thời lượng 7,128/10,416 giây. Chỉ dùng câu mẫu tự tạo, key backend đọc trong RAM, cấu hình bật riêng trong phiên Moto; không đưa key/audio mẫu vào Git. Chưa có đánh giá nghe đối chiếu/bản ngữ, không kết luận chất lượng luôn hơn Azure hoặc mọi giọng/ngôn ngữ đều đã đạt.
+- Chưa kiểm thiết bị native thật, quota/egress Lambda hoặc Sandbox; chưa deploy/commit/push trong lượt này. Cờ Gemini TTS mặc định tắt, phải cấu hình và khởi động lại theo [local README](../deployment/local/README.md#gemini-tts--thêm-nguồn-tạo-giọng). Gemini có quota/quyền model riêng của dự án Google; `store=false` không thay chính sách dữ liệu của Google.
+
+## 2026-11-13 — Gọn trang chủ app, chạm sóng âm để tạo giọng
+
+- Theo điều chỉnh mới nhất của người dùng: bỏ dấu cộng trong thẻ Tạo giọng đọc, dùng cụm sóng âm làm vùng chạm có nhãn hỗ trợ VoiceOver/TalkBack. Thẻ giảm chiều cao từ 210 xuống 180; văn bản mẫu gom thành một nhóm có đường phân cách, hàng Dịch và đọc giữ riêng.
+- Chạm sóng có phản hồi co nhẹ, phóng sóng ngắn trước khi mở trình soạn thảo bằng fullscreen modal hiện có. Khóa thao tác để tránh mở trùng, hủy animation khi rời trang/vào nền, khôi phục khi quay lại. Giữ chuyển động sóng, kính thanh tab, sáng/tối; tùy chọn giảm chuyển động bỏ animation và mở trực tiếp. Không thêm dependency hay sửa API/OCR/bản nháp.
+- Kiểm local: app TypeScript/lint và **61/61 tests PASS**; Expo export web/iOS/Android PASS. Chrome/WebKit kiểm 24 bố cục (320×568, 390×844, 430×932, 768×1024, 1024×768, 844×390 × sáng/tối): không tràn ngang/cắt vùng chạm; mở/đóng/mở lại giữ bản nháp. Kiểm thêm chạm hủy, chạm đôi không mở trùng, Enter, giảm chuyển động hệ điều hành, sóng đang chạy và lịch sử mẫu; không pageerror hoặc request ngoài localhost.
+- Kiểm trên bản Expo web và đóng gói native, chưa kiểm chuyển cảnh/kính/haptic/Dynamic Type trên thiết bị iOS/Android thật. Không gọi provider/AWS, không dùng env/key thật, không deploy/commit/push trong lượt này.
+
 ## 2026-11-13 — Bàn giao nâng cấp OCR cho cả nhóm
 
 - Người dùng duyệt giao diện và yêu cầu commit **`nâng cấp ocr lên pro`**, push lên main cùng năm nhánh thành viên. Đã fetch remote và fast-forward nền M4 tới main/PR #15; cây source nền không đổi, giữ toàn bộ lịch sử M2/M4 đã merge và ba stash cũ.

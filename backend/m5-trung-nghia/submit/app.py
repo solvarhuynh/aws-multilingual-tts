@@ -53,13 +53,15 @@ def _clean_text(body):
     return text
 
 
-def _find_entry(lang):
+def _find_entry(lang, provider=None):
     """Tìm ngôn ngữ trong registry đã kiểm chứng."""
     if lang is None or (isinstance(lang, str) and lang in AUTO_LANGS):
         raise InvalidRequest(400, "LANG_REQUIRED", "Vui lòng chọn ngôn ngữ trước khi chuyển giọng.")
     try:
-        registry = load_registry()
-    except (OSError, ValueError):
+        registry = load_registry(provider=provider) if provider else load_registry()
+    except (OSError, ValueError) as error:
+        if str(error) == "GEMINI_TTS_NOT_CONFIGURED":
+            raise InvalidRequest(503, "GEMINI_TTS_NOT_CONFIGURED", "Chưa bật Gemini TTS ở máy chủ.") from None
         raise InvalidRequest(503, "VOICES_UNAVAILABLE", "Danh sách giọng đọc chưa sẵn sàng.") from None
     entry = registry.get(lang) if isinstance(lang, str) and not lang.startswith("_") else None
     if not entry or not entry.get("voices"):
@@ -113,10 +115,13 @@ def _synthesize(event):
             return error_response(503, "SUBMIT_UNCERTAIN", idempotency.UNCERTAIN_MESSAGE)
         if replay is not None:
             return replay
-    entry = _find_entry(body.get("lang"))
+    provider = body.get("provider")
+    if provider is not None and (not isinstance(provider, str) or provider not in {"azure", "elevenlabs", "gemini"}):
+        raise InvalidRequest(400, "INVALID_PROVIDER", "Nguồn giọng đọc không hợp lệ.")
+    entry = _find_entry(body.get("lang"), provider)
     target = body.get("translateTo")
     if target is not None:
-        entry = _find_entry(target)
+        entry = _find_entry(target, provider)
         if target == body["lang"]:
             raise InvalidRequest(400, "INVALID_INPUT", "Hãy chọn ngôn ngữ đích khác ngôn ngữ gốc.")
         if not os.environ.get("TRANSLATOR_API_PARAMETER_NAME"):

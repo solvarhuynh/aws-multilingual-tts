@@ -5,16 +5,23 @@ import { useStudio } from '../state/Studio';
 import { usePlayback } from '../state/Playback';
 import { languageNames, normalize } from '../lib/model';
 import { DEMO } from '../lib/api';
+import ProviderPicker from './ProviderPicker';
+import { voiceGender } from '../../../shared/voices';
 
-export default function VoiceList({ onSelect, selected, onlyLanguage }: { onSelect?: (lang: string, id: string) => void; selected?: { lang: string; voice: string }; onlyLanguage?: string }) {
-  const { languages, colors, lang, voice, selectVoice, preferences, updatePreferences, haptic, loadingVoices, voiceError, reloadVoices } = useStudio();
+export default function VoiceList({ onSelect, selected, onlyLanguage, showProvider = true }: { onSelect?: (lang: string, id: string) => void; selected?: { lang: string; voice: string }; onlyLanguage?: string; showProvider?: boolean }) {
+  const { languages, provider, colors, lang, voice, selectVoice, preferences, updatePreferences, haptic, loadingVoices, voiceError, reloadVoices } = useStudio();
   const { current, playing, loading, play, stop } = usePlayback();
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState('all');
-  const all = useMemo(() => languages.filter(l => !onlyLanguage || l.lang === onlyLanguage).flatMap(l => l.voices.map(v => ({ ...v, lang: l.lang }))), [languages, onlyLanguage]);
+  const [selection, setSelection] = useState({ provider, value: 'all' });
+  const filter = selection.provider === provider ? selection.value : 'all';
+  const setFilter = (value: string) => setSelection({ provider, value });
+  const all = useMemo(() => languages.filter(l => (!onlyLanguage || l.lang === onlyLanguage) &&
+    (provider !== 'gemini' || filter === 'saved' || l.lang === (filter === 'all' ? onlyLanguage ?? lang : filter)))
+    .flatMap(l => l.voices.map(v => ({ ...v, lang: l.lang }))), [languages, onlyLanguage, provider, filter, lang]);
   const filtered = all.filter(v => (filter === 'all' || (filter === 'saved' ? preferences.favorites.includes(`${v.lang}/${v.id}`) : v.lang === filter)) &&
-    normalize(`${v.name ?? v.id} ${languageNames[v.lang] ?? v.lang} ${v.gender === 'F' ? 'Nữ' : 'Nam'}`).includes(normalize(query)));
+    normalize(`${v.name ?? v.id} ${v.description ?? ''} ${languageNames[v.lang] ?? v.lang} ${voiceGender(v.gender)}`).includes(normalize(query)));
   return <>
+    {showProvider && <ProviderPicker />}
     <SearchField label="Tìm giọng đọc" placeholder="Tìm tên giọng, ngôn ngữ…" value={query} onChange={setQuery} />
     <ScrollView testID="voice-filters" horizontal style={{ flexGrow: 0, flexShrink: 0 }} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
       {[{ id: 'all', title: 'Tất cả' }, { id: 'saved', title: 'Đã lưu' }, ...languages.filter(l => !onlyLanguage || l.lang === onlyLanguage).map(l => ({ id: l.lang, title: languageNames[l.lang] ?? l.lang }))].map(item =>
@@ -35,17 +42,17 @@ export default function VoiceList({ onSelect, selected, onlyLanguage }: { onSele
         <Pressable accessibilityRole="button" accessibilityLabel={`Chọn giọng ${v.name ?? v.id}, ${languageNames[v.lang]}`} accessibilityState={{ selected: isSelected }}
           onPress={() => { if (!selected) selectVoice(v.lang, v.id); haptic(); onSelect?.(v.lang, v.id); }} style={styles.voiceSelect}>
           <View style={[styles.avatar, { backgroundColor: avatarColors[index % avatarColors.length] }]}><Label size={24} weight="500" style={{ color: '#FFFFFF' }}>{(v.name ?? v.id).charAt(0)}</Label></View>
-          <View style={{ flex: 1, minWidth: 0, gap: 6 }}><Label size={18} weight="600" lines={1}>{v.name ?? v.id}</Label><Label size={13} muted>{languageNames[v.lang] ?? v.lang} · {v.gender === 'F' ? 'Nữ' : 'Nam'}{v.styles?.length ? ' · Có sắc thái' : ''}</Label></View>
+          <View style={{ flex: 1, minWidth: 0, gap: 6 }}><Label size={18} weight="600" lines={1}>{v.name ?? v.id}</Label><Label size={13} muted>{languageNames[v.lang] ?? v.lang} · {v.description ?? voiceGender(v.gender)}{v.styles?.length ? ' · Có sắc thái' : ''}</Label></View>
           {isSelected && <Icon name="check" color={colors.blue} size={19} />}
         </Pressable>
         <View style={[styles.voiceFooter, { borderColor: colors.line }]}>
-          <Pressable accessibilityRole="button" onPress={() => {
+          {provider !== 'gemini' && <Pressable accessibilityRole="button" onPress={() => {
             if (previewing) { stop(); return; }
             const text = v.lang.startsWith('vi') ? 'Xin chào, đây là giọng đọc để bạn nghe thử. Chúc bạn một ngày thật tốt lành.' :
               v.lang.startsWith('ja') ? 'こんにちは。図書館へようこそ。' : v.lang.startsWith('ko') ? '안녕하세요. 도서관에 오신 것을 환영합니다.' : 'Hello. Welcome to our voice studio. It is lovely to meet you.';
             void play({ jobId: `preview-${key}`, text, lang: v.lang, voice: v.id, speed: 1, status: 'DONE', audioUrl: null,
               charCount: text.length, createdAt: new Date().toISOString(), local: true });
-          }} style={styles.preview}><Icon name={previewing ? 'stop' : 'play'} size={14} color={colors.blue} /><Label size={13} weight="500" style={{ color: colors.blue }}>{previewing ? 'Dừng nghe' : 'Nghe thử'}</Label></Pressable>
+          }} style={styles.preview}><Icon name={previewing ? 'stop' : 'play'} size={14} color={colors.blue} /><Label size={13} weight="500" style={{ color: colors.blue }}>{previewing ? 'Dừng nghe' : 'Nghe thử'}</Label></Pressable>}
           <Pressable accessibilityRole="button" accessibilityLabel={saved ? `Bỏ lưu giọng ${v.name ?? v.id}` : `Lưu giọng ${v.name ?? v.id}`} style={styles.favorite}
             onPress={() => updatePreferences({ favorites: saved ? preferences.favorites.filter(id => id !== key) : [...preferences.favorites, key] })}>
             <Icon name={saved ? 'heartFill' : 'heart'} size={20} color={saved ? colors.blue : colors.secondary} /></Pressable>
@@ -62,5 +69,5 @@ const styles = StyleSheet.create({
   avatar: { width: 54, height: 54, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   voiceFooter: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   preview: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 44, paddingRight: 16 },
-  favorite: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  favorite: { width: 44, height: 44, marginLeft: 'auto', alignItems: 'center', justifyContent: 'center' },
 });
