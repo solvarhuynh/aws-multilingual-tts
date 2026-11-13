@@ -765,6 +765,14 @@ export default function App() {
                     {studio.styles.length < 2 && selectedVoice && <small>{expressionHint(studio.language?.provider, selectedVoice.styles)}</small>}
                     {studio.style === 'auto' && <small>{studio.provider === 'gemini' ? 'Gemini tự điều chỉnh cảm xúc khi đọc theo nội dung.' : 'Gửi đoạn đọc cho Gemini để chọn sắc thái.'}</small>}
                   </div>
+                  {studio.style !== 'neutral' && selectedVoice?.styleIntensityRange && <div className="setting-field speed-field">
+                    <div className="field-heading"><label htmlFor="style-intensity">Cường độ sắc thái</label>
+                      <output htmlFor="style-intensity">{studio.styleIntensity.toFixed(1)}×</output></div>
+                    <Slider id="style-intensity" min={0.1} max={2} step={0.1} value={studio.styleIntensity}
+                      disabled={studio.busy} onValueChange={studio.setStyleIntensity} />
+                    <div className="range-labels"><span>Nhẹ · 0,1</span><span>Mạnh · 2,0</span></div>
+                    {studio.provider === 'gemini' && <small>Mức tương đối; âm thanh có thể khác Azure.</small>}
+                  </div>}
                   <div className="setting-field speed-field">
                     <div className="field-heading">
                       <label htmlFor="speed">Tốc độ</label>

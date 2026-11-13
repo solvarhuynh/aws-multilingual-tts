@@ -195,6 +195,7 @@ export function useEditor(
   const [voice, setVoice] = useState("");
   const [speed, setSpeed] = useState(DEFAULT_SPEED);
   const [selectedStyle, setStyle] = useState('neutral');
+  const [styleIntensity, setStyleIntensity] = useState(1);
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [review, setReview] = useState<Review | null>(null);
@@ -243,9 +244,10 @@ export function useEditor(
   }, [languages]);
 
   const language = languages.find((l) => l.lang === (translateTo || lang));
-  const styles = expressionOptions(language?.voices.find(v => v.id === voice)?.styles, language?.autoEmotionEnabled);
+  const selectedVoice = language?.voices.find(v => v.id === voice);
+  const styles = expressionOptions(selectedVoice?.styles, language?.autoEmotionEnabled);
   const style = styles.some(item => item.value === selectedStyle) ? selectedStyle : 'neutral';
-  const expression = { ...(style === 'neutral' ? {} : { style }), ...(language?.provider === 'gemini' ? { provider: 'gemini' } : {}) };
+  const expression = { ...(style === 'neutral' ? {} : { style, ...(styleIntensity !== 1 ? { styleIntensity } : {}) }), ...(language?.provider === 'gemini' ? { provider: 'gemini' } : {}) };
   useEffect(() => {
     setVoice((previous) =>
       language?.voices.some((v) => v.id === previous) ? previous : language?.voices[0]?.id || "",
@@ -278,8 +280,8 @@ export function useEditor(
     revision.current++;
     const pending = reviewRef.current?.input;
     if (pending && (reviewRef.current?.documentText !== text || pending.lang !== lang || pending.voice !== voice ||
-      pending.speed !== speed || (pending.style ?? 'neutral') !== style || pending.provider !== expression.provider || pending.translateTo !== translateTo || reviewRef.current?.partLimit !== partLimit)) cancelReview();
-  }, [text, lang, voice, speed, style, translateTo, partLimit, expression.provider]);
+      pending.speed !== speed || (pending.style ?? 'neutral') !== style || (pending.styleIntensity ?? 1) !== (expression.styleIntensity ?? 1) || pending.provider !== expression.provider || pending.translateTo !== translateTo || reviewRef.current?.partLimit !== partLimit)) cancelReview();
+  }, [text, lang, voice, speed, style, styleIntensity, translateTo, partLimit, expression.provider]);
 
   async function generate() {
     if (language?.available === false) { setError('Chưa bật Gemini TTS ở máy chủ.'); return; }
@@ -468,7 +470,7 @@ export function useEditor(
     chooseVoice,
     speed,
     setSpeed,
-    style, setStyle, styles,
+    style, setStyle, styles, styleIntensity, setStyleIntensity,
     busy: busy || !!batch,
     batch,
     generateAll,

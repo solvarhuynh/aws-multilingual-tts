@@ -9,7 +9,7 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
   const { useStudio } = await env.load("hooks/useStudio.ts");
   assert.equal(DEMO, false);
   const languages = [{ lang: "vi-VN", voices: [{ id: "Linh", gender: "F" }], provider: "external", engine: null },
-    { lang: "en-US", voices: [{ id: "English", gender: "F", styles: ['cheerful', 'sad'] }], provider: "azure", engine: null, translationEnabled: true, autoEmotionEnabled: true }];
+    { lang: "en-US", voices: [{ id: "English", gender: "F", styles: ['cheerful', 'sad'], styleIntensityRange: [0.1, 2] }], provider: "azure", engine: null, translationEnabled: true, autoEmotionEnabled: true }];
   let studio, revision = 0, checked = [], submitted = [];
   const correction = (text) => ({ status: "checked", language: "vi-VN", hasTypos: true, originalText: text,
     correctedText: "tôi muốn nghe", changes: [{ from: "toi", to: "tôi", start: 0, end: 3 }] });
@@ -38,13 +38,16 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
       await mount('Nội dung để đọc.');
       await act(() => studio.chooseVoice('en-US', 'English'));
       await act(() => studio.setStyle('auto'));
+      await act(() => studio.setStyleIntensity(1.7));
       assert.equal(studio.style, 'auto');
       await act(async () => { await studio.generate(); });
       assert.equal(submitted[0].style, 'auto');
+      assert.equal(submitted[0].styleIntensity, 1.7);
       await act(() => studio.chooseVoice('vi-VN', 'Linh'));
       assert.equal(studio.style, 'neutral');
       await act(async () => { await studio.generate(); });
       assert.equal(submitted.at(-1).style, undefined);
+      assert.equal(submitted.at(-1).styleIntensity, undefined);
     });
     await suite.test("double click chỉ kiểm tra và tạo job một lần; giữ nguyên khoảng trắng", async () => {
       await mount("  Nội dung nguyên bản.  ");

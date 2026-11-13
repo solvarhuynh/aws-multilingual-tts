@@ -72,6 +72,7 @@ function isJob(value: unknown): value is Job {
     return false;
   if (["text", "lang", "sourceLang"].some(key => value[key] != null && typeof value[key] !== "string")) return false;
   if (['style', 'resolvedStyle'].some(key => value[key] !== undefined && typeof value[key] !== 'string')) return false;
+  if (value.styleIntensity !== undefined && (typeof value.styleIntensity !== 'number' || !Number.isFinite(value.styleIntensity) || value.styleIntensity < 0.1 || value.styleIntensity > 2)) return false;
   if (value.translated !== undefined && typeof value.translated !== "boolean") return false;
   return true;
 }

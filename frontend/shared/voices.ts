@@ -1,4 +1,4 @@
-export interface CatalogVoice { id: string; gender: string; name?: string; description?: string; styles?: string[] }
+export interface CatalogVoice { id: string; gender: string; name?: string; description?: string; styles?: string[]; styleIntensityRange?: [number, number] }
 export interface CatalogLanguage {
   lang: string; provider: string; engine: string | null; voices: CatalogVoice[];
   name?: string; model?: string; available?: boolean; maxChars?: number; translationEnabled?: boolean; autoEmotionEnabled?: boolean;
@@ -23,7 +23,9 @@ export function catalogLanguages(value: unknown, maxChars: number, strictLimit =
         (item.engine != null && typeof item.engine !== 'string') || (group && item.provider !== group.id)) return fail();
       if (!item.voices.every(v => record(v) && typeof v.id === 'string' && typeof v.gender === 'string' &&
         ['name', 'description'].every(key => v[key] === undefined || typeof v[key] === 'string') &&
-        (v.styles === undefined || Array.isArray(v.styles) && v.styles.every(s => typeof s === 'string')))) return fail();
+        (v.styles === undefined || Array.isArray(v.styles) && v.styles.every(s => typeof s === 'string')) &&
+        (v.styleIntensityRange === undefined || Array.isArray(v.styleIntensityRange) && v.styleIntensityRange.length === 2 &&
+          v.styleIntensityRange[0] === 0.1 && v.styleIntensityRange[1] === 2))) return fail();
       const key = `${item.provider}:${item.lang}`;
       if (seen.has(key)) continue;
       seen.add(key);

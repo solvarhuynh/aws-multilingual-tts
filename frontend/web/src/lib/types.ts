@@ -4,6 +4,7 @@ export type JobStatus = "PENDING" | "PROCESSING" | "DONE" | "FAILED";
 export interface Voice {
   description?: string;
   styles?: string[];
+  styleIntensityRange?: [number, number];
   id: string;
   gender: string;
   name?: string;
@@ -23,6 +24,7 @@ export interface Language {
 export interface SynthesizeInput {
   provider?: string;
   style?: string;
+  styleIntensity?: number;
   text: string;
   lang: string;
   voice: string;
@@ -47,6 +49,7 @@ export interface Job {
   engine?: string | null;
   style?: string;
   resolvedStyle?: string;
+  styleIntensity?: number;
   text?: string;
   lang?: string;
   translated?: boolean;
