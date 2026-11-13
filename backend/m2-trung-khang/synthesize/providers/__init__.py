@@ -8,7 +8,7 @@ from .elevenlabs import ElevenLabsProvider
 from .gemini import GeminiTTSProvider
 
 
-def get_provider(entry: dict, timeout: float, style=None):
+def get_provider(entry: dict, timeout: float, style=None, style_intensity=1.0):
     """Tạo provider theo mục ngôn ngữ trong registry."""
     if entry.get("provider") == "azure":
         return AzureSpeechProvider(
@@ -16,6 +16,7 @@ def get_provider(entry: dict, timeout: float, style=None):
             language=entry.get("languageCode"),
             timeout=timeout,
             style=style,
+            style_intensity=style_intensity,
         )
     if entry.get("provider") == "elevenlabs":
         return ElevenLabsProvider(
@@ -24,5 +25,5 @@ def get_provider(entry: dict, timeout: float, style=None):
             timeout=timeout,
         )
     if entry.get("provider") == "gemini":
-        return GeminiTTSProvider(entry["languageCode"], timeout, style)
+        return GeminiTTSProvider(entry["languageCode"], timeout, style, style_intensity)
     raise PermanentProviderError("PROVIDER_NOT_ENABLED", "Nhà cung cấp giọng đọc chưa được bật.")

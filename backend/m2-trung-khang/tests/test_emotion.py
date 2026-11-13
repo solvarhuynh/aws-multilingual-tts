@@ -12,7 +12,7 @@ sys.path[:0] = [str(ROOT / "backend/m2-trung-khang/synthesize"), str(ROOT / "bac
 from providers.azure import AzureSpeechProvider
 from providers.base import PermanentProviderError
 from providers.emotion import detect_style
-from tts_common.expression import validate_style
+from tts_common.expression import validate_style, validate_intensity
 
 ENV = {"GEMINI_EMOTION_ENABLED": "true", "GEMINI_API_PARAMETER_NAME": "/fake/gemini", "GEMINI_MODEL": "gemini-test"}
 ENTRY = {"provider": "azure", "voices": [{"id": "jenny", "styles": ["cheerful", "sad"]}]}
@@ -35,10 +35,28 @@ class EmotionTest(unittest.TestCase):
         provider = AzureSpeechProvider("eastasia", "en-US", key_reader=lambda: "fake", style="cheerful")
         root = ET.fromstring(provider.build_request('Hello & <break/>', 'jenny', 0.9).data)
         expression = root.find('.//{https://www.w3.org/2001/mstts}express-as')
-        self.assertEqual(expression.attrib, {"style": "cheerful"})
+        self.assertEqual(expression.attrib, {"style": "cheerful", "styledegree": "1"})
         prosody = expression.find('{http://www.w3.org/2001/10/synthesis}prosody')
         self.assertEqual(prosody.text, 'Hello & <break/>')
         self.assertEqual(prosody.attrib["rate"], "-10.0%")
+
+    def test_intensity_bounds_and_azure_styledegree(self):
+        self.assertEqual(validate_intensity("cheerful", 0.1), 0.1)
+        self.assertEqual(validate_intensity("auto", 2), 2.0)
+        for value in (0, 2.01, True, "1", float("nan"), float("inf")):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "UNSUPPORTED_STYLE_INTENSITY"):
+                validate_intensity("cheerful", value)
+        with self.assertRaisesRegex(ValueError, "UNSUPPORTED_STYLE_INTENSITY"):
+            validate_intensity("neutral", 1.5)
+        provider = AzureSpeechProvider("eastasia", "en-US", key_reader=lambda: "fake", style="cheerful", style_intensity=1.7)
+        root = ET.fromstring(provider.build_request("Stay <safe> & calm", "jenny", 1).data)
+        expression = root.find('.//{https://www.w3.org/2001/mstts}express-as')
+        self.assertEqual(expression.attrib, {"style": "cheerful", "styledegree": "1.7"})
+        self.assertEqual(''.join(expression.itertext()), "Stay <safe> & calm")
+        for value in (0, 2.01, True, float("nan")):
+            with self.subTest(value=value), self.assertRaises(PermanentProviderError):
+                AzureSpeechProvider("eastasia", "en-US", style="cheerful", style_intensity=value)
+        AzureSpeechProvider("eastasia", "en-US", style="cheerful", style_intensity=0.01)
 
     def classify(self, result, *, reserve=True):
         patches = [mock.patch.dict(os.environ, ENV), mock.patch('providers.emotion.read_parameter', return_value="secret-fixture"),

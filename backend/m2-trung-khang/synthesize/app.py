@@ -17,7 +17,7 @@ from registry import find_entry
 from tts_common import config, db, storage
 from tts_common.errors import log_json
 from tts_common.utils import are_valid_ids
-from tts_common.expression import validate_style, voice_styles
+from tts_common.expression import validate_style, validate_intensity, voice_styles
 
 
 # Lease hết trước lần retry đầu của Lambda (khoảng 60 giây) để retry không bị bỏ qua.
@@ -59,14 +59,15 @@ def _synthesize(job: dict, context) -> bytes:
     style = job.get("resolvedStyle", job.get("style", "neutral"))
     try:
         validate_style(entry, voice, style)
-    except ValueError:
-        raise PermanentProviderError("UNSUPPORTED_STYLE", "Giọng đọc không còn hỗ trợ sắc thái đã chọn. Hãy tải lại danh sách giọng.") from None
+        intensity = validate_intensity(job.get("style", "neutral"), job.get("styleIntensity", 1.0))
+    except ValueError as error:
+        raise PermanentProviderError(str(error), "Giọng đọc không còn hỗ trợ sắc thái hoặc cường độ đã chọn. Hãy tải lại danh sách giọng.") from None
     if style == "auto" and entry["provider"] != "gemini":
         raise PermanentProviderError("EMOTION_UNAVAILABLE", "Chưa xác định được sắc thái giọng đọc.")
     timeout = min(PROVIDER_TIMEOUT_SECONDS, _remaining_seconds(context) - CLEANUP_SECONDS)
     if timeout <= 0:
         raise TransientProviderError("WORKER_TIMEOUT", "Không đủ thời gian xử lý, hệ thống sẽ thử lại.")
-    provider = get_provider(entry, timeout) if style == "neutral" else get_provider(entry, timeout, style=style)
+    provider = get_provider(entry, timeout) if style == "neutral" else get_provider(entry, timeout, style=style, style_intensity=intensity)
     return provider.synthesize(text, voice, speed)
 
 

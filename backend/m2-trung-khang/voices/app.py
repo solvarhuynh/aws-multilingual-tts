@@ -20,6 +20,8 @@ def public_voice(voice):
         item["description"] = voice["description"]
     if "styles" in voice:
         item["styles"] = voice["styles"]
+        if voice["styles"]:
+            item["styleIntensityRange"] = [0.1, 2.0]
     return item
 
 

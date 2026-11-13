@@ -74,6 +74,20 @@ class GeminiTest(unittest.TestCase):
         self.assertEqual(call.call_count, 1)
         self.assertIn('Match the emotion', json.loads(call.call_args.args[0].data)['input'][0]['content'][0]['annotations'][0]['style'])
 
+    def test_new_styles_and_intensity_are_metadata_only(self):
+        requested = {'fearful', 'surprised', 'anxious', 'curious', 'sarcastic', 'gentle', 'urgent', 'reassuring', 'hopeful', 'mysterious'}
+        self.assertTrue(requested <= set(voices.GEMINI_STYLES))
+        self.assertTrue(requested <= set(voices.gemini_registry()['vi-VN']['voices'][0]['styles']))
+        with mock.patch.dict(sys.modules, {'lameenc': mock.Mock()}), \
+             mock.patch.object(gemini, 'encode_mp3', return_value=b'ID3-test'), \
+             mock.patch.object(gemini.OPENER, 'open', return_value=response()) as call:
+            gemini.GeminiTTSProvider('vi-VN', 10, 'mysterious', 1.8).synthesize('Xin chào, giữ nguyên.', 'Kore', 1)
+        content = json.loads(call.call_args.args[0].data)['input'][0]['content'][0]
+        self.assertEqual(content['text'], 'Xin chào, giữ nguyên.')
+        self.assertIn('strong relative intensity', content['annotations'][0]['style'])
+        self.assertIn('1.8 on a 0.1', content['annotations'][0]['style'])
+        self.assertIn('Mysterious', content['annotations'][0]['style'])
+
     def test_partial_non_wav_and_truncated_audio_are_never_saved_as_mp3(self):
         for data, status in [(b'ID3-wrong', 'completed'), (wav()[:-10], 'completed'), (wav(), 'in_progress')]:
             with self.subTest(status=status), mock.patch.object(gemini.OPENER, 'open', return_value=response(data, status)), self.assertRaises(PermanentProviderError) as caught:

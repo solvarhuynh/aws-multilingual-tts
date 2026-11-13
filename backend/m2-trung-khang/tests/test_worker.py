@@ -60,6 +60,22 @@ class WorkerTest(unittest.TestCase):
             detect.assert_called_once()
             self.assertEqual(self.factory.call_args.kwargs["style"], "cheerful")
 
+    def test_auto_neutral_does_not_apply_intensity_and_manual_skips_analysis(self):
+        entry = {"vi-VN": {"provider": "azure", "voices": [{"id": "v1", "styles": ["cheerful"]}]}}
+        self.seed(style="auto", styleIntensity=1.8)
+        with mock.patch("registry.load_registry", return_value=entry), mock.patch.object(app, "detect_style", return_value="neutral") as detect:
+            self.assertEqual(self.run_worker()["status"], "DONE")
+            self.assertEqual(self.saved()["resolvedStyle"], "neutral")
+            self.assertEqual(self.factory.call_args.kwargs, {})
+            detect.assert_called_once()
+        self.s3.objects.pop(("jobs", JOB_KEY))
+        self.s3.objects.pop(("audio", AUDIO_KEY), None)
+        self.seed(style="cheerful", styleIntensity=1.6)
+        with mock.patch("registry.load_registry", return_value=entry), mock.patch.object(app, "detect_style") as detect:
+            self.assertEqual(self.run_worker()["status"], "DONE")
+            detect.assert_not_called()
+            self.assertEqual(self.factory.call_args.kwargs, {"style": "cheerful", "style_intensity": 1.6})
+
     def setUp(self):
         self.s3 = FakeS3()
         for patcher in (

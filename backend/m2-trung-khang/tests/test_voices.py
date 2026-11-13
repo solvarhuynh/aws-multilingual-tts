@@ -31,6 +31,8 @@ class VoicesTest(unittest.TestCase):
         self.assertNotIn('styles', app.public_voice({'id': 'v1', 'gender': 'F'}))
         self.assertEqual(app.public_voice({'id': 'v1', 'gender': 'F', 'styles': []})['styles'], [])
         self.assertEqual(app.public_voice({'id': 'v1', 'gender': 'F', 'styles': ['cheerful']})['styles'], ['cheerful'])
+        self.assertEqual(app.public_voice({'id': 'v1', 'gender': 'F', 'styles': ['cheerful']})['styleIntensityRange'], [0.1, 2.0])
+        self.assertNotIn('styleIntensityRange', app.public_voice({'id': 'v1', 'gender': 'F', 'styles': []}))
 
     def call(self, registry):
         with tempfile.TemporaryDirectory() as folder:

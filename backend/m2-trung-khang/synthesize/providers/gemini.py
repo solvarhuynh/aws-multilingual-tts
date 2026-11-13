@@ -42,7 +42,7 @@ def encode_mp3(data):
 
 
 class GeminiTTSProvider(TTSProvider):
-    def __init__(self, language, timeout, style="neutral"):
+    def __init__(self, language, timeout, style="neutral", style_intensity=1.0):
         self.settings = gemini_settings()
         if not self.settings:
             raise PermanentProviderError("GEMINI_TTS_NOT_CONFIGURED", "Chưa bật Gemini TTS ở máy chủ.")
@@ -54,10 +54,14 @@ class GeminiTTSProvider(TTSProvider):
         except (ImportError, ValueError):
             raise PermanentProviderError("GEMINI_TTS_NOT_CONFIGURED", "Gemini TTS chưa có bộ mã hóa MP3 hoặc hạn mức hợp lệ.") from None
         self.language, self.timeout, self.style = language, timeout, style or "neutral"
+        self.style_intensity = style_intensity
 
     def synthesize(self, text, voice, speed):
         directions = ("Match the emotion and purpose of the passage naturally, adapting intonation without changing any words."
                       if self.style == "auto" else GEMINI_STYLES.get(self.style, "Natural, clear delivery."))
+        if self.style != "neutral" and self.style_intensity != 1.0:
+            emphasis = "subtle" if self.style_intensity < 0.75 else "restrained" if self.style_intensity < 1 else "pronounced" if self.style_intensity < 1.5 else "strong"
+            directions += f" Apply this speaking style with {emphasis} relative intensity ({self.style_intensity:.1f} on a 0.1–2.0 scale; 1.0 is normal)."
         directions += f" Use the language and regional pronunciation of BCP-47 locale {self.language}."
         directions += f" Aim for {speed:.2f} times normal speaking pace. Read the transcript verbatim; do not translate or add words."
         payload = {"model": self.settings["model"], "store": False,

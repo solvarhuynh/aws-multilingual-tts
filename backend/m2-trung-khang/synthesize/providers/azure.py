@@ -25,7 +25,7 @@ def error_for_status(status):
 
 
 class AzureSpeechProvider(TTSProvider):
-    def __init__(self, region, language, timeout=30.0, key_reader=read_api_key, opener=OPENER, style=None):
+    def __init__(self, region, language, timeout=30.0, key_reader=read_api_key, opener=OPENER, style=None, style_intensity=1.0):
         if not isinstance(region, str) or not re.fullmatch(r"[a-z][a-z0-9]{1,39}", region):
             raise PermanentProviderError("TTS_NOT_CONFIGURED", "Vùng Azure Speech chưa hợp lệ.")
         if not isinstance(language, str) or not re.fullmatch(r"[a-z]{2,3}-[A-Z]{2}", language):
@@ -36,6 +36,9 @@ class AzureSpeechProvider(TTSProvider):
         if style is not None and (not isinstance(style, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,59}", style)):
             raise PermanentProviderError("UNSUPPORTED_STYLE", "Sắc thái giọng đọc không hợp lệ.")
         self.style = style
+        if isinstance(style_intensity, bool) or not isinstance(style_intensity, (int, float)) or not math.isfinite(style_intensity) or not 0.01 <= style_intensity <= 2.0:
+            raise PermanentProviderError("UNSUPPORTED_STYLE_INTENSITY", "Cường độ sắc thái Azure phải từ 0,01 đến 2,0.")
+        self.style_intensity = style_intensity
 
     def build_request(self, text, voice, speed):
         if isinstance(speed, bool) or not isinstance(speed, (int, float)) or not math.isfinite(speed) or not 0.7 <= speed <= 1.2:
@@ -43,7 +46,7 @@ class AzureSpeechProvider(TTSProvider):
         root = ET.Element("speak", {"version": "1.0", "xmlns": "http://www.w3.org/2001/10/synthesis", "xml:lang": self.language})
         speaker = ET.SubElement(root, "voice", {"name": voice})
         if self.style and self.style != "neutral":
-            speaker = ET.SubElement(speaker, "{https://www.w3.org/2001/mstts}express-as", {"style": self.style})
+            speaker = ET.SubElement(speaker, "{https://www.w3.org/2001/mstts}express-as", {"style": self.style, "styledegree": f"{self.style_intensity:g}"})
         ET.SubElement(speaker, "prosody", {"rate": f"{(speed - 1) * 100:+.1f}%"}).text = text
         return urllib.request.Request(self.endpoint, data=ET.tostring(root, encoding="utf-8"), headers={
             "Ocp-Apim-Subscription-Key": self.key_reader(),
