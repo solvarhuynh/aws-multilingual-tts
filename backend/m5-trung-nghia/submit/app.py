@@ -8,8 +8,10 @@ trả skipped nguyên bản khi không khả dụng. Module sở hữu: M5.
 
 import json
 import os
+import time
 
 import correction
+import azure_preview
 import translation
 import idempotency
 import document
@@ -192,13 +194,17 @@ def _correct(event):
         return json_response(200, payload)
     if len(text) > cfg["maxChars"]:
         raise InvalidRequest(400, "TEXT_TOO_LONG", "Nội dung kiểm tra quá dài.")
+    started = time.monotonic()
     try:
         corrected, changes = correction.suggest(text, lang, cfg)
     except Exception as error:
         failure = correction.provider_failure(error)
         log_json(module="M5", operation="correct", status="SKIPPED", errorCode=failure["code"],
+                 durationMs=int((time.monotonic() - started) * 1000),
                  **({"providerStatus": failure["httpStatus"]} if "httpStatus" in failure else {}))
         return json_response(200, payload)
+    log_json(module="M5", operation="correct", status="CHECKED",
+             durationMs=int((time.monotonic() - started) * 1000))
     payload.update(status="checked", hasTypos=bool(changes), correctedText=corrected, changes=changes)
     return json_response(200, payload)
 
@@ -225,6 +231,16 @@ def _translate(event):
     return json_response(200, {"sourceLang": source, "targetLang": target, "translatedText": translated})
 
 
+def _preview_translation(event):
+    """Preview Azure via the existing M2 adapter; no job, quota, or audio is created."""
+    body = _parse_body(event)
+    text = _clean_text(body)
+    source, target = body.get("sourceLang"), body.get("targetLang")
+    if not isinstance(source, str) or not isinstance(target, str) or source == target:
+        raise InvalidRequest(400, "INVALID_INPUT", "Hãy chọn ngôn ngữ gốc và đích khác nhau.")
+    return azure_preview.preview(text, source, target)
+
+
 def handler(event, context):
     """Chọn thao tác theo path; lỗi không lường trước trả 500 đã làm sạch."""
     try:
@@ -234,6 +250,8 @@ def handler(event, context):
             return _correct(event)
         if event.get("path") == "/text/translate":
             return _translate(event)
+        if event.get("path") == "/text/preview-translation":
+            return _preview_translation(event)
         return _synthesize(event)
     except InvalidRequest as error:
         return error.response

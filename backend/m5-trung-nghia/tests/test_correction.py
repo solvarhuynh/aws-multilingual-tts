@@ -42,6 +42,33 @@ class CorrectionTest(FlowTestCase):
             status, body = self.post("/text/correct", text="Xin chào", lang="vi-VN")
         self.assertEqual((status, body["status"], body["hasTypos"]), (200, "checked", False))
 
+    def test_keeps_safe_typos_when_gemini_also_changes_names_and_punctuation(self):
+        original = "xin chèo, tui teen là nghia, song ơ sai gon"
+        suggestion = {"correctedText": "Xin chào, tôi tên là Nghĩa, sống ở Sài Gòn.", "changes": []}
+        with mock.patch.object(correction, "settings", return_value=self.CFG), \
+             mock.patch.object(correction, "_read_key", return_value="fake-key"), \
+             mock.patch.object(correction, "_provider", return_value=suggestion) as provider:
+            status, body = self.post("/text/correct", text=original, lang="vi-VN")
+        self.assertEqual((status, body["status"], body["hasTypos"]), (200, "checked", True))
+        self.assertEqual(body["correctedText"], "xin chào, tôi tên là nghia, sống ở sai gon")
+        self.assertEqual([change["from"] for change in body["changes"]], ["chèo", "tui", "teen", "song", "ơ"])
+        provider.assert_called_once()
+        self.assertEqual(self.events, [])
+
+    def test_vietnamese_context_and_short_tone_marks_are_reviewable(self):
+        original = "xin chèo, hom nay chún ta se ăn gì"
+        suggestion = {"correctedText": "xin chào, hôm nay chúng ta sẽ ăn gì", "changes": []}
+        with mock.patch.object(correction, "settings", return_value=self.CFG), \
+             mock.patch.object(correction, "_read_key", return_value="fake-key"), \
+             mock.patch.object(correction, "_provider", return_value=suggestion):
+            status, body = self.post("/text/correct", text=original, lang="vi-VN")
+        self.assertEqual((status, body["status"], body["hasTypos"]), (200, "checked", True))
+        self.assertEqual(body["correctedText"], suggestion["correctedText"])
+        self.assertEqual([item["from"] for item in body["changes"]], ["chèo", "hom", "chún", "se"])
+        with self.assertRaises(correction.UnsafeSuggestion):
+            correction.validate("a", {"correctedText": "b", "changes": [
+                {"from": "a", "to": "b", "start": 0, "end": 1}]}, 5)
+
     def test_missing_key_provider_failure_and_bad_output_skip_without_leak(self):
         for failed in (ValueError("secret-example"), TimeoutError("secret-example")):
             with self.subTest(failed=type(failed).__name__), \
@@ -79,6 +106,10 @@ class CorrectionTest(FlowTestCase):
         with self.assertRaises(correction.UnsafeSuggestion):
             correction.validate(protected, {"correctedText": changed, "changes": [
                 {"from": "chàoo", "to": "chào", "start": 25, "end": 29}]}, 5)
+        partial, edits = correction._safe_subset(original, {"correctedText": "😀 Xin chào!", "changes": []}, 5)
+        self.assertEqual((partial, edits), (good["correctedText"], good["changes"]))
+        with self.assertRaises(correction.UnsafeSuggestion):
+            correction._safe_subset(protected, {"correctedText": changed, "changes": []}, 5)
 
     def test_daily_call_cap_is_separate_from_tts_usage(self):
         self.assertTrue(correction._reserve_call(1))
@@ -101,6 +132,7 @@ class CorrectionTest(FlowTestCase):
         self.assertEqual(body["generation_config"]["thinking_level"], "low")
         self.assertNotIn("temperature", body["generation_config"])
         self.assertEqual(body["response_format"]["mime_type"], "application/json")
+        self.assertIn("missing or wrong tone marks", body["input"])
         self.assertEqual(opened.call_args.kwargs["timeout"], 6)
 
     def test_malformed_gemini_json_is_skipped(self):

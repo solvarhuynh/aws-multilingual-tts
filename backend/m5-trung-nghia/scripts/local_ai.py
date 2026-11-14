@@ -89,9 +89,9 @@ class LocalAiHandler(BaseHTTPRequestHandler):
         try:
             cfg = {"model": self.model, "timeout": 8, "maxChanges": 5}
             result = correction._provider(text, lang, cfg, self.key)
-            changes = correction.validate(text, result, 5)
+            corrected, changes = correction.reviewable_suggestion(text, result, 5)
             payload.update(status="checked", hasTypos=bool(changes),
-                           correctedText=result["correctedText"], changes=changes)
+                           correctedText=corrected, changes=changes)
         except Exception as error:
             self._log_provider_error(error)
         self._respond(200, payload)

@@ -17,6 +17,23 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 
 ## NHẬT KÝ
 
+### 2026-11-14: Gợi ý chính tả giữ phần sửa an toàn (local)
+
+- Với phản hồi Gemini sửa cả dấu câu/tên riêng hoặc trả offset chưa khớp, M5 dựng lại tối đa 5 sửa từng từ vượt qua bộ kiểm tra; phần không chắc giữ nguyên và vẫn đưa bản đề xuất cho người dùng duyệt. Bổ sung gợi ý dấu tiếng Việt theo ngữ cảnh, gồm từ ngắn như `se` → `sẽ`. Không gọi Gemini lần hai, không tự áp đề xuất hay thay đổi quota TTS. Các câu mẫu được kiểm bằng fake provider; tên riêng và phần không chắc vẫn để người dùng tự chỉnh.
+- Prompt sửa lỗi nêu rõ các trường hợp thiếu/sai dấu tiếng Việt và yêu cầu sửa từng từ chắc chắn ngay cả khi từ khác mơ hồ; bridge `local_ai.py` dùng cùng bộ lọc gợi ý với runtime M5. Câu người dùng `xin chèo, hom nay chún ta se ăn gì` có fixture offline cho 4 sửa và offset hợp lệ. Chưa xác nhận model local thật trả gợi ý; cần khởi động lại backend sau khi sửa prompt.
+- M5 unit tests 113/113 pass, web UI 115/115 và build pass bằng mock. Chưa gọi Gemini/Azure thật hoặc triển khai; cần xem phản hồi local thật để xác nhận model có trả được bản đề xuất trong phiên người dùng.
+
+### 2026-11-14: TTS-PERFORMANCE-01 — đo correction và giới hạn chờ local
+
+- `/text/correct` ghi duration tổng và thời gian gọi Gemini provider, chỉ số thời gian/trạng thái/mã lỗi, không ghi văn bản/key. Timeout Gemini hiện có 1–8 giây được truyền từ `deployment/local/.env.example` qua local runtime; mặc định 8 giây, lỗi trả `skipped` và giữ bản gốc.
+- M5 tests 110/110 và local runtime 17/17 trong `.venv` Windows. Không gọi Gemini/AWS thật, không có benchmark live trước/sau. Không commit/push/deploy.
+
+### 2026-11-13: TTS-INTEGRATION-03 — duyệt bản dịch Azure và Gemini typo (coded, locally tested)
+
+- M5 thêm `POST /text/preview-translation` bằng `submit/azure_preview.py`: nhận bản dịch qua synchronous invoke tới worker M2, không tạo job/MP3 hay reserve quota TTS. M1 route và local runtime nối RequestResponse; M2 dùng lại Azure Translator adapter. Gemini `/text/translate` và client cũ `translateTo` giữ nguyên.
+- Web/app xem bản gốc và bản dịch, cho sửa rồi xác nhận trước khi tạo giọng; sau đó gọi `/text/correct` trên văn bản đích và gửi `/synthesize` với `lang` đích, `translateTo=null`. Typo có chọn gốc/đề xuất/tự chỉnh; lỗi/skipped báo rõ và dùng văn bản đã chọn. Tài liệu nhiều phần giữ preview trong phiên, duyệt từng phần; chưa có manifest bền vững sau reload.
+- Đã kiểm offline bằng fixture: M1 37/37, M2 114/114, M3 53/53, M5 110/110; web 109/109 UI, build; app 66/66, typecheck/lint, Expo export iOS/Android; local runtime 17/17. Test TLS trên Windows cần giữ `SystemRoot/WINDIR` khi dọn env giả lập để `localhost` còn resolve; chỉ sửa môi trường test, không nới kiểm chứng TLS. Không gọi Azure/Gemini/AWS thật, không deploy/commit/push. M1 review route, M2 review worker/chi phí Translator, M4 review web/app; M3 không có source diff.
+
 ### 2026-11-13: TTS-EMOTION-02 — sắc thái và cường độ (coded, locally tested)
 
 - M5 nhận `styleIntensity` 0,1–2,0 khi có style, lưu vào job M3 và fingerprint idempotency; giá trị mặc định 1,0 giữ replay cũ. Manual style bỏ qua phân tích auto. M2 bổ sung style Gemini và `styledegree` Azure theo capability từng voice; M4 thêm slider web/app. M3/M2/M4 cần owner review các diff tương ứng.

@@ -40,6 +40,17 @@ class LocalBridgeTest(unittest.TestCase):
         ssm.assert_not_called()
         quota.assert_not_called()
 
+    def test_local_bridge_offers_safe_vietnamese_edits_for_review(self):
+        handler = self.handler("/text/correct")
+        handler.key, handler.model = "fake-key", "gemini-3.5-flash-lite"
+        suggestion = {"correctedText": "xin chào, hôm nay chúng ta sẽ ăn gì", "changes": []}
+        with mock.patch.object(submit.correction, "_provider", return_value=suggestion) as provider:
+            handler._correct({"text": "xin chèo, hom nay chún ta se ăn gì", "lang": "vi-VN"})
+        status, body = handler._respond.call_args.args
+        self.assertEqual((status, body["status"], body["hasTypos"]), (200, "checked", True))
+        self.assertEqual(body["correctedText"], suggestion["correctedText"])
+        provider.assert_called_once()
+
     def test_local_bridge_rejects_other_origins_and_non_json_posts(self):
         handler = self.handler()
         handler.headers.update(Host="evil.example:8765", Origin="https://evil.example")
