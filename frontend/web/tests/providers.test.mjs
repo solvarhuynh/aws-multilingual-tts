@@ -43,6 +43,7 @@ test('Đổi Azure/Gemini giữ nháp, chọn đúng giọng và không gửi c�
     });
     await suite.test('đổi nguồn lúc kiểm chữ bỏ phản hồi đến muộn, không đọc với provider cũ', async () => {
       await mount(); let resolve;
+      await act(() => studio.setCheckSpelling(true));
       api.correct = () => new Promise(done => { resolve = done; });
       let generation;
       await act(async () => { generation = studio.generate(); await settle(); });

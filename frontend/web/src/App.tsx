@@ -567,11 +567,11 @@ export default function App() {
                         onChange={event => studio.setPartIndex(Number(event.target.value))}>
                         {studio.parts.map((part, index) => <option value={index} key={index}>Phần {index + 1}/{studio.parts.length} · {formatNumber(part.length)} ký tự</option>)}
                       </select></label>
-                      <Button type="button" disabled={studio.busy || studio.readingFile} onClick={() => void studio.generateAll()}>Tạo các phần còn lại</Button>
+                      <Button type="button" disabled={studio.busy || studio.readingFile} onClick={() => void studio.generateAll()}>{page === 'translation' ? 'Duyệt phần kế tiếp' : 'Tạo các phần còn lại'}</Button>
                       {studio.batch && <><span role="status">Đã xong {studio.batch.done}/{studio.batch.total} phần</span>
                         <Button type="button" onClick={studio.stopBatch}>Dừng sau phần hiện tại</Button></>}
                       <details><summary>Xem phần {studio.partIndex + 1} sẽ được đọc</summary><p className="part-preview">{studio.parts[studio.partIndex]}</p></details>
-                      <p>Mỗi phần có bản thu riêng trong Lịch sử. Phần đã xong được giữ lại khi dừng hoặc gặp lỗi.</p>
+                      <p>Mỗi phần có bản thu riêng trong Lịch sử. {page === 'translation' ? 'Duyệt lần lượt từng phần trước khi tạo giọng.' : 'Phần đã xong được giữ lại khi dừng hoặc gặp lỗi.'}</p>
                     </div>}
                     <label className="sr-only" htmlFor="editor">
                       Văn bản cần chuyển thành giọng nói
@@ -619,7 +619,7 @@ export default function App() {
                         </div>
                       </div>
                     )}
-                    {(page !== "studio" || studio.error || studio.busy) && (
+                    {(page !== "studio" || studio.error || studio.busy || studio.correctionNotice) && (
                       <div className="editor-footer">
                         {page !== "studio" && (
                           <Button className="secondary-button" disabled={studio.busy} onClick={studio.useSample}>
@@ -633,6 +633,7 @@ export default function App() {
                             <span>{studio.error}</span>
                           </div>
                         )}
+                        {studio.correctionNotice && <p className="correction-status" role="status">{studio.correctionNotice}</p>}
                         {studio.busy && (
                           <div className="job-progress" role="status">
                             <div>
@@ -640,6 +641,7 @@ export default function App() {
                               <span>
                                 {studio.checking ? "Đang kiểm tra lỗi đánh máy…" : studio.job?.status === "PENDING" ? "Đang chuẩn bị…" : "Đang tạo giọng nói…"}
                               </span>
+                              {studio.checking && <Button className="text-button" onClick={studio.skipCorrection}>Bỏ qua kiểm tra</Button>}
                               {progress !== undefined && <strong>{progress}%</strong>}
                             </div>
                             <progress aria-label="Tiến độ tạo giọng nói" value={progress} max={100} />
@@ -687,13 +689,13 @@ export default function App() {
                           {studio.busy ? <Spinner /> : <Icon name="wave" size={17} />}
                           {studio.busy
                             ? "Đang tạo âm thanh…"
-                            : page === "translation" ? "Dịch và tạo giọng đọc"
+                            : page === "translation" ? "Xem bản dịch trước khi tạo giọng"
                             : studio.parts.length > 1 ? `Tạo phần ${studio.partIndex + 1}` : "Tạo giọng đọc"}
                         </Button>
                       </div>
                     </div>
                   </form>
-                  {page === "translation" && studio.currentAudio?.translated && <section className="surface translation-result" aria-label="Bản dịch">
+                  {page === "translation" && studio.currentAudio && (studio.currentAudio.translated || studio.translationResult?.jobId === studio.currentAudio.jobId) && <section className="surface translation-result" aria-label="Bản dịch">
                     <h2>Bản dịch · {languageNames[studio.currentAudio.lang] || studio.currentAudio.lang}</h2>
                     <p>{studio.currentAudio.text}</p>
                     <Button type="button" onClick={() => { void navigator.clipboard.writeText(studio.currentAudio!.text).then(() => notify("Đã sao chép bản dịch.")).catch(() => notify("Không sao chép được. Hãy chọn và sao chép văn bản.", true)); }}>Sao chép bản dịch</Button>
@@ -758,6 +760,8 @@ export default function App() {
                       </Button>
                     </div>
                   )}
+                  {page === "studio" && <Toggle label="Kiểm tra chính tả bằng AI" description="Tắt để tạo giọng nhanh hơn; bật để duyệt gợi ý trước khi đọc."
+                    checked={studio.checkSpelling} onChange={studio.setCheckSpelling} />}
                   <div className="setting-field">
                     <label htmlFor="speaking-style">Sắc thái</label>
                     <Select id="speaking-style" label="Sắc thái" value={studio.style} onValueChange={studio.setStyle}
@@ -1012,8 +1016,8 @@ export default function App() {
           </div>
         </Modal>
       )}
-      {studio.review && <CorrectionReview correction={studio.review.correction}
-        onChoose={(corrected) => void studio.resolveReview(corrected)} onClose={studio.cancelReview} />}
+      {studio.review && <CorrectionReview key={JSON.stringify(studio.review.correction)} correction={studio.review.correction}
+        translation={studio.review.translation} onChoose={(selected) => void studio.resolveReview(selected)} onClose={studio.cancelReview} />}
       <div className="toast-region" aria-live="polite" aria-atomic="true">
         {toast && (
           <div className={`toast ${toast.error ? "toast-error" : ""}`}>

@@ -9,12 +9,14 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
   const { useStudio } = await env.load("hooks/useStudio.ts");
   assert.equal(DEMO, false);
   const languages = [{ lang: "vi-VN", voices: [{ id: "Linh", gender: "F" }], provider: "external", engine: null },
-    { lang: "en-US", voices: [{ id: "English", gender: "F", styles: ['cheerful', 'sad'], styleIntensityRange: [0.1, 2] }], provider: "azure", engine: null, translationEnabled: true, autoEmotionEnabled: true }];
+    { lang: "en-US", voices: [{ id: "English", gender: "F", styles: ['cheerful', 'sad'], styleIntensityRange: [0.1, 2] }], provider: "azure", engine: null, translationEnabled: true, autoEmotionEnabled: true },
+    { lang: "en-US", voices: [{ id: "GeminiVoice", gender: "F" }], provider: "gemini", engine: null },
+    { lang: "vi-VN", voices: [{ id: "GeminiVi", gender: "F", styles: ['cheerful'] }], provider: "gemini", engine: null }];
   let studio, revision = 0, checked = [], submitted = [];
   const correction = (text) => ({ status: "checked", language: "vi-VN", hasTypos: true, originalText: text,
     correctedText: "tôi muốn nghe", changes: [{ from: "toi", to: "tôi", start: 0, end: 3 }] });
   function Harness({ target = null }) { studio = useStudio(() => {}, target); return null; }
-  async function mount(text = "toi muon nghe", target = null) {
+  async function mount(text = "toi muon nghe", target = null, correctionEnabled = true) {
     checked = []; submitted = [];
     api.voices = async () => languages;
     api.history = async () => ({ items: [], nextCursor: null });
@@ -23,6 +25,7 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
     localStorage.clear();
     await act(async () => { env.root.render(React.createElement(Harness, { key: ++revision, target })); await settle(); });
     await act(() => studio.updateText(text));
+    if (correctionEnabled) await act(() => studio.setCheckSpelling(true));
   }
   try {
     await suite.test('ngôn ngữ OCR độc lập giọng đọc, mặc định giữ dấu tiếng Việt', async () => {
@@ -49,6 +52,62 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
       assert.equal(submitted.at(-1).style, undefined);
       assert.equal(submitted.at(-1).styleIntensity, undefined);
     });
+    await suite.test('fast path mặc định không gọi correction, manual style vẫn gửi đúng', async () => {
+      await mount('Đọc nhanh.', null, false);
+      assert.equal(studio.checkSpelling, false);
+      await act(() => studio.chooseVoice('en-US', 'English'));
+      await act(() => studio.setStyle('cheerful'));
+      await act(async () => { await studio.generate(); });
+      assert.equal(checked.length, 0);
+      assert.equal(submitted.length, 1);
+      assert.equal(submitted[0].style, 'cheerful');
+    });
+    await suite.test('Azure và Gemini cùng tuân theo công tắc kiểm tra chính tả', async () => {
+      for (const [provider, voice] of [['azure', 'English'], ['gemini', 'GeminiVoice']]) {
+        await mount('helo there.', null, false);
+        if (provider === 'gemini') await act(() => studio.setProvider('gemini'));
+        const lang = 'en-US';
+        await act(async () => { studio.chooseVoice(lang, voice); await settle(); });
+        assert.equal(studio.lang, lang);
+        assert.equal(studio.voice, voice);
+        api.correct = async (text, language) => {
+          checked.push(text);
+          return { status: 'checked', language, hasTypos: true, originalText: text,
+            correctedText: 'hello there.', changes: [{ from: 'helo', to: 'hello', start: 0, end: 5 }] };
+        };
+        await act(async () => { await studio.generate(); });
+        assert.equal(checked.length, 0);
+        assert.equal(studio.review, null);
+        assert.equal(studio.error, '');
+        assert.equal(submitted[0].text, 'helo there.');
+        await mount('helo there.');
+        if (provider === 'gemini') await act(() => studio.setProvider('gemini'));
+        await act(async () => { studio.chooseVoice(lang, voice); await settle(); });
+        assert.equal(studio.lang, lang);
+        assert.equal(studio.voice, voice);
+        api.correct = async (text, language) => {
+          checked.push(text);
+          return { status: 'checked', language, hasTypos: true, originalText: text,
+            correctedText: 'hello there.', changes: [{ from: 'helo', to: 'hello', start: 0, end: 5 }] };
+        };
+        await act(async () => { await studio.generate(); });
+        assert.equal(checked.length, 1);
+        assert.ok(studio.review);
+        assert.equal(submitted.length, 0);
+        await act(async () => { await studio.resolveReview('hello there.'); });
+        assert.equal(submitted[0].text, 'hello there.');
+      }
+    });
+    await suite.test('Tạo tất cả các phần không gọi Gemini khi công tắc tắt', async () => {
+      for (const [provider, voice] of [['azure', 'English'], ['gemini', 'GeminiVoice']]) {
+        await mount('a'.repeat(10000) + 'b', null, false);
+        if (provider === 'gemini') await act(() => studio.setProvider('gemini'));
+        await act(() => studio.chooseVoice('en-US', voice));
+        await act(async () => { await studio.generateAll(); });
+        assert.equal(checked.length, 0);
+        assert.equal(submitted.length, 2);
+      }
+    });
     await suite.test("double click chỉ kiểm tra và tạo job một lần; giữ nguyên khoảng trắng", async () => {
       await mount("  Nội dung nguyên bản.  ");
       await act(async () => { await Promise.all([studio.generate(), studio.generate()]); });
@@ -61,17 +120,18 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
       api.correct = async (text) => { checked.push(text); return correction(text); };
       await act(async () => { await studio.generate(); });
       assert.ok(studio.review); assert.equal(submitted.length, 0);
-      await act(async () => { await Promise.all([studio.resolveReview(true), studio.resolveReview(true)]); });
+      await act(async () => { await Promise.all([studio.resolveReview('tôi muốn nghe'), studio.resolveReview('tôi muốn nghe')]); });
       assert.equal(checked.length, 1); assert.equal(submitted.length, 1);
       assert.equal(submitted[0].text, "tôi muốn nghe"); assert.equal(studio.text, "tôi muốn nghe");
     });
     await suite.test("giữ bản gốc hoặc bỏ qua khi kiểm tra lỗi", async () => {
       await mount(); api.correct = async (text) => correction(text);
-      await act(async () => { await studio.generate(); await studio.resolveReview(false); });
+      await act(async () => { await studio.generate(); await studio.resolveReview('toi muon nghe'); });
       assert.equal(submitted[0].text, "toi muon nghe");
       await mount(); api.correct = async () => { throw new Error("Mất kết nối"); };
       await act(async () => { await studio.generate(); });
       assert.equal(submitted[0].text, "toi muon nghe"); assert.equal(studio.error, "");
+      assert.match(studio.correctionNotice, /Chưa kiểm tra được/);
       await mount();
       api.correct = async (text, lang) => { checked.push(text); return { status: "skipped", language: lang,
         hasTypos: false, originalText: text, correctedText: text, changes: [] }; };
@@ -79,12 +139,13 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
       assert.equal(checked.length, 1);
       assert.equal(submitted[0].text, "toi muon nghe");
       assert.equal(studio.review, null);
+      assert.match(studio.correctionNotice, /chưa kiểm tra được/);
     });
     await suite.test("sửa văn bản làm mất hiệu lực đề xuất cũ", async () => {
       await mount(); api.correct = async (text) => correction(text);
       await act(async () => { await studio.generate(); });
       await act(() => studio.updateText("Văn bản mới"));
-      await act(async () => { await studio.resolveReview(true); });
+      await act(async () => { await studio.resolveReview('tôi muốn nghe'); });
       assert.equal(studio.review, null); assert.equal(submitted.length, 0);
     });
     await suite.test("bỏ kết quả kiểm tra nếu thiết lập đầu vào thay đổi giữa chừng", async () => {
@@ -94,6 +155,47 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
       await act(() => studio.setSpeed(1.5));
       await act(async () => { release(); await pending; });
       assert.equal(studio.review, null); assert.equal(submitted.length, 0); assert.equal(studio.busy, false);
+    });
+    await suite.test('bỏ qua kiểm tra đang chờ và bỏ kết quả Gemini đến muộn', async () => {
+      await mount(); let release, pending;
+      api.correct = text => new Promise(resolve => { checked.push(text); release = () => resolve(correction(text)); });
+      await act(() => { pending = studio.generate(); });
+      assert.equal(studio.checking, true);
+      await act(async () => { studio.skipCorrection(); await pending; });
+      assert.equal(submitted.length, 1);
+      assert.equal(submitted[0].text, 'toi muon nghe');
+      await act(async () => { release(); await settle(); });
+      assert.equal(submitted.length, 1);
+      assert.equal(studio.review, null);
+    });
+    await suite.test('nội dung đã duyệt trong phiên không gọi correction lần nữa', async () => {
+      await mount();
+      api.correct = async text => { checked.push(text); return correction(text); };
+      await act(async () => { await studio.generate(); });
+      await act(async () => { await studio.resolveReview('toi muon nghe'); });
+      await act(async () => { await studio.generate(); });
+      assert.equal(checked.length, 1);
+      assert.equal(submitted.length, 2);
+    });
+    await suite.test('dùng bản sửa ghi vào ô nhập và giữ khi đổi nguồn, giọng, sắc thái', async () => {
+      await mount('Xin chàoo');
+      api.correct = async text => {
+        checked.push(text);
+        return { status: 'checked', language: 'vi-VN', hasTypos: true, originalText: text,
+          correctedText: 'Xin chào', changes: [{ from: 'chàoo', to: 'chào', start: 4, end: 8 }] };
+      };
+      await act(async () => { await studio.generate(); });
+      assert.ok(studio.review);
+      await act(async () => { await studio.resolveReview('Xin chào'); });
+      assert.equal(studio.text, 'Xin chào');
+      await act(() => studio.setProvider('gemini'));
+      await act(() => studio.chooseVoice('vi-VN', 'GeminiVi'));
+      await act(() => studio.setStyle('cheerful'));
+      await act(async () => { await studio.generate(); });
+      assert.equal(studio.text, 'Xin chào');
+      assert.equal(checked.length, 1);
+      assert.equal(submitted.at(-1).text, 'Xin chào');
+      assert.equal(submitted.at(-1).provider, 'gemini');
     });
     await suite.test("phản hồi giọng cũ không ghi đè lần tải mới", async () => {
       await mount(); const queue = [];
@@ -123,7 +225,7 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
       };
       await act(async () => { await studio.generateAll(); });
       assert.equal(submitted.length, 2); assert.equal(maxActive, 1);
-      assert.match(studio.error, /Hết quota/); assert.equal(checked.length, 0);
+      assert.match(studio.error, /Hết quota/); assert.equal(checked.length, 2);
       await act(async () => { await studio.generateAll(); });
       assert.equal(submitted.length, 4);
       assert.equal(submitted[2].text, 'b'.repeat(10000));
@@ -150,7 +252,7 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
       await act(async () => { await studio.generate(); });
       assert.equal(studio.review.input.text, 'toi muon nghe');
       await act(() => studio.setPartIndex(0));
-      await act(async () => { await studio.resolveReview(true); });
+      await act(async () => { await studio.resolveReview('tôi muốn nghe'); });
       assert.equal(studio.text, 'a'.repeat(10000) + 'tôi muốn nghe');
       assert.equal(submitted[0].text, 'tôi muốn nghe');
       assert.deepEqual(contexts, ['part-1']);
@@ -165,13 +267,60 @@ test("Luồng tạo giọng và dữ liệu đến không đúng thứ tự", as
     await suite.test("Azure là mặc định, giữ nguồn và dùng giọng đích; không gọi Gemini", async () => {
       await mount('Xin chào.', 'en-US');
       api.translate = async () => { throw new Error('Không tự đổi dịch vụ dịch'); };
-      api.synthesize = async input => { submitted.push(input); return { ...recording('azure'), translated: true, text: 'Hello.', sourceLang: 'vi-VN', lang: 'en-US' }; };
+      let previews = 0;
+      api.previewTranslation = async () => { previews++; return { sourceLang: 'vi-VN', targetLang: 'en-US', translatedText: 'Hello.' }; };
+      api.synthesize = async input => { submitted.push(input); return recording('azure'); };
+      await act(() => { studio.setStyle('cheerful'); studio.setStyleIntensity(1.6); });
       await act(async () => { await studio.generate(); });
+      assert.equal(submitted.length, 0); assert.equal(previews, 1);
+      assert.equal(studio.review.translation, true);
+      await act(async () => { await studio.resolveReview('Hello, teacher.'); });
       assert.equal(submitted.length, 1);
-      assert.equal(submitted[0].translateTo, 'en-US');
+      assert.equal(submitted[0].translateTo, null);
       assert.equal(submitted[0].voice, 'English');
+      assert.equal(submitted[0].lang, 'en-US');
+      assert.equal(submitted[0].text, 'Hello, teacher.');
+      assert.equal(submitted[0].style, 'cheerful');
+      assert.equal(submitted[0].styleIntensity, 1.6);
       assert.equal(studio.text, 'Xin chào.');
-      assert.equal(studio.currentAudio.text, 'Hello.');
+      assert.equal(studio.currentAudio.text, 'Hello, teacher.');
+      await act(async () => { await studio.generateAll(); });
+      assert.equal(previews, 1);
+    });
+    await suite.test('hủy review giữ bản gốc, preview cache không gọi Azure lại', async () => {
+      await mount('Xin chào.', 'en-US');
+      let previews = 0;
+      api.previewTranslation = async () => { previews++; return { sourceLang: 'vi-VN', targetLang: 'en-US', translatedText: 'Hello.' }; };
+      await act(async () => { await studio.generate(); });
+      assert.equal(submitted.length, 0);
+      await act(() => studio.cancelReview());
+      await act(async () => { await studio.generate(); });
+      assert.equal(previews, 1);
+      assert.equal(studio.text, 'Xin chào.');
+      assert.equal(submitted.length, 0);
+      await act(async () => { await studio.resolveReview('Hello, class.'); });
+      assert.equal(submitted[0].text, 'Hello, class.');
+      assert.equal(submitted[0].translateTo, null);
+    });
+    await suite.test('Azure lỗi dừng trước MP3, tài liệu dài duyệt lần lượt', async () => {
+      await mount('a'.repeat(10000) + 'b'.repeat(10), 'en-US');
+      let calls = 0;
+      api.previewTranslation = async (text) => {
+        calls++;
+        if (calls === 1) throw new Error('Azure Translator đang bận');
+        return { sourceLang: 'vi-VN', targetLang: 'en-US', translatedText: text.toUpperCase() };
+      };
+      await act(async () => { await studio.generateAll(); });
+      assert.match(studio.error, /Azure Translator/);
+      assert.equal(submitted.length, 0); assert.equal(studio.text.length, 10010);
+      await act(async () => { await studio.generateAll(); });
+      assert.equal(studio.review.translation, true);
+      assert.equal(submitted.length, 0);
+      await act(async () => { await studio.resolveReview('A'.repeat(10000)); });
+      assert.equal(submitted.length, 1);
+      await act(async () => { await studio.generateAll(); });
+      assert.equal(studio.review.partIndex, 1);
+      assert.equal(submitted.length, 1);
     });
   } finally { await act(() => env.root.unmount()); await env.close(); }
 });

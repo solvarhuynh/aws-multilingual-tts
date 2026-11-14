@@ -60,6 +60,19 @@ test("API frontend: nội dung sửa và phản hồi không hợp lệ", async 
       response({ sourceLang: "vi-VN", targetLang: "ja-JP", translatedText: "Hello." });
       await assert.rejects(api.translate("Xin chào.", "vi-VN", "en-US"), { code: "INVALID_RESPONSE" });
     });
+    await suite.test("Azure preview dùng API chính và giữ offset UTF-16 sau emoji", async () => {
+      let sent;
+      globalThis.fetch = async (url, init) => { sent = { url, body: JSON.parse(init.body) }; return { ok: true, json: async () =>
+        ({ sourceLang: 'vi-VN', targetLang: 'en-US', translatedText: 'Hello.' }) }; };
+      assert.equal((await api.previewTranslation('Xin chào.', 'vi-VN', 'en-US')).translatedText, 'Hello.');
+      assert.equal(sent.url, 'https://tts.test/text/preview-translation');
+      assert.deepEqual(sent.body, { text: 'Xin chào.', sourceLang: 'vi-VN', targetLang: 'en-US' });
+      response({ ...valid, originalText: '😀 chàoo', correctedText: '😀 chào',
+        changes: [{ from: 'chàoo', to: 'chào', start: 3, end: 7 }] });
+      assert.equal((await api.correct('😀 chàoo', 'vi-VN')).changes[0].start, 3);
+      response({ ...valid, changes: [{ from: 'toi', to: 'sai', start: 0, end: 3 }] });
+      await assert.rejects(api.correct(original, 'vi-VN'), { code: 'INVALID_RESPONSE' });
+    });
     await suite.test("không hiện TODO của backend cho người dùng", async () => {
       response({ error: { code: "NOT_IMPLEMENTED", message: "TODO" } }, 501);
       await assert.rejects(api.synthesize({ text: original, lang: "vi-VN", voice: "Linh", speed: 1, translateTo: null }),

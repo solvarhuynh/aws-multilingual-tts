@@ -116,7 +116,7 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       api.correct = async () => ({ status: 'skipped' });
       api.synthesize = async () => pending;
       api.job = () => new Promise(resolve => { resolveJob = resolve; });
-      env.win.setTimeout = (callback, delay, ...args) => originalTimeout.call(env.win, callback, delay === 2500 ? 0 : delay, ...args);
+      env.win.setTimeout = (callback, delay, ...args) => originalTimeout.call(env.win, callback, delay >= 800 && delay <= 3000 ? 0 : delay, ...args);
       try {
         const form = env.mount.querySelector('.composer'), editor = form.querySelector('textarea');
         await act(() => {
@@ -167,10 +167,12 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
       assert.equal(env.mount.querySelector('.imported-file'), null);
       assert.equal(env.mount.querySelector('#translation-mode'), null);
       assert.match(env.mount.querySelector('.document-privacy-note').textContent, /Gemini/);
-      const originalTranslate = api.translate, originalSynthesize = api.synthesize;
+      const originalTranslate = api.translate, originalPreview = api.previewTranslation, originalCorrect = api.correct, originalSynthesize = api.synthesize;
       const submitted = [];
       api.translate = async () => { throw new Error('Không được gọi Gemini'); };
-      api.synthesize = async (input) => { submitted.push(input); return { ...recording('azure'), translated: true, text: 'Hello.', sourceLang: 'vi-VN', lang: 'en-US' }; };
+      api.previewTranslation = async () => ({ sourceLang: 'vi-VN', targetLang: 'en-US', translatedText: 'Hello.' });
+      api.correct = async (text, language) => ({ status: 'skipped', language, hasTypos: false, originalText: text, correctedText: text, changes: [] });
+      api.synthesize = async (input) => { submitted.push(input); return recording('azure'); };
       try {
         const form = env.mount.querySelector('.composer');
         const editor = form.querySelector('textarea');
@@ -178,12 +180,56 @@ test("Ứng dụng: điều hướng, sidebar, loading và modal", async (suite)
           Object.getOwnPropertyDescriptor(env.win.HTMLTextAreaElement.prototype, 'value').set.call(editor, 'Xin chào.');
           editor.dispatchEvent(new env.win.Event('input', { bubbles: true }));
         });
-        assert.match(form.querySelector('button[type="submit"]').textContent, /Dịch và tạo giọng đọc/);
+        assert.match(form.querySelector('button[type="submit"]').textContent, /Xem bản dịch/);
         await click(form.querySelector('button[type="submit"]'));
+        assert.equal(submitted.length, 0);
+        assert.match(env.mount.querySelector('.correction-modal').textContent, /Bản dịch Azure/);
+        const translationEdit = env.mount.querySelector('#review-edit');
+        await act(() => {
+          Object.getOwnPropertyDescriptor(env.win.HTMLTextAreaElement.prototype, 'value').set.call(translationEdit, 'Hello, teacher.');
+          translationEdit.dispatchEvent(new env.win.Event('input', { bubbles: true }));
+        });
+        await click(env.mount.querySelector('.correction-modal .primary-button'));
         assert.equal(submitted.length, 1);
-        assert.equal(submitted[0].translateTo, 'en-US');
-        assert.equal(submitted[0].text, 'Xin chào.');
-      } finally { api.translate = originalTranslate; api.synthesize = originalSynthesize; }
+        assert.equal(submitted[0].translateTo, null);
+        assert.equal(submitted[0].text, 'Hello, teacher.');
+        assert.match(env.mount.querySelector('.translation-result').textContent, /Hello, teacher/);
+      } finally { api.translate = originalTranslate; api.previewTranslation = originalPreview; api.correct = originalCorrect; api.synthesize = originalSynthesize; }
+    });
+    await suite.test('sửa chính tả cho phép giữ gốc, dùng gợi ý hoặc tự chỉnh trước TTS', async () => {
+      await click(env.mount.querySelector('.sidebar a[href="#studio"]'));
+      const originalCorrect = api.correct, originalSynthesize = api.synthesize;
+      const submitted = [];
+      api.correct = async text => ({ status: 'checked', language: 'vi-VN', hasTypos: true,
+        originalText: text, correctedText: 'Xin chào.', changes: [{ from: 'chàoo', to: 'chào', start: 4, end: 8 }] });
+      api.synthesize = async input => { submitted.push(input); return recording('typo'); };
+      try {
+        const form = env.mount.querySelector('.composer');
+        const editor = form.querySelector('textarea');
+        await act(() => {
+          Object.getOwnPropertyDescriptor(env.win.HTMLTextAreaElement.prototype, 'value').set.call(editor, 'Xin chàoo.');
+          editor.dispatchEvent(new env.win.Event('input', { bubbles: true }));
+        });
+        const spellingSwitch = env.mount.querySelector('[role="switch"][aria-label="Kiểm tra chính tả bằng AI"]');
+        assert.equal(spellingSwitch.getAttribute('aria-checked'), 'false');
+        await click(spellingSwitch);
+        await click(form.querySelector('button[type="submit"]'));
+        assert.equal(submitted.length, 0);
+        const review = env.mount.querySelector('.correction-modal');
+        assert.doesNotMatch(review.textContent, /Có gợi ý sửa lỗi đánh máy/);
+        assert.equal(review.querySelector('.correction-text mark').textContent, 'chào');
+        const correctedButton = [...review.querySelectorAll('.modal-actions button')].find(button => button.textContent === 'Dùng bản sửa');
+        const editedButton = [...review.querySelectorAll('.modal-actions button')].find(button => button.textContent === 'Dùng bản tự chỉnh');
+        assert.ok(correctedButton.classList.contains('primary-button'));
+        assert.ok(editedButton.classList.contains('secondary-button'));
+        const edit = env.mount.querySelector('#review-edit');
+        await act(() => {
+          Object.getOwnPropertyDescriptor(env.win.HTMLTextAreaElement.prototype, 'value').set.call(edit, 'Xin chào thầy.');
+          edit.dispatchEvent(new env.win.Event('input', { bubbles: true }));
+        });
+        await click(editedButton);
+        assert.equal(submitted[0].text, 'Xin chào thầy.');
+      } finally { api.correct = originalCorrect; api.synthesize = originalSynthesize; }
     });
     await suite.test("sidebar thu gọn được và lưu lựa chọn", async () => {
       await click(env.mount.querySelector('[aria-label="Thu gọn thanh bên"]'));

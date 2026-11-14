@@ -150,17 +150,18 @@ export const api = {
     if (DEMO) throw new ApiError('Cần kết nối backend và bật Gemini để đọc ảnh.', 'OCR_NOT_CONFIGURED');
     return checkedRecognition(await request<DocumentResult>('/documents/recognize', { method: 'POST', body: JSON.stringify(page), signal }));
   },
-  async correct(text: string, lang: string): Promise<TextCorrection> {
+  async correct(text: string, lang: string, signal?: AbortSignal): Promise<TextCorrection> {
     if (!AI_BASE) return { status: "skipped", language: lang, hasTypos: false, originalText: text, correctedText: text, changes: [] };
     const result = await request<TextCorrection>("/text/correct", {
-      method: "POST", body: JSON.stringify({ text, lang }),
+      method: "POST", body: JSON.stringify({ text, lang }), signal,
     }, 12000, AI_BASE);
     if (!result || !["checked", "skipped"].includes(result.status) || typeof result.language !== "string" || result.originalText !== text ||
       typeof result.hasTypos !== "boolean" || typeof result.correctedText !== "string" ||
       !result.correctedText.trim() || result.correctedText.length > MAX_CHARS || !Array.isArray(result.changes) ||
       !result.changes.every((change) => typeof change?.from === "string" && typeof change.to === "string" &&
         Number.isInteger(change.start) && Number.isInteger(change.end) && change.start >= 0 &&
-        change.end > change.start && change.end <= result.correctedText.length))
+        change.end > change.start && change.end <= result.correctedText.length &&
+        result.correctedText.slice(change.start, change.end) === change.to))
       throw new ApiError("Chưa kiểm tra được nội dung.", "INVALID_RESPONSE");
     return result;
   },
@@ -172,6 +173,16 @@ export const api = {
     if (!result || result.sourceLang !== sourceLang || result.targetLang !== targetLang ||
       typeof result.translatedText !== "string" || !result.translatedText.trim() || result.translatedText.length > 6000)
       throw new ApiError("Bản dịch trả về không hợp lệ.", "INVALID_RESPONSE");
+    return result;
+  },
+  async previewTranslation(text: string, sourceLang: string, targetLang: string): Promise<Translation> {
+    if (DEMO) throw new ApiError("Cần kết nối backend để dùng Azure Translator.", "TRANSLATION_NOT_CONFIGURED");
+    const result = await request<Translation>("/text/preview-translation", {
+      method: "POST", body: JSON.stringify({ text, sourceLang, targetLang }),
+    });
+    if (!result || result.sourceLang !== sourceLang || result.targetLang !== targetLang ||
+      typeof result.translatedText !== "string" || !result.translatedText.trim() || result.translatedText.length > MAX_CHARS)
+      throw new ApiError("Bản dịch Azure trả về không hợp lệ.", "INVALID_RESPONSE");
     return result;
   },
   async stats(): Promise<Stats> {

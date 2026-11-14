@@ -4,6 +4,7 @@ import { formatTime, languageNames, voiceLabel } from "../lib/data";
 import { Button, Icon, Slider, ToolArt } from "./ui";
 import type { HistoryItem, Language } from "../lib/types";
 import { expressionName } from '../../../shared/expression';
+import { markTtsPlayable } from '../../../shared/tts-performance';
 
 export default function AudioPlayer({
   item,
@@ -200,7 +201,8 @@ export default function AudioPlayer({
           <span>MP3</span>
         </Button>
       </div>
-      <audio key={source} ref={audioRef} src={item?.audioUrl || undefined} preload="metadata" loop={repeat} {...mediaEvents} />
+      <audio key={source} ref={audioRef} src={item?.audioUrl || undefined} preload="metadata" loop={repeat} {...mediaEvents}
+        onCanPlay={() => { if (item?.audioUrl) markTtsPlayable(item.jobId); }} />
     </section>
   );
 }
