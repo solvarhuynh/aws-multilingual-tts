@@ -75,7 +75,9 @@ class ConnectionTests(unittest.TestCase):
                 thread = threading.Thread(target=http.serve_forever, daemon=True)
                 thread.start()
                 try:
-                    with patch.dict(os.environ, {}, clear=True), patch.object(certifi, 'where', return_value=str(cert_path)):
+                    # Windows needs SystemRoot/WINDIR to resolve localhost even with proxies disabled.
+                    system_env = {name: os.environ[name] for name in ('SystemRoot', 'WINDIR') if name in os.environ}
+                    with patch.dict(os.environ, system_env, clear=True), patch.object(certifi, 'where', return_value=str(cert_path)):
                         with patch.object(ssl, 'create_default_context', return_value=Mock(get_ca_certs=Mock(return_value=[]))):
                             server.configure_tls()
                         opener = build_opener(ProxyHandler({}))

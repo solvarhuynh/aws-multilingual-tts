@@ -81,10 +81,11 @@ Chỉ khi muốn thử Gemini, bổ sung các dòng sau vào env **backend**, kh
 GEMINI_API_KEY=KEY_GEMINI_CUA_BAN
 GEMINI_MODEL=MA_MODEL_TAI_KHOAN_HO_TRO
 GEMINI_TYPO_ENABLED=false
+GEMINI_TIMEOUT_SECONDS=8
 GEMINI_TRANSLATION_ENABLED=true
 ```
 
-Mã model phải là ID Gemini thực được key hỗ trợ; không dùng nguyên placeholder. Source M5 có mặc định model trong SAM nhưng chưa được nghiệm thu live. `GEMINI_TYPO_ENABLED=true` bật sửa lỗi tùy chọn; lỗi typo giữ bản gốc để người dùng tiếp tục. Khởi động lại `npm run dev` sau khi sửa env. Runtime dùng lại handler/counter M5 và mock SSM; không cần chạy thêm bridge/cổng thứ tư. Gemini và Azure đều dùng quota thật khi người dùng chủ động gọi chức năng tương ứng.
+Mã model phải là ID Gemini thực được key hỗ trợ; không dùng nguyên placeholder. Source M5 có mặc định model trong SAM nhưng chưa được nghiệm thu live. `GEMINI_TYPO_ENABLED=true` bật API sửa lỗi; người dùng còn phải bật **Kiểm tra chính tả bằng AI** trong màn Tạo giọng đọc nếu muốn gọi API đó. `GEMINI_TIMEOUT_SECONDS` nhận 1–8 giây; hết giờ giữ bản gốc. Khởi động lại `npm run dev` sau khi sửa env. Runtime dùng lại handler/counter M5 và mock SSM; không cần chạy thêm bridge/cổng thứ tư. Gemini và Azure đều dùng quota thật khi người dùng chủ động gọi chức năng tương ứng.
 
 ### Lỗi HTTPS, DNS và kết nối
 

@@ -72,7 +72,7 @@ def settings(path=ENV_FILE, *, host=None, public_url=None):
         'LOCAL_HOST': '127.0.0.1', 'LOCAL_PORT': '8000', 'LOCAL_PUBLIC_URL': '',
         'AZURE_SPEECH_KEY': '', 'AZURE_SPEECH_REGION': 'eastasia',
         'AZURE_TRANSLATOR_KEY': '', 'AZURE_TRANSLATOR_REGION': 'global',
-        'GEMINI_API_KEY': '', 'GEMINI_MODEL': '', 'GEMINI_TYPO_ENABLED': 'false', 'GEMINI_TRANSLATION_ENABLED': 'false', 'GEMINI_EMOTION_ENABLED': 'false',
+        'GEMINI_API_KEY': '', 'GEMINI_MODEL': '', 'GEMINI_TYPO_ENABLED': 'false', 'GEMINI_TIMEOUT_SECONDS': '8', 'GEMINI_TRANSLATION_ENABLED': 'false', 'GEMINI_EMOTION_ENABLED': 'false',
         'GEMINI_OCR_ENABLED': 'false', 'GEMINI_OCR_MODEL': 'gemini-3.5-flash-lite', 'OCR_DAILY_CALL_LIMIT': '100',
         'GEMINI_TTS_ENABLED': 'false', 'GEMINI_TTS_MODEL': 'gemini-3.8-flash-tts', 'GEMINI_TTS_DAILY_CALL_LIMIT': '100',
         'DEMO_TOKEN': '', 'MAX_CHARS': '10000', 'DAILY_CHAR_LIMIT': '30000',
@@ -88,6 +88,8 @@ def settings(path=ENV_FILE, *, host=None, public_url=None):
         result[name] = result[name].strip()
     if result['GEMINI_TTS_ENABLED'] not in {'true', 'false'}:
         raise ValueError('GEMINI_TTS_ENABLED dùng true hoặc false.')
+    if not result['GEMINI_TIMEOUT_SECONDS'].isdigit() or not 1 <= int(result['GEMINI_TIMEOUT_SECONDS']) <= 8:
+        raise ValueError('GEMINI_TIMEOUT_SECONDS từ 1 đến 8 giây.')
     if result['GEMINI_TTS_ENABLED'] == 'true' and (not result['GEMINI_API_KEY'] or result['GEMINI_TTS_MODEL'] != 'gemini-3.8-flash-tts'):
         raise ValueError('Gemini TTS cần GEMINI_API_KEY và GEMINI_TTS_MODEL=gemini-3.8-flash-tts.')
     if not result['GEMINI_TTS_DAILY_CALL_LIMIT'].isdigit() or not 1 <= int(result['GEMINI_TTS_DAILY_CALL_LIMIT']) <= 10000:
@@ -203,6 +205,7 @@ class Runtime:
             'TTS_API_PARAMETER_NAME': '/local/azure-speech',
             'TRANSLATOR_API_PARAMETER_NAME': '/local/azure-translator' if self.values['AZURE_TRANSLATOR_KEY'] else '',
             'GEMINI_TYPO_ENABLED': self.values['GEMINI_TYPO_ENABLED'],
+            'GEMINI_TIMEOUT_SECONDS': self.values['GEMINI_TIMEOUT_SECONDS'],
             'GEMINI_EMOTION_ENABLED': self.values['GEMINI_EMOTION_ENABLED'],
             'GEMINI_OCR_ENABLED': self.values['GEMINI_OCR_ENABLED'],
             'GEMINI_OCR_MODEL': self.values['GEMINI_OCR_MODEL'],
@@ -267,6 +270,10 @@ class Runtime:
         self.stack.close()
 
     def invoke(self, FunctionName, InvocationType, Payload):
+        if FunctionName == 'local-worker' and InvocationType == 'RequestResponse':
+            from io import BytesIO
+            result = self.worker.handler(json.loads(Payload), LocalContext())
+            return {'StatusCode': 200, 'Payload': BytesIO(json.dumps(result, ensure_ascii=False).encode('utf-8'))}
         if FunctionName != 'local-worker' or InvocationType != 'Event':
             raise RuntimeError('LOCAL_QUEUE_UNAVAILABLE')
         event = json.loads(Payload)

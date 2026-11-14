@@ -311,8 +311,16 @@ def packaged_template(work, gemini_tts=False):
 
 
 def plan(daily_char_limit=None, *, gemini_ocr=None, ocr_model=None, ocr_daily_calls=None, gemini_parameter=None,
-         gemini_tts=None, tts_daily_calls=None):
+         gemini_tts=None, tts_daily_calls=None, gemini_typo=None, gemini_model=None):
     ocr = ocr_overrides(gemini_ocr, ocr_model, ocr_daily_calls, gemini_parameter)
+    if gemini_typo is not None:
+        if gemini_typo not in {"true", "false"}:
+            raise ValueError("--gemini-typo phải là true hoặc false")
+        ocr["GeminiTypoEnabled"] = gemini_typo
+    if gemini_model is not None:
+        if not re.fullmatch(r"gemini-[A-Za-z0-9._-]{1,60}", gemini_model):
+            raise ValueError("Model Gemini không hợp lệ")
+        ocr["GeminiModel"] = gemini_model
     if gemini_tts is not None:
         if gemini_tts not in {"true", "false"}:
             raise ValueError("--gemini-tts phải là true hoặc false")
@@ -335,6 +343,8 @@ def plan(daily_char_limit=None, *, gemini_ocr=None, ocr_model=None, ocr_daily_ca
         raise ValueError("Cần --gemini-parameter trỏ tới SSM chứa key trước khi bật đọc ảnh")
     if gemini_tts == "true" and not (gemini_parameter or previous.get("GeminiApiParameterName")):
         raise ValueError("Cần --gemini-parameter trỏ tới SSM chứa key trước khi bật Gemini TTS")
+    if gemini_typo == "true" and not (gemini_parameter or previous.get("GeminiApiParameterName")):
+        raise ValueError("Cần --gemini-parameter trỏ tới SSM chứa key trước khi bật sửa chính tả")
 
     account = aws("sts", "get-caller-identity")["Account"]
     work = Path.home() / "tts-sandbox"
@@ -423,11 +433,13 @@ def main():
     parser.add_argument("--ocr-daily-calls", type=int, help="Giới hạn lượt đọc trang/ngày, từ 1 đến 10.000")
     parser.add_argument("--gemini-parameter", help="Đường dẫn SSM chứa key Gemini đã lưu, không phải API key")
     parser.add_argument("--gemini-tts", choices=("true", "false"), help="Chỉ dùng với plan; bật/tắt Gemini tạo giọng")
+    parser.add_argument("--gemini-typo", choices=("true", "false"), help="Chỉ dùng với plan; bật/tắt gợi ý sửa chính tả")
+    parser.add_argument("--gemini-model", help="Model Gemini cho sửa chính tả và các tính năng văn bản")
     parser.add_argument("--tts-daily-calls", type=int, help="Hạn mức request Gemini TTS/ngày, gồm từng đoạn và retry")
     args = parser.parse_args()
     if args.daily_char_limit is not None and args.action != "plan":
         parser.error("--daily-char-limit chỉ dùng với plan")
-    if args.action != "plan" and any(value is not None for value in (args.gemini_ocr, args.ocr_model, args.ocr_daily_calls, args.gemini_parameter, args.gemini_tts, args.tts_daily_calls)):
+    if args.action != "plan" and any(value is not None for value in (args.gemini_ocr, args.ocr_model, args.ocr_daily_calls, args.gemini_parameter, args.gemini_tts, args.tts_daily_calls, args.gemini_typo, args.gemini_model)):
         parser.error("Các tùy chọn Gemini chỉ dùng với plan")
     try:
         if args.action == "configure":
@@ -437,7 +449,8 @@ def main():
         elif args.action == "plan":
             plan(args.daily_char_limit, gemini_ocr=args.gemini_ocr, ocr_model=args.ocr_model,
                  ocr_daily_calls=args.ocr_daily_calls, gemini_parameter=args.gemini_parameter,
-                 gemini_tts=args.gemini_tts, tts_daily_calls=args.tts_daily_calls)
+                 gemini_tts=args.gemini_tts, tts_daily_calls=args.tts_daily_calls,
+                 gemini_typo=args.gemini_typo, gemini_model=args.gemini_model)
         else:
             {"apply": apply, "status": status}[args.action]()
     except urllib.error.HTTPError as error:

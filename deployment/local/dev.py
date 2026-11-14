@@ -12,7 +12,10 @@ import subprocess
 import sys
 import threading
 import time
-import termios
+try:
+    import termios
+except ImportError:  # Windows không có termios; Expo vẫn dùng terminal hiện tại.
+    termios = None
 from urllib.parse import urlsplit
 from urllib.error import URLError
 from urllib.request import ProxyHandler, build_opener
@@ -171,11 +174,16 @@ class Services:
             except subprocess.TimeoutExpired:
                 pass
         for _, child in self.children:
-            self.signal_group(child, signal.SIGKILL)
+            self.signal_group(child, getattr(signal, 'SIGKILL', signal.SIGTERM))
             child.wait()
 
     @staticmethod
     def signal_group(child, sig):
+        if os.name == 'nt':
+            if child.poll() is None:
+                subprocess.run(['taskkill', '/PID', str(child.pid), '/T', '/F'],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+            return
         try:
             os.killpg(child.pid, sig)
         except ProcessLookupError:
@@ -195,7 +203,7 @@ def main():
     parser.add_argument('--api-url', type=cloud_api, help='Web/app dùng chung API CloudFront; không chạy backend Python hoặc đọc key local.')
     args = parser.parse_args()
     services = Services()
-    terminal = termios.tcgetattr(sys.stdin) if sys.stdin.isatty() else None
+    terminal = termios.tcgetattr(sys.stdin) if termios and sys.stdin.isatty() else None
     def interrupt(*_):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupt)
@@ -252,7 +260,7 @@ def main():
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
         services.stop()
-        if terminal:
+        if terminal and termios:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, terminal)
 
 

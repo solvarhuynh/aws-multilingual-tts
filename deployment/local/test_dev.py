@@ -1,5 +1,6 @@
 import io
 import json
+import os
 from pathlib import Path
 import signal
 import socket
@@ -152,8 +153,14 @@ class LauncherTests(unittest.TestCase):
                 services.stop()
             self.assertIsNotNone(running.poll())
             for _ in range(100):
-                state = subprocess.run(['ps', '-p', str(descendant), '-o', 'stat='], capture_output=True, text=True).stdout
-                if not state.strip() or state.startswith('Z'):
+                if os.name == 'nt':
+                    state = subprocess.run(['tasklist', '/FI', f'PID eq {descendant}', '/FO', 'CSV', '/NH'],
+                                           capture_output=True, text=True).stdout
+                    stopped = str(descendant) not in state
+                else:
+                    state = subprocess.run(['ps', '-p', str(descendant), '-o', 'stat='], capture_output=True, text=True).stdout
+                    stopped = not state.strip() or state.startswith('Z')
+                if stopped:
                     break
                 time.sleep(.02)
             else:
