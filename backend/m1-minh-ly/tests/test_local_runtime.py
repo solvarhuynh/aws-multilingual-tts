@@ -189,6 +189,23 @@ class LocalFlowTest(unittest.TestCase):
         self.assertTrue(job['translated']); self.assertEqual(job['text'],'Hello')
         self.provider.synthesize.assert_called_once_with('Hello','en-US-JennyNeural',.9)
 
+    def test_azure_preview_then_approved_text_creates_audio_without_second_translation(self):
+        body = {'text': 'Xin chào', 'sourceLang': 'vi-VN', 'targetLang': 'en-US'}
+        with mock.patch.object(self.runtime.worker, 'translate', return_value='Hello') as translate:
+            self.assertEqual(self.request('/text/preview-translation', 'POST', body, token=False)[0], 401)
+            status, preview, _ = self.request('/text/preview-translation', 'POST', body)
+            self.assertEqual((status, preview['translatedText']), (200, 'Hello'))
+            self.assertEqual(self.request('/history')[1]['items'], [])
+            self.provider.synthesize.assert_not_called()
+            status, result, _ = self.request('/synthesize', 'POST', self.input(text='Hello, teacher.', lang='en-US',
+                voice='en-US-JennyNeural', translateTo=None))
+            self.assertEqual(status, 202)
+            job = self.completed(result['jobId'])
+        self.assertEqual(job['text'], 'Hello, teacher.')
+        self.assertEqual(job['lang'], 'en-US')
+        self.provider.synthesize.assert_called_once_with('Hello, teacher.', 'en-US-JennyNeural', .9)
+        translate.assert_called_once_with('Xin chào', 'vi-VN', 'en-US', timeout=15)
+
     def test_s3_cas_and_key_remain_in_mock_not_real_aws(self):
         from tts_common import db
         job = db.create_job('demo','Test','vi-VN','vi-VN-HoaiMyNeural',.9)

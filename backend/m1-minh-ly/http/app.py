@@ -29,6 +29,7 @@ ROUTE_PATTERNS = [
     for path, method, target, name in [
         (r"^/text/correct$", "POST", SUBMIT_FUNCTION_NAME, "text_correct"),
         (r"^/text/translate$", "POST", SUBMIT_FUNCTION_NAME, "text_translate"),
+        (r"^/text/preview-translation$", "POST", SUBMIT_FUNCTION_NAME, "translation_preview"),
         (r"^/documents/recognize$", "POST", SUBMIT_FUNCTION_NAME, "document_ocr"),
         (r"^/synthesize$", "POST", SUBMIT_FUNCTION_NAME, "synthesize"),
         (r"^/voices$", "GET", VOICES_FUNCTION_NAME, "voices"),
