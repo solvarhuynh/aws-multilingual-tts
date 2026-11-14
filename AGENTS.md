@@ -106,12 +106,14 @@ Chỉ chạy AWS read/mutation, provider live, deploy/reset khi được giao r�
 
 ## 6. Hợp đồng không được làm hỏng
 
-Giữ tám public paths hiện có (gồm `/text/translate` từ M5 `3f87586`, mặc định tắt); bổ sung `/documents/recognize` theo ngoại lệ được duyệt ở mục 13. Dịch Azure vẫn dùng `translateTo` trong `/synthesize`, không chuyển ngầm sang Gemini:
+Giữ tám public paths ban đầu (gồm `/text/translate` từ M5 `3f87586`, mặc định tắt); bổ sung `/documents/recognize` ở mục 13 và `/text/preview-translation` ở mục 16. Client cũ vẫn dùng `translateTo` trong `/synthesize`; giao diện mới duyệt Azure preview trước khi đọc:
 
 | Method | Path | Owner |
 |---|---|---|
 | POST | `/text/correct` | M5, typo MR |
 | POST | `/text/translate` | M5, Gemini tùy chọn, không tạo MP3 |
+| POST | `/text/preview-translation` | M5 → M2 Azure, chỉ trả bản dịch để duyệt |
+| POST | `/documents/recognize` | M5, OCR Gemini tùy chọn |
 | POST | `/synthesize` | M5 |
 | GET | `/voices` | M2 |
 | GET | `/jobs/{id}` | M3 |
@@ -126,6 +128,7 @@ Giữ tám public paths hiện có (gồm `/text/translate` từ M5 `3f87586`, m
 - S3 conditional write bằng ETag/CAS, lease và retry có giới hạn. Không hứa exactly-once provider billing; crash giữa create/invoke hoặc provider/store cần reconciliation của owner.
 - Chọn ngôn ngữ rõ từ registry đã xác minh; không dịch ngầm hoặc bỏ qua speed không hỗ trợ. Giới hạn trong catalog/runtime là nguồn chuẩn cho frontend.
 - Gemini typo có code/test local nhưng mặc định tắt, chỉ sửa lỗi đánh máy, người dùng duyệt, provider lỗi dùng nguyên bản, offsets UTF-16; `/text/correct` không tạo job/MP3. Stats có code quét S3 có giới hạn: bucket rỗng trả 0, quét không đủ trả 503 thay vì số thiếu. Chưa gọi Gemini hoặc xác minh Stats trên Sandbox thật.
+- Màn Tạo giọng đọc trên web/app mặc định tắt Kiểm tra chính tả bằng AI và gửi `/synthesize` trực tiếp. Khi bật, cho duyệt đề xuất hoặc bỏ qua lúc chờ; phản hồi AI muộn không được tạo job. Màn Dịch và đọc giữ bước kiểm typo sau khi duyệt Azure preview. Auto Emotion chỉ chạy khi chọn `style=auto`.
 - API CloudFront không cache; giữ method/path/query/body và header cần thiết, không forward viewer Host. Không áp SPA fallback lên JSON lỗi API.
 
 ## 7. Quy tắc code và tổ chức file
@@ -235,3 +238,11 @@ Gemini TTS chọn `gemini-3.8-flash-tts` theo tài liệu chính thức hiện h
 Giữ các paths cũ, thêm provider tùy chọn trong `/synthesize`, nhóm providers trong `/voices`, public provider/engine trong jobs/history. Ghi provider/model đã chọn vào job qua các trường sẵn có, giữ fingerprint request cũ khi thiếu provider. MP3 phải được mã hóa từ WAV thật bằng `lameenc`, không đổi phần mở rộng. Dùng chunk/checkpoint/CAS/parts/quota sẵn có, counter riêng `tts-gemini-usage/`; không thêm service AWS hay EventInvokeConfig. Đóng gói bằng `azure.py plan --gemini-tts true`: wheel Linux cp312 trong staging tạm, không binary macOS hoặc source ZIP thiếu encoder. Cờ mặc định tắt; key/quota/model cần kiểm theo từng dự án. Chi tiết: [hợp đồng](docs/CONVENTIONS.md#gemini-tts-tùy-chọn--bổ-sung-13112026), [local](deployment/local/README.md#gemini-tts--thêm-nguồn-tạo-giọng), [Sandbox](docs/AZURE-SPEECH.md#gemini-tts-trên-sandbox). Log tích hợp chỉ bổ sung CHANGELOG M4, giữ lịch sử owner khác.
 
 Trong yêu cầu tiếp theo cùng ngày, người dùng giao bật Gemini TTS local: được đặt riêng `GEMINI_TTS_ENABLED=true` trong env thật và khởi động lại bộ dev; giữ nguyên key/cấu hình khác. Đã kiểm catalog enabled qua backend và proxy web, không gọi thêm provider. Quyền này không mở rộng số lượt thử thật hoặc cho phép deploy AWS.
+
+## 16. Dịch và đọc có bước duyệt — 13/11/2026
+
+Người dùng giao `TTS-INTEGRATION-03`: web/app gọi Azure Translator để preview, cho sửa và xác nhận bản dịch, sau đó kiểm typo trên văn bản đích rồi mới gọi `/synthesize` với `lang` đích và `translateTo=null`. API Gemini `/text/translate` vẫn độc lập; client cũ dùng `translateTo` vẫn tương thích. Endpoint mới `POST /text/preview-translation` đi qua M1 → M5 → worker M2 đồng bộ, dùng adapter Azure hiện có; không tạo job/MP3 và không dùng quota TTS. Frontend giữ preview trong phiên cho phần tài liệu đã lấy, duyệt từng phần; kết quả không có manifest bền vững qua reload. Gemini correction cho phép giữ gốc, chọn đề xuất hoặc tự chỉnh; lỗi/skipped báo rõ rồi dùng văn bản đã chọn. Chưa gọi provider/AWS thật hoặc deploy trong task này; M1/M2/M4 review diff theo owner. Hợp đồng chi tiết ở CONVENTIONS và hướng dẫn bật typo thủ công ở AZURE-SPEECH.
+
+## 16. Hướng dẫn cá nhân GUIDE.md
+
+`GUIDE.md` ở thư mục gốc là bản giải thích dễ đọc, riêng cho người dùng hiện tại và được ignore khỏi Git theo yêu cầu. Sau mỗi commit mới do người dùng tạo hoặc sau khi pull/merge commit mới của thành viên, nếu đang hỗ trợ người dùng trong workspace này thì cập nhật GUIDE.md: ghi commit/hash/ngày, thay đổi chức năng, file/owner bị ảnh hưởng, cách dùng và mức kiểm chứng; giữ lịch sử phần cũ và sửa nội dung đã lỗi thời. Không coi GUIDE.md là nguồn hợp đồng kỹ thuật; README/CHANGELOG của owner, CONVENTIONS và code mới là nguồn chuẩn. Vì GUIDE.md bị ignore, thay đổi này không tự được gửi tới máy của thành viên khác; khi hướng dẫn họ, nói rõ cần tạo/cập nhật bản local tương ứng.

@@ -33,6 +33,7 @@ backend/*/tests/out/
 .idea/
 .DS_Store
 Thumbs.db
+GUIDE.md
 
 # Dữ liệu catalog sinh khi thử local
 deployment/local/data/

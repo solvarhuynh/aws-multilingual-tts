@@ -901,3 +901,50 @@ bash deployment/scripts/sandbox.sh web
 5. Mở URL CloudFront mới/bản mới, nhập mã demo, chọn **Gemini TTS**, tạo một câu tiếng Việt với cảm xúc cụ thể. Kiểm `DONE`, phát/tải MP3, mở lại lịch sử trên web/app chung API; kiểm tiếng Anh và một ngôn ngữ nhóm có người nghe được. Xem CloudWatch chỉ lấy jobId/status/errorCode, không key/text/presigned URL. Kiểm quota/lỗi rõ và xác nhận Azure vẫn dùng được. Có thể tải mẫu local ở máy cá nhân, không lấy file/env riêng làm evidence công khai.
 
 Tắt bằng `plan --gemini-tts false`, review rồi apply thủ công. `--tts-daily-calls` tính cả đoạn nhỏ và retry, không phải số tài liệu. Quota Google riêng có thể thấp hơn trần demo; không tự nâng gói trả phí, gọi vô hạn hoặc đổi sang Azure khi Gemini lỗi. `store=false` chỉ tắt lưu trạng thái interaction, không thay điều khoản Google.
+
+## Duyệt bản dịch Azure và bật Gemini sửa chính tả — TTS-INTEGRATION-03
+
+Web/app hiện gọi `POST /text/preview-translation` qua CloudFront `/text/*` → M1 → M5 → worker M2. Worker dùng **Azure Translator** hiện có, trả bản dịch để người dùng xem/chỉnh; chưa tạo job. Sau xác nhận, frontend gọi `/text/correct` trên văn bản đích rồi gửi `/synthesize` với `lang` đích và `translateTo=null`, nên worker không dịch lần nữa. Client cũ vẫn có thể gửi `translateTo`. Lỗi Azure giữ nguyên, không chuyển sang Gemini Translation. Cần deploy backend mới và upload web mới trước khi thử trên AWS; app Expo phải dùng API base mới.
+
+Các tham số SAM thực tế là `GeminiTypoEnabled` (mặc định `false`), `GeminiApiParameterName` (tên SSM, mặc định rỗng), `GeminiModel` (mặc định `gemini-3.6-flash`). Root `deployment/template.yaml` truyền cả ba vào M5 Submit; `LabRole` phải đọc/giải mã SSM và gọi được model từ phiên lab. `GeminiModel` dùng chung cho typo và các tính năng văn bản khác; Gemini OCR/TTS có model riêng. Không có Gemini key trong frontend.
+
+Khi **được nhóm giao thao tác** trong CloudShell `us-east-1`, nếu chưa có parameter, nhập key kín qua Python (không đặt key trong lệnh, shell history hoặc env frontend):
+
+```bash
+python3 - <<'PY'
+import boto3, getpass
+name = '/tts/dev/gemini'
+key = getpass.getpass('Gemini API key: ')
+boto3.client('ssm', region_name='us-east-1').put_parameter(
+    Name=name, Value=key, Type='SecureString', Overwrite=True)
+print('Đã lưu tên parameter:', name)
+PY
+```
+
+Sau khi M1 đã kiểm quyền SSM và Azure Translator đã được `configure-translator`, tạo changeset và **review** trước khi áp dụng:
+
+```bash
+python3 deployment/scripts/azure.py plan --gemini-typo true --gemini-parameter /tts/dev/gemini --gemini-model gemini-3.6-flash
+python3 deployment/scripts/azure.py apply
+bash deployment/scripts/sandbox.sh web
+```
+
+`plan` không deploy; `apply` chỉ dùng sau khi đã xem changeset và được giao. Nếu code app native mới, cấu hình `EXPO_PUBLIC_API_BASE_URL` bằng URL CloudFront API hiện hành rồi chạy Expo theo hướng dẫn frontend. Web `VITE_API_BASE_URL` cần trỏ CloudFront thật; không để trống (mock) hoặc trỏ bridge Gemini local khi kiểm AWS.
+
+Kiểm route bằng mã demo nhập kín, thay `https://DOMAIN.cloudfront.net` bằng domain của stack. Đoạn sau chỉ in status/JSON response, không in token hoặc key:
+
+```bash
+python3 - <<'PY'
+import getpass, hashlib, json, urllib.request
+base = input('CloudFront API base: ').rstrip('/')
+token = getpass.getpass('X-Demo-Token: ')
+body = json.dumps({'text':'Xin chàoo, tôi muốn nghe.', 'lang':'vi-VN'}, ensure_ascii=False).encode()
+request = urllib.request.Request(base + '/text/correct', body,
+    {'Content-Type':'application/json', 'X-Demo-Token':token,
+     'x-amz-content-sha256':hashlib.sha256(body).hexdigest()}, method='POST')
+with urllib.request.urlopen(request, timeout=30) as response:
+    print(response.status, response.read().decode())
+PY
+```
+
+Kết quả `status=skipped` nghĩa là chưa kiểm được hoặc feature tắt, vẫn dùng bản gốc; `checked` và `hasTypos=true` cần thấy màn review trước khi tạo giọng. Với `/text/preview-translation`, kiểm `sourceLang`/`targetLang` và bản dịch hiển thị; `/synthesize` sau review phải gửi `translateTo:null`. Đây là hướng dẫn smoke test, task này mới kiểm mock/local, chưa xác minh Sandbox hoặc âm thanh thật.

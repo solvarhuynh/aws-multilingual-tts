@@ -72,11 +72,11 @@ Nhập tệp có hai chế độ. **Gemini · Trực tuyến** gửi từng ản
 
 ## Typo/language sau MVP
 
-Workflow đã thống nhất được giữ: bấm Chuyển giọng → POST /text/correct một lần → nếu có typo suggestion thì người dùng chọn → POST /synthesize đúng một lần. Không key/timeout/không chắc thì skipped original, không tạo job trong correct. Nhánh sửa chính tả Gemini là MR chỉ sửa typo, không grammar/style; nhánh dịch tài liệu bên dưới là thao tác riêng do người dùng chọn.
+Màn Tạo giọng đọc mặc định đi thẳng tới POST `/synthesize`. Nếu người dùng bật Kiểm tra chính tả bằng AI, web/app gọi POST `/text/correct` một lần rồi cho duyệt đề xuất trước khi tạo job. Có thể bỏ qua lúc chờ; timeout/lỗi dùng bản gốc. Màn Dịch và đọc vẫn duyệt bản dịch rồi kiểm typo trên văn bản đích. Auto Emotion chỉ chạy khi người dùng chọn `style=auto`; nhánh sửa chính tả chỉ sửa typo, không grammar/style.
 
 Baseline yêu cầu chọn lang rõ từ registry provider đã kiểm vi/en/ja; auto/local detection cần review riêng; không dịch ngầm. Comprehend/Translate không baseline.
 
-Phần mở rộng `POST /text/translate` dùng Gemini `gemini-3.6-flash` mặc định trong source, tắt mặc định trên AWS. Web/app gửi từng đoạn tối đa 2.000 ký tự và tối đa 600 ký tự ngữ cảnh trước đó; Gemini chỉ trả văn bản dịch, không tạo job hay gọi Azure. Người dùng xem bản dịch rồi mới chuyển sang màn tạo giọng với ngôn ngữ đích. Web có server local chỉ bind loopback để thử bằng key nhập ở terminal; không dùng AWS cho thử nghiệm này. Tài liệu có thể vượt quota dịch riêng, nên giao diện dừng ở phần lỗi và cho tiếp tục.
+Phần mở rộng `POST /text/translate` dùng Gemini `gemini-3.6-flash` mặc định trong source, tắt mặc định trên AWS. API này vẫn chạy độc lập khi được bật, không tạo job hay gọi Azure; bộ chia đoạn Gemini còn trong source nhưng màn Dịch và đọc hiện hành không gọi API này.
 
 ## Capability gates và fallback
 
@@ -96,9 +96,9 @@ Phụ thuộc kỹ thuật: M3 giao schema/common/CAS cho M2 và M5; M2 giao wor
 
 ### Dịch và MP3 dài
 
-Khi người dùng chọn Dịch và đọc, submit M5 vẫn chỉ validate/tạo job/dispatch. M2 dịch bằng Azure Translator với key riêng trong SSM, checkpoint bản dịch vào job bằng CAS rồi dùng giọng đích từ registry để tạo MP3. Không thêm route hoặc dịch vụ AWS ngoài baseline. Thiếu cấu hình trả lỗi rõ, không phát nguyên bản như bản dịch.
+Màn Dịch và đọc hiện hành: web/app gửi từng phần tới `POST /text/preview-translation` → M1 router → M5 submit → worker M2 gọi adapter Azure Translator/SSM. API trả bản dịch, không tạo job/MP3. Người dùng xem nguồn và bản dịch, chỉnh nếu cần, xác nhận; sau đó kiểm typo Gemini trên text đích và gửi `/synthesize` với `lang` đích, `translateTo=null`, voice/provider/style đã chọn. M2 tạo MP3 mà không dịch lại. Client cũ vẫn có thể dùng `/synthesize translateTo`: M2 dịch trong job và checkpoint qua CAS như trước. Thiếu cấu hình hoặc Azure lỗi trả lỗi rõ, không phát nguyên bản như bản dịch.
 
-Mỗi request tối đa 10.000 ký tự; worker chia nội bộ tối đa 1.500 ký tự/lần provider để tránh audio bị cắt ở giới hạn thời gian của dịch vụ. Các phần MPEG Layer III cùng định dạng được ghép, cập nhật Xing/Info duration/seek. Retry dùng lại phần private đã lưu trong audio bucket. Ảnh/PDF gốc chỉ xử lý trên thiết bị; chỉ text được gửi đến backend/provider khi người dùng tạo giọng.
+Mỗi request tối đa 10.000 ký tự; worker chia nội bộ tối đa 1.500 ký tự/lần provider để tránh audio bị cắt ở giới hạn thời gian của dịch vụ. Các phần MPEG Layer III cùng định dạng được ghép, cập nhật Xing/Info duration/seek. Retry dùng lại phần private đã lưu trong audio bucket. PDF có lớp chữ đọc trên thiết bị; ảnh/trang scan chỉ được gửi qua backend khi người dùng chọn rõ chế độ Gemini trực tuyến, theo mục OCR phía trên.
 
 Web/app dùng chung bộ sinh worker/WASM, model Paddle/VietOCR và sáu gói Tesseract Việt/Anh/Nhật/Hàn/Trung giản thể/phồn thể bằng npm prepare/build. CloudFront phục vụ tài nguyên cùng website; Expo Go dùng bản static của Metro. Không tải các model này khi mở trang thông thường. Nguồn chuẩn và cách nghiệm thu: [hướng dẫn Azure](AZURE-SPEECH.md#dịch-và-đọc--azure-translator).
 

@@ -1,6 +1,6 @@
 # Quy ước chung — API và dữ liệu TTS
 
-**Cập nhật 2026-11-09.** Giữ tám public paths cũ và bổ sung `POST /documents/recognize` theo chấp thuận ngày 12/11/2026; giữ các field chính; `/text/translate` là phần mở rộng mặc định tắt trên AWS. Code backend và root SAM đã có, Azure Speech là provider mặc định. Những mục ghi “đề xuất” hoặc “MR” chưa mặc nhiên được triển khai/kiểm chứng; xem code, task và log để xác nhận trạng thái từng phần.
+**Cập nhật 2026-11-13.** Tám public paths ban đầu được giữ; có thêm `POST /documents/recognize` và `POST /text/preview-translation`. `/text/translate` vẫn là API Gemini độc lập, mặc định tắt trên AWS. Code backend và root SAM đã có, Azure Speech là provider mặc định. Những mục ghi “đề xuất” hoặc “MR” chưa mặc nhiên được triển khai/kiểm chứng; xem code, task và log để xác nhận trạng thái từng phần.
 
 **Cấu hình runtime:** `deployment/samconfig.toml`/`deployment/config/settings.json` dùng `us-east-1`; root SAM đã ghép hosting M4. M2 có thử riêng trên Sandbox; M4 ghi đã cập nhật stack/web hiện có sang Azure. Tạo stack mới và E2E từng phiên cần kiểm riêng. Xem [kiến trúc](ARCHITECTURE.md), [hướng dẫn Azure](./AZURE-SPEECH.md) và [ma trận Sandbox](../backend/m1-minh-ly/reference/SANDBOX-PERMISSIONS.md).
 
@@ -87,6 +87,7 @@ Mọi route auth như mục 2; OPTIONS là preflight. Response JSON và headers 
 | POST /text/correct | M5, MR | text, lang | 200 checked/skipped với original/corrected/changes | 400 input; provider lỗi → 200 skipped |
 | POST /documents/recognize | M5, M1 route/M4 UI | data (base64), mimeType | 200 text/unclear/warnings/provider/model | 400 ảnh; 401 auth; 422 không có chữ; 503 cấu hình/provider/quota |
 | POST /text/translate | M5, MR | text, sourceLang, targetLang, context? | 200 sourceLang/targetLang/translatedText | 400 input; 503 chưa bật/provider/quota |
+| POST /text/preview-translation | M5 → M2 Azure | text, sourceLang, targetLang | 200 sourceLang/targetLang/translatedText | 400 input; 503 chưa cấu hình/provider |
 | POST /synthesize | M5 | text, lang, voice?, speed?, translateTo?; Idempotency-Key? | 202 job mới; 200 DONE replay có kết quả | 400/409/429/503 |
 | GET /voices | M2 | Không | 200 languages | 503 chưa có registry thật |
 | GET /jobs/{id} | M3 | ID path | 200 job/status/progress/audioUrl/error | 404 missing/expired |
@@ -116,9 +117,9 @@ Tất cả job mới dùng async, kể cả câu ngắn. Khi Invoke Event accept
 
 Sau reserve/job write hoặc Invoke mà không biết chắc kết quả, keyed request trả `503 SUBMIT_UNCERTAIN`, giữ mapping và quota đã reserve; replay không tự dispatch/refund để tránh gọi provider hoặc trừ/hoàn quota sai. Luồng không key cũng giữ job/quota và trả SUBMIT_UNCERTAIN khi create-job hoặc Event response không chắc kết quả, không đánh FAILED hay refund bằng phỏng đoán; cần đối chiếu Lịch sử trước request độc lập mới. Nếu worker đã tiến sang PROCESSING/DONE/FAILED thì replay có key có thể đọc trạng thái từ M3. Những mapping còn CLAIMED/RESERVED/JOB_CREATED/DISPATCHING cần người vận hành đối soát sau crash; S3 job creation và Lambda Event không có transaction chung. Code này chưa được xác minh trên Sandbox.
 
-### POST /text/correct — lịch sử quyết định được giữ
+### POST /text/correct — kiểm tra chính tả tùy chọn
 
-Khi bấm Chuyển giọng, M4 gọi đúng một lần, không checkbox và không gọi khi gõ. Endpoint không tạo job/MP3; nếu có đề xuất thì người dùng chọn bản gốc/bản sửa trước POST /synthesize. MR chỉ làm sau MP3 MVP.
+Ở màn Tạo giọng đọc, tùy chọn **Kiểm tra chính tả bằng AI** mặc định tắt: bấm tạo giọng đi thẳng tới `/synthesize`. Khi bật, web/app gọi `/text/correct` một lần cho nội dung chưa duyệt trong phiên; có đề xuất thì người dùng chọn gốc, bản sửa hoặc tự chỉnh trước `/synthesize`. Có thể bỏ qua request đang chờ để dùng bản gốc; phản hồi muộn bị bỏ. Màn Dịch và đọc vẫn kiểm tra văn bản đích sau khi duyệt bản dịch. Endpoint không tạo job/MP3 và không gọi khi gõ.
 
 ~~~json
 {"text":"Xin chàoo","lang":"vi-VN"}
@@ -128,7 +129,7 @@ Khi bấm Chuyển giọng, M4 gọi đúng một lần, không checkbox và kh�
 {"status":"checked","language":"vi-VN","hasTypos":true,"originalText":"Xin chàoo","correctedText":"Xin chào","changes":[{"from":"chàoo","to":"chào","start":4,"end":8}]}
 ~~~
 
-start bao gồm và end không bao gồm, tính theo UTF-16 code units trong correctedText (chuỗi đã sửa), không Python code point; cần test emoji/ký tự ngoài BMP. Chỉ lỗi đánh máy rõ ràng; không ngữ pháp/văn phong/ý nghĩa, không tự sửa tên riêng/số/URL/email/thuật ngữ. Output cần kiểm schema, offsets và giới hạn số thay đổi.
+start bao gồm và end không bao gồm, tính theo UTF-16 code units trong correctedText (chuỗi đã sửa), không Python code point; cần test emoji/ký tự ngoài BMP. Với tiếng Việt, lỗi dấu rõ theo ngữ cảnh cũng là lỗi chính tả, kể cả từ ngắn như `se` → `sẽ`; không sửa ngữ pháp/văn phong/ý nghĩa, không tự sửa tên riêng/số/URL/email/thuật ngữ. Nếu Gemini sửa quá rộng hoặc trả offset sai, backend chỉ giữ những sửa từng từ qua kiểm tra an toàn, tối đa theo cấu hình, rồi trả bản đề xuất để người dùng duyệt; không tự áp dụng. `checked` với `hasTypos=false` chỉ nghĩa là model không đưa ra gợi ý, không chứng minh văn bản chắc chắn đúng. Output cần kiểm schema, offsets và giới hạn số thay đổi.
 
 Mặc định tắt, thiếu key, timeout/provider lỗi, kết quả không chắc hoặc language không hỗ trợ → skipped, nguyên text, changes rỗng. Văn bản quá giới hạn trả 400 TEXT_TOO_LONG. lang auto/thiếu và chưa nhận diện đáng tin cậy → language "und", không giả vi-VN. Không dùng Comprehend baseline. Khi bật, backend kiểm JSON, thay đổi từng từ và UTF-16 offsets trước khi trả. Bản code mới chỉ được kiểm local bằng mock.
 
@@ -142,7 +143,11 @@ Transport/auth/input JSON hỏng vẫn trả 4xx theo contract; fail-open không
 
 Request gồm `text` không rỗng tối đa 2.000 ký tự UTF-16, `sourceLang`, `targetLang` khác nhau và `context` tùy chọn tối đa 600 ký tự từ phần trước. Response `200` gồm `sourceLang`, `targetLang`, `translatedText` không rỗng (tối đa 6.000 ký tự). Sai input trả `400`; chưa bật trả `503 FEATURE_NOT_ENABLED`; Gemini lỗi, output sai hoặc hết quota riêng trả `503 TRANSLATION_UNAVAILABLE`. Không tạo job, không trừ quota TTS, không tự gọi Azure. Gemini typo và dịch cùng dùng tên SSM parameter/model `gemini-3.6-flash` mặc định, nhưng có cờ bật và counter S3 riêng; request đặt `store=false`.
 
-Từ 10/11/2026, màn **Dịch và đọc** trên web và app chỉ dùng Azure: `/synthesize` với `translateTo` theo hợp đồng phía trên, không gọi Gemini hoặc fallback. API `/text/translate` và logic chia đoạn trong `frontend/shared/translation.ts` vẫn giữ cho M5 nhưng không có giao diện gọi. Xử lý ảnh tài liệu theo chế độ OCR đã chọn, độc lập với dịch Azure. Bản dịch chưa có manifest bền vững sau reload; mỗi phần Gemini dùng một API call trong quota riêng.
+Từ 13/11/2026, màn **Dịch và đọc** trên web và app dùng `POST /text/preview-translation` để xem bản dịch Azure, cho người dùng chỉnh/xác nhận, sau đó gọi `/text/correct` trên văn bản đích và `/synthesize` với `lang=targetLang`, `translateTo=null`. Worker không dịch lần hai. API `/text/translate` và logic chia đoạn Gemini vẫn giữ nhưng không được giao diện này gọi. `/synthesize translateTo` tiếp tục hỗ trợ client cũ. Mỗi phần tài liệu được duyệt riêng; preview đã lấy được giữ trong phiên để tiếp tục mà không gọi lại Azure. Bản dịch chưa có manifest bền vững sau reload. Xử lý OCR độc lập với dịch.
+
+### POST /text/preview-translation — xem bản dịch Azure trước TTS
+
+Request JSON `text` không rỗng, tối đa `MaxChars` (hiện 10.000 ký tự Python), `sourceLang` và `targetLang` khác nhau. M1 route vào Submit M5; M5 gọi đồng bộ worker M2 với operation `previewTranslation`, worker dùng chính adapter Azure Translator/SSM hiện có. Phản hồi 200 chỉ chứa mã nguồn/đích và bản dịch; không tạo job, MP3 hoặc trừ quota TTS. Thiếu Translator trả `503 TRANSLATION_NOT_CONFIGURED`; lỗi Azure trả mã `TRANSLATION_*` và thông báo đã làm sạch. Frontend dùng API base chính, không gọi Gemini bridge. Người dùng phải xác nhận trước khi gửi `/synthesize`; lỗi preview không tự chuyển provider.
 
 Lỗi Gemini giữ `503 TRANSLATION_UNAVAILABLE`, thông báo phân biệt xác thực, model, quota, timeout, kết nối và dịch vụ bận. Log chỉ có mã phân loại `GEMINI_*` và HTTP status nếu có; không ghi raw exception/body. Typo lỗi vẫn `200 skipped`. Azure worker giữ `TRANSLATION_REJECTED` cho key/vùng hoặc request bị từ chối; riêng Azure `403001` hết quota trả job FAILED với `TRANSLATION_QUOTA_EXCEEDED`, không tự retry như lỗi tạm thời. Key resource regional cần header đúng vùng, chỉ resource Global mới được bỏ header vùng.
 
