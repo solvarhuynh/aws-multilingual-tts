@@ -18,7 +18,7 @@ export interface Recording extends Job {
   text: string; lang: string; voice: string; speed?: number; charCount: number; createdAt: string;
   local?: boolean;
 }
-export interface Correction { originalText: string; correctedText: string; hasTypos: boolean }
+export interface Correction { status: 'checked' | 'skipped'; originalText: string; correctedText: string; hasTypos: boolean; changes: { from: string; to: string; start: number; end: number }[] }
 export interface Preferences { theme: ThemeMode; reducedMotion: boolean; haptics: boolean; favorites: string[]; demoToken: string }
 export { MAX_PART_CHARS as MAX_CHARS } from "../../../shared/documents";
 export const MIN_SPEED = 0.7;

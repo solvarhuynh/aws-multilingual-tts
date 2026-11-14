@@ -80,8 +80,8 @@ Thực hiện theo gate trong AGENTS. Các kiểm thử AWS/provider, deploy và
 
 ### SB-M4-05 — Tích hợp dịch tài liệu vào web/app hiện có
 
-- **Phụ trách:** M4 Nguyên Khang review giao diện; M5 bàn giao endpoint `/text/translate` và luồng. **Cần có trước:** API M5, import/OCR hiện có và voice registry cho ngôn ngữ đích.
-- **Cách làm:** Cho nhập tài liệu ngay ở màn Dịch và đọc, gửi từng phần theo thứ tự với ngữ cảnh nguồn, hiển thị tiến độ/bản dịch, dừng và tiếp tục sau lỗi, rồi chuyển bản dịch sang màn tạo giọng. Web cho tải TXT; key Gemini không vào bundle.
+- **Phụ trách:** M4 Nguyên Khang review giao diện; M5 bàn giao endpoint Azure `/text/preview-translation`. **Cần có trước:** API M5/M2, import/OCR hiện có và voice registry cho ngôn ngữ đích.
+- **Cách làm:** Cho nhập tài liệu ngay ở màn Dịch và đọc, preview Azure từng phần, hiển thị bản gốc/bản dịch, cho chỉnh và xác nhận trước khi tạo MP3; gửi text đã duyệt bằng ngôn ngữ đích, không `translateTo`. Gemini `/text/translate` vẫn độc lập, không hiện trong màn này. Key provider không vào bundle.
 - **Nghiệm thu:** Dịch không tự tạo job TTS; người dùng kiểm bản dịch trước khi chọn giọng; bản gốc và phần đã dịch không mất khi request lỗi. **Trạng thái:** Coded + locally tested bằng mock; M4 cần review và thử trên thiết bị/backend thật.
 
 ## Kiểm tra local
@@ -194,6 +194,8 @@ App Android 12+ dùng BlurTargetView của phần nội dung tab cho kính thanh
 ### Kiểm kê frontend
 
 Web giữ các màn tổng quan, tạo giọng, dịch Azure/Gemini tùy cấu hình, đọc tài liệu, giọng đọc, bản thu, cài đặt và hướng dẫn. App gồm bốn tab Trang chủ/Giọng đọc/Công cụ/Bản thu, nút tạo mới và các màn compose/settings/recording/help. Hai nền tảng dùng chung logic chia đoạn dịch/tiếp tục trong `shared/translation.ts`; giữ TTS tối đa 10.000 ký tự, Gemini 2.000 ký tự và ngữ cảnh 600 ký tự riêng biệt.
+
+Tạo giọng đọc có tùy chọn **Kiểm tra chính tả bằng AI** trong Cài đặt giọng, mặc định tắt để gửi job ngay. Bật để xem đề xuất; khi chờ có nút Bỏ qua kiểm tra để dùng bản gốc. `style=auto` là lựa chọn cảm xúc riêng. Màn Dịch và đọc giữ bước duyệt Azure preview và kiểm typo trên bản dịch. Console web/Metro và log M2/M5 ghi `[TTS_TIMING]`/`durationMs` cho các giai đoạn, không ghi nội dung hoặc key; đối chiếu số đo trên cùng môi trường khi nghiệm thu.
 
 Hosting dùng template trong infra; root SAM tham chiếu template này. Azure rollout trên một stack/web hiện có ngày 08/11 đã được ghi trong CHANGELOG; cần kiểm lại CREATE mới và app native riêng. Không lấy việc có nút trên UI làm bằng chứng chức năng backend đã bật.
 

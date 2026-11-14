@@ -24,6 +24,8 @@ import { base64Bytes, checkedText, extractDocument, MAX_FILE_BYTES } from '../li
 import { DEFAULT_SPEED, languageNames, MAX_CHARS, MAX_SPEED, MIN_SPEED, number, samples, validate, type Correction, type EditorMode, type Input, type Recording } from '../lib/model';
 import { checkedDocument, MAX_DOCUMENT_CHARS, OCR_LANGUAGES, splitDocument, wordCount } from '../../../shared/documents';
 import { expressionHint, expressionOptions } from '../../../shared/expression';
+import { markTtsDone, ttsNow, ttsTiming } from '../../../shared/tts-performance';
+import { skippableCorrection } from '../../../shared/correction-check';
 
 const IMAGE_FILE = /\.(jpg|jpeg|png|webp)$/i;
 /** Giữ chi tiết dấu tiếng Việt nhưng chặn kích thước ảnh truyền sang WebView. */
@@ -40,6 +42,10 @@ async function shrinkImage(uri: string) {
     if (image !== original) image.release();
     original.release();
   }
+}
+function deviceRecording(input: Input): Recording {
+  return { ...input, jobId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    status: 'DONE', audioUrl: null, charCount: input.text.length, createdAt: new Date().toISOString(), local: true };
 }
 export default function Compose() {
   const keyboard = useKeyboardState();
@@ -69,7 +75,9 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const [targetVoice, setTargetVoice] = useState('Joanna');
   const [selectedStyle, setStyle] = useState('neutral');
   const [styleIntensity, setStyleIntensity] = useState(1);
+  const [checkSpelling, setCheckSpelling] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [stage, setStage] = useState('');
   const [error, setError] = useState('');
   const [documentName, setDocumentName] = useState('');
@@ -80,17 +88,25 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const [scan, setScan] = useState(false);
   const [importStage, setImportStage] = useState('');
   const partLimit = languages.find(item => item.lang === (mode === 'translation' ? target : lang))?.maxChars ?? MAX_CHARS;
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- Tách tài liệu dài cần cache theo giới hạn số.
   const parts = useMemo(() => splitDocument(draft, partLimit), [draft, partLimit]);
   const [partIndex, setPartIndex] = useState(0);
   const selectedPart = Math.min(partIndex, Math.max(0, parts.length - 1));
-  const [batchProgress, setBatchProgress] = useState('');
-  const stopBatch = useRef(false);
-  const completed = useRef(new Set<string>());
+  const speechCompleted = useRef(new Set<string>());
+  const completed = mode === 'translation' ? studio.translationCompleted : speechCompleted;
   const [review, setReview] = useState<Correction | null>(null);
+  const [reviewEdit, setReviewEdit] = useState('');
+  const [translationReview, setTranslationReview] = useState<{ source: string; translated: string; input: Input; document: string; index: number; approvalKey: string } | null>(null);
+  const [translationEdit, setTranslationEdit] = useState('');
+  const previews = studio.translationPreviews;
+  const approved = studio.translationApproved;
   const token = useRef(0);
+  const translationDecisionLock = useRef(false);
   const locked = useRef(false);
   const submitting = useRef(false);
-  const pendingInput = useRef<{ input: Input; document: string; index: number; limit: number } | null>(null);
+  const pendingInput = useRef<{ input: Input; document: string; index: number; limit: number; approvalKey?: string } | null>(null);
+  const checkedTexts = useRef(new Set<string>());
+  const correctionWait = useRef<{ skip: () => void; abort: () => void } | null>(null);
   const pdfTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const importName = useRef('');
   const importRevision = useRef(0);
@@ -98,42 +114,56 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
   const draftRef = useRef(draft);
   useLayoutEffect(() => { draftRef.current = draft; }, [draft]);
   const title = mode === 'translation' ? 'Dịch và đọc' : 'Tạo giọng đọc';
-  useEffect(() => () => { token.current++; importRevision.current++; if (pdfTimer.current) clearTimeout(pdfTimer.current); }, []);
+  useEffect(() => () => { token.current++; correctionWait.current?.abort(); importRevision.current++; if (pdfTimer.current) clearTimeout(pdfTimer.current); }, []);
   const selectedTargetVoice = languages.find(l => l.lang === target)?.voices.find(v => v.id === targetVoice)?.id ?? languages.find(l => l.lang === target)?.voices[0]?.id ?? '';
   const voiceLanguage = languages.find(l => l.lang === (mode === 'translation' ? target : lang));
   const availableVoice = voiceLanguage?.voices.find(v => v.id === (mode === 'translation' ? selectedTargetVoice : voice));
   const styleOptions = expressionOptions(availableVoice?.styles, voiceLanguage?.autoEmotionEnabled);
   const style = styleOptions.some(item => item.value === selectedStyle) ? selectedStyle : 'neutral';
   const expression = { ...(style === 'neutral' ? {} : { style, ...(styleIntensity !== 1 ? { styleIntensity } : {}) }), ...(voiceLanguage?.provider === 'gemini' ? { provider: 'gemini' } : {}) };
-  const finish = () => { locked.current = false; submitting.current = false; setBusy(false); setStage(''); };
+  const previewKey = (index: number, source: string) => JSON.stringify([index, source, lang, target]);
+  const approvalKey = (index: number, source: string) => JSON.stringify([previewKey(index, source), selectedTargetVoice, speed, expression]);
+  const finish = () => { locked.current = false; submitting.current = false; setBusy(false); setChecking(false); setStage(''); };
   const submit = async (input: Input, id: number, batchMode = false, index = selectedPart) => {
     if (submitting.current) return;
+    const submitStartedAt = ttsNow();
     submitting.current = true;
     try {
       setReview(null); setStage('Đang tạo giọng đọc…');
       let record: Recording;
       if (DEMO) {
         if (input.translateTo) throw new Error('Cần kết nối máy chủ để dịch.');
-        record = { ...input, jobId: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`, status: 'DONE', audioUrl: null,
-          charCount: input.text.length, createdAt: new Date().toISOString(), local: true };
+        record = deviceRecording(input);
       } else {
+        const submitStarted = ttsNow();
         let job = await api.synthesize(input, `part-${index}`);
-        const deadline = Date.now() + 20 * 60 * 1000;
+        ttsTiming('submit_api', submitStarted, voiceLanguage?.provider ?? '', job.status);
+        const acceptedAt = ttsNow();
+        let processingSeen = job.status === 'PROCESSING';
+        const deadline = ttsNow() + 20 * 60 * 1000;
+        let attempt = 0;
         while (job.status === 'PENDING' || job.status === 'PROCESSING') {
           if (id !== token.current) return;
           setStage(job.progress ? `Đang đọc ${job.progress.done}/${job.progress.total} đoạn…` : 'Đang xử lý bản thu…');
-          if (Date.now() > deadline) throw new Error('Bản thu vẫn đang xử lý. Hãy mở Bản thu để kiểm tra sau.');
-          await new Promise(resolve => setTimeout(resolve, 2200));
+          if (ttsNow() > deadline) throw new Error('Bản thu vẫn đang xử lý. Hãy mở Bản thu để kiểm tra sau.');
+          await new Promise(resolve => setTimeout(resolve, Math.min(3000, Math.round(800 * 1.5 ** attempt++))));
           if (id !== token.current) return;
           job = await api.job(job.jobId);
+          if (!processingSeen && job.status === 'PROCESSING') {
+            processingSeen = true;
+            ttsTiming('pending_to_processing_seen', acceptedAt, voiceLanguage?.provider ?? '', job.status);
+          }
         }
+        ttsTiming('submit_to_terminal_seen', acceptedAt, voiceLanguage?.provider ?? '', job.status);
         if (job.status === 'FAILED') throw new Error(typeof job.error === 'string' ? job.error : job.error?.message || 'Chưa tạo được bản thu.');
         if (input.translateTo && !job.translated) job = await api.job(job.jobId);
         if (input.translateTo && (!job.translated || !job.text)) throw new Error('Chưa có bản dịch hợp lệ. Hãy kiểm tra lại trong Bản thu.');
+        if (job.audioUrl) markTtsDone(job.jobId, voiceLanguage?.provider ?? '');
         record = { ...input, ...job, lang: input.translateTo ?? input.lang, text: job.translated && job.text ? job.text : input.text, charCount: (job.translated && job.text ? job.text : input.text).length, createdAt: new Date().toISOString() };
       }
       if (id !== token.current) return;
       await saveRecording(record);
+      ttsTiming('recording_ready', submitStartedAt, voiceLanguage?.provider ?? '', record.status);
       if (id !== token.current) return;
       completed.current.add(JSON.stringify([index, input]));
       if (batchMode) { submitting.current = false; return true; }
@@ -141,7 +171,30 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
       return true;
     } catch (reason) { if (id === token.current) { setError(reason instanceof Error ? reason.message : 'Chưa tạo được giọng đọc.'); finish(); } return false; }
   };
-  const generate = async () => {
+  const checkAndSubmit = async (input: Input, id: number, index: number, key?: string) => {
+    const correctionKey = JSON.stringify([input.lang, input.text]);
+    if (!DEMO && (mode === 'translation' || checkSpelling) && !checkedTexts.current.has(correctionKey)) {
+      setStage('Đang kiểm tra chính tả…');
+      const waiting = skippableCorrection(signal => api.correct(input.text, input.lang, signal));
+      correctionWait.current = waiting;
+      setChecking(true);
+      const correctionStarted = ttsNow();
+      let correction: Correction | null = null;
+      try { correction = await waiting.result; }
+      catch { if (id === token.current) setNotice('Chưa kiểm tra được chính tả bằng Gemini. Sẽ dùng nội dung đã chọn.'); }
+      finally { correctionWait.current = null; if (id === token.current) setChecking(false); ttsTiming('correction_api', correctionStarted, voiceLanguage?.provider ?? '', correction?.status ?? 'SKIPPED'); }
+      if (id !== token.current) return;
+      if (correction?.status === 'skipped') setNotice('Gemini chưa kiểm tra chính tả. Sẽ dùng nội dung đã chọn.');
+      if (correction?.status === 'checked' && correction.hasTypos && correction.correctedText !== input.text) {
+        pendingInput.current = { input, document: draft, index, limit: partLimit, approvalKey: key };
+        setReviewEdit(correction.correctedText); setReview(correction); setStage(''); return;
+      }
+      if (correction?.status === 'checked') checkedTexts.current.add(correctionKey);
+    }
+    await submit(input, id, false, index);
+  };
+  const generate = async (index = selectedPart) => {
+    const preprocessingStarted = ttsNow();
     if (voiceLanguage?.available === false) { setError('Chưa bật Gemini TTS ở máy chủ.'); return; }
     if (locked.current || importLock.current) return;
     if (mode === 'translation' && languages.find(item => item.lang === target)?.translationEnabled === false) {
@@ -149,40 +202,67 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
     }
     if (!availableVoice || loadingVoices) { setError('Hãy chờ tải xong và chọn một giọng đọc.'); return; }
     try { checkedDocument(draft); } catch (reason) { setError((reason as Error).message); return; }
-    const input: Input = { text: parts[selectedPart] ?? '', lang, voice: mode === 'translation' ? selectedTargetVoice : voice, speed, translateTo: mode === 'translation' ? target : null, ...expression };
+    const input: Input = { text: parts[index] ?? '', lang, voice: mode === 'translation' ? selectedTargetVoice : voice, speed, translateTo: mode === 'translation' ? target : null, ...expression };
     const invalid = validate(input);
     if (invalid) { setError(invalid); return; }
+    ttsTiming('frontend_preprocessing', preprocessingStarted, voiceLanguage?.provider ?? '', 'READY');
     locked.current = true; setBusy(true); setError(''); Keyboard.dismiss(); stop();
     const id = ++token.current;
-    if (!DEMO) {
-      setStage('Đang kiểm tra nội dung…');
-      const correction = await api.correct(input.text, input.lang).catch(() => null);
-      if (id !== token.current) return;
-      if (draftRef.current !== draft) { finish(); return; }
-      if (correction) { pendingInput.current = { input, document: draft, index: selectedPart, limit: partLimit }; setReview(correction); setStage(''); return; }
+    if (mode === 'translation') {
+      setStage('Đang dịch bằng Azure…');
+      const key = previewKey(index, input.text);
+      try {
+        let translated = previews.current.get(key);
+        if (!translated) { translated = (await api.previewTranslation(input.text, lang, target)).translatedText; previews.current.set(key, translated); }
+        if (id !== token.current || draftRef.current !== draft) { finish(); return; }
+        translationDecisionLock.current = false;
+        setTranslationReview({ source: input.text, translated, input: { ...input, text: translated, lang: target, translateTo: null }, document: draft, index, approvalKey: approvalKey(index, input.text) });
+        setTranslationEdit(translated); setStage(''); return;
+      } catch (reason) { setError(reason instanceof Error ? reason.message : 'Chưa dịch được bằng Azure.'); finish(); return; }
     }
-    await submit(input, id);
+    await checkAndSubmit(input, id, index);
   };
   const generateAll = async () => {
     if (voiceLanguage?.available === false) { setError('Chưa bật Gemini TTS ở máy chủ.'); return; }
     if (locked.current || importLock.current || !availableVoice) return;
     try { checkedDocument(draft); } catch (reason) { setError((reason as Error).message); return; }
-    const inputs = parts.map((text, index) => ({ index, input: { text, lang, voice: mode === 'translation' ? selectedTargetVoice : voice, speed, translateTo: mode === 'translation' ? target : null, ...expression } })).filter(({ input }) => input.text.trim());
-    const invalid = inputs.map(({ input }) => validate(input)).find(Boolean);
+    const next = parts.findIndex((part, index) => {
+      if (!part.trim()) return false;
+      const input: Input = mode === 'translation'
+        ? approved.current.get(approvalKey(index, part)) ?? { text: part, lang, voice: selectedTargetVoice, speed, translateTo: target, ...expression }
+        : { text: part, lang, voice, speed, translateTo: null, ...expression };
+      return !completed.current.has(JSON.stringify([index, input]));
+    });
+    if (next < 0) { setNotice('Đã tạo xong tất cả các phần.'); return; }
+    setPartIndex(next);
+    await generate(next);
+  };
+  const confirmTranslation = async (text: string) => {
+    const pending = translationReview;
+    if (!pending || translationDecisionLock.current || draftRef.current !== pending.document) return;
+    const input = { ...pending.input, text };
+    const invalid = validate(input);
     if (invalid) { setError(invalid); return; }
-    locked.current = true; stopBatch.current = false; setBusy(true); setError(''); stop();
-    const id = ++token.current;
-    let done = inputs.filter(({ input, index }) => completed.current.has(JSON.stringify([index, input]))).length;
-    try {
-      for (const { index, input } of inputs) {
-        if (id !== token.current || stopBatch.current) break;
-        if (completed.current.has(JSON.stringify([index, input]))) continue;
-        setBatchProgress(`Đã xong ${done}/${inputs.length} phần`);
-        if (!await submit(input, id, true, index)) break;
-        done++;
-      }
-      if (id === token.current) setNotice(`Đã tạo ${done}/${inputs.length} phần. Xem và tải từng phần trong Bản thu.`);
-    } finally { if (id === token.current) { finish(); setBatchProgress(''); } }
+    translationDecisionLock.current = true;
+    approved.current.set(pending.approvalKey, input);
+    setTranslationReview(null);
+    await checkAndSubmit(input, token.current, pending.index, pending.approvalKey);
+  };
+  const confirmCorrection = async (text: string) => {
+    const pending = pendingInput.current;
+    if (!pending || draftRef.current !== pending.document) return;
+    const input = { ...pending.input, text };
+    const invalid = validate(input);
+    if (invalid) { setError(invalid); return; }
+    checkedTexts.current.add(JSON.stringify([pending.input.lang, pending.input.text]));
+    checkedTexts.current.add(JSON.stringify([pending.input.lang, text]));
+    if (pending.approvalKey) approved.current.set(pending.approvalKey, input);
+    if (mode !== 'translation' && text !== pending.input.text) {
+      const next = splitDocument(pending.document, pending.limit);
+      next[pending.index] = text; setDraft(next.join(''));
+    }
+    pendingInput.current = null;
+    await submit(input, token.current, false, pending.index);
   };
   const importFile = async () => {
     if (importLock.current || locked.current) return;
@@ -277,9 +357,8 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}><Action disabled={busy || selectedPart === 0} onPress={() => setPartIndex(selectedPart - 1)}>Phần trước</Action>
             <Action disabled={busy || selectedPart >= parts.length - 1} onPress={() => setPartIndex(selectedPart + 1)}>Phần sau</Action></View>
           <Label muted size={12}>{parts[selectedPart].slice(0, 180)}…</Label>
-          <Action disabled={busy || importing} onPress={() => void generateAll()}>Tạo các phần còn lại</Action>
-          <Label size={12} muted>Mỗi phần dùng hạn mức riêng. Tạo lần lượt và dừng khi máy chủ báo hết hạn mức.</Label>
-          {!!batchProgress && <><Label>{batchProgress}</Label><Action onPress={() => { stopBatch.current = true; }}>Dừng sau phần hiện tại</Action></>}
+          <Action disabled={busy || importing} onPress={() => void generateAll()}>Duyệt phần kế tiếp</Action>
+          <Label size={12} muted>Mỗi phần cần được duyệt trước khi tạo giọng. Chọn tiếp để xử lý phần kế tiếp.</Label>
         </View>}
         <View style={[styles.editorSurface, { borderColor: colors.line, backgroundColor: colors.surface }]}>
         <TextInput accessibilityLabel="Nội dung cần đọc" value={draft} onChangeText={text => { setDraft(text); setError(''); setImportWarning(''); }} editable={!busy && !importing}
@@ -299,10 +378,14 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
         {DEMO && <Label size={12} muted>Nghe trên thiết bị · Chưa có MP3</Label>}
       </PageScroll>
       <View testID="composer-footer" style={[styles.footer, { borderColor: colors.line, paddingHorizontal: gutter, paddingVertical: keyboard.visible ? 6 : 12 }]}>
-        {busy && <View style={styles.progress}><ActivityIndicator color={colors.blue} size="small" /><Label size={14} muted>{stage || 'Đang chờ bạn chọn nội dung…'}</Label></View>}
+        {busy && <View style={styles.progress}><ActivityIndicator color={colors.blue} size="small" /><Label size={14} muted>{stage || 'Đang chờ bạn chọn nội dung…'}</Label>
+          {checking && <Pressable accessibilityRole="button" accessibilityLabel="Bỏ qua kiểm tra chính tả"
+            onPress={() => correctionWait.current?.skip()} style={{ minHeight: 44, justifyContent: 'center' }}>
+            <Label size={13} style={{ color: colors.blue }}>Bỏ qua kiểm tra</Label>
+          </Pressable>}</View>}
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}><Glass interactive style={{ borderRadius: 30 }}><Pressable accessibilityRole="button" accessibilityLabel="Cài đặt giọng đọc" disabled={busy}
           onPress={() => { Keyboard.dismiss(); setSheet('settings'); }} style={{ width: keyboard.visible ? 48 : 56, height: keyboard.visible ? 48 : 56, justifyContent: 'center', alignItems: 'center' }}><Icon name="settings" /></Pressable></Glass>
-          <Action primary style={{ flex: 1 }} disabled={busy || importing || loadingVoices || !availableVoice || !draft.trim()} icon="wave" onPress={() => void generate()}>{busy ? 'Đang xử lý…' : mode === 'translation' ? 'Dịch và tạo giọng' : parts.length > 1 ? `Tạo phần ${selectedPart + 1}` : 'Tạo giọng đọc'}</Action>
+          <Action primary style={{ flex: 1 }} disabled={busy || importing || loadingVoices || !availableVoice || !draft.trim()} icon="wave" onPress={() => void generate()}>{busy ? 'Đang xử lý…' : mode === 'translation' ? 'Xem bản dịch' : parts.length > 1 ? `Tạo phần ${selectedPart + 1}` : 'Tạo giọng đọc'}</Action>
         </View>
       </View>
     </KeyboardArea>
@@ -323,6 +406,11 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
         onSelect={(_, id) => { if (mode === 'translation') setTargetVoice(id); setSheet(null); }} />
     </Sheet>
     <Sheet title="Cài đặt giọng đọc" visible={sheet === 'settings'} close={() => setSheet(null)}>
+      {mode === 'speech' && <Pressable accessibilityRole="switch" accessibilityLabel="Kiểm tra chính tả bằng AI"
+        accessibilityState={{ checked: checkSpelling }} onPress={() => setCheckSpelling(value => !value)}
+        style={{ paddingVertical: 12, minHeight: 44, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Label size={14}>Kiểm tra chính tả bằng AI</Label><Label size={14} weight="600" style={{ color: colors.blue }}>{checkSpelling ? 'Bật' : 'Tắt'}</Label>
+      </Pressable>}
       <Label size={18} weight="600">Sắc thái</Label>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {styleOptions.map(item => <Pressable key={item.value} accessibilityRole="button" accessibilityLabel={`Sắc thái ${item.label.toLowerCase()}`}
@@ -354,18 +442,25 @@ function ComposeBody({ keyboard }: { keyboard: { visible: boolean; height: numbe
         setSheet(null);
       }}>{languageNames[l.lang] ?? l.lang}</Action>)}
     </Sheet>
+    <Sheet title="Duyệt bản dịch Azure" visible={!!translationReview} close={() => { setTranslationReview(null); translationDecisionLock.current = false; finish(); }}>
+      <Label muted>Chỉnh bản dịch rồi xác nhận trước khi tạo giọng đọc.</Label>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}><Label weight="600">Bản gốc</Label><Label style={{ lineHeight: 24 }}>{translationReview?.source}</Label></View>
+        <View style={{ flex: 1 }}><Label weight="600">Bản dịch</Label><Label style={{ lineHeight: 24 }}>{translationReview?.translated}</Label></View>
+      </View>
+      <TextInput accessibilityLabel="Chỉnh bản dịch" multiline value={translationEdit} onChangeText={setTranslationEdit} maxLength={MAX_CHARS}
+        style={{ minHeight: 120, color: colors.text, borderColor: colors.line, borderWidth: 1, borderRadius: 12, padding: 12 }} />
+      <Action primary onPress={() => void confirmTranslation(translationEdit)}>Xác nhận và kiểm tra chính tả</Action>
+    </Sheet>
     <Sheet title="Kiểm tra nội dung" visible={!!review} close={() => { setReview(null); pendingInput.current = null; finish(); }}>
       <Label muted>Chọn nội dung để đọc.</Label>
       <Label weight="600">Bản gốc</Label><Label style={{ lineHeight: 24 }}>{review?.originalText}</Label>
       <Label weight="600">Bản đề xuất</Label><Label style={{ lineHeight: 24 }}>{review?.correctedText}</Label>
-      <Action primary onPress={() => {
-        const pending = pendingInput.current;
-        if (!pending || !review || draftRef.current !== pending.document) return;
-        const parts = splitDocument(pending.document, pending.limit);
-        parts[pending.index] = review.correctedText; setDraft(parts.join(''));
-        void submit({ ...pending.input, text: review.correctedText }, token.current, false, pending.index);
-      }}>Dùng bản đề xuất</Action>
-      <Action onPress={() => { const pending = pendingInput.current; if (pending) void submit(pending.input, token.current, false, pending.index); }}>Giữ bản gốc</Action>
+      <TextInput accessibilityLabel="Tự chỉnh nội dung đọc" multiline value={reviewEdit} onChangeText={setReviewEdit} maxLength={MAX_CHARS}
+        style={{ minHeight: 120, color: colors.text, borderColor: colors.line, borderWidth: 1, borderRadius: 12, padding: 12 }} />
+      <Action primary onPress={() => void confirmCorrection(reviewEdit)}>Dùng bản tự chỉnh</Action>
+      <Action onPress={() => { if (review) void confirmCorrection(review.correctedText); }}>Dùng bản đề xuất</Action>
+      <Action onPress={() => { if (review) void confirmCorrection(review.originalText); }}>Giữ bản gốc</Action>
     </Sheet>
     {readerKey > 0 && <PdfReader key={readerKey} base64={pdfData} kind={fileKind} lang={documentLang} scan={scan} mode={documentMode} onProgress={setImportStage} onResult={(text, reason, warning) => {
       if (pdfRevision !== importRevision.current) return;
@@ -393,6 +488,6 @@ const styles = StyleSheet.create({
   paste: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   samples: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, sample: { flexDirection: 'row', gap: 6, borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 10, alignItems: 'center' },
   footer: { width: '100%', maxWidth: 1016, alignSelf: 'center', borderTopWidth: StyleSheet.hairlineWidth, gap: 10, flexShrink: 0 },
-  progress: { flexDirection: 'row', gap: 10, alignItems: 'center', minWidth: 0 },
+  progress: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, alignItems: 'center', minWidth: 0 },
   translation: { flexDirection: 'row', alignItems: 'center', gap: 12 }, language: { flex: 1, minWidth: 0, borderRadius: 24, padding: 15, gap: 5 },
 });

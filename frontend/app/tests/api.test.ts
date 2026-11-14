@@ -38,7 +38,13 @@ test('Chế độ chưa nối backend không giả thành công khi đọc ảnh
 });
 test('Không dùng kết quả kiểm tra nhầm nội dung', async () => {
   globalThis.fetch = async () => new Response(JSON.stringify({ originalText: 'Văn bản khác', correctedText: 'Sai', hasTypos: true }));
-  assert.equal(await api.correct('Xin chào.', 'vi-VN'), null);
+  await assert.rejects(api.correct('Xin chào.', 'vi-VN'), /Chưa kiểm tra được/);
+});
+test('App từ chối Azure preview ở mock mode và kiểm UTF-16', async () => {
+  await assert.rejects(api.previewTranslation('Xin chào.', 'vi-VN', 'en-US'), /Cần kết nối backend/);
+  globalThis.fetch = async () => new Response(JSON.stringify({ status: 'checked', hasTypos: true,
+    originalText: '😀 chàoo', correctedText: '😀 chào', changes: [{ from: 'chàoo', to: 'chào', start: 3, end: 7 }] }));
+  assert.equal((await api.correct('😀 chàoo', 'vi-VN')).changes[0].start, 3);
 });
 test('Nhận giọng Azure có tên từ API', async () => {
   const language = { lang: 'vi-VN', provider: 'azure', engine: null,

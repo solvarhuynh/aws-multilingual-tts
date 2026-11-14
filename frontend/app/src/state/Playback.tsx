@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 import { duration, splitSpeech, type Recording } from '../lib/model';
 import { useStudio } from './Studio';
 import { api, DEMO } from '../lib/api';
+import { markTtsPlayable } from '../../../shared/tts-performance';
 
 function usePlaybackState() {
   const { setNotice, history } = useStudio();
@@ -53,7 +54,9 @@ function usePlaybackState() {
         setNotice('Chưa tải được âm thanh. Chạm phát để thử làm mới liên kết.');
       }
       if (autoPlay.current && next.isLoaded && currentRef.current?.audioUrl) {
-        autoPlay.current = false; player.play();
+        autoPlay.current = false;
+        markTtsPlayable(currentRef.current.jobId);
+        player.play();
       }
     });
     return () => subscription.remove();

@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AccessibilityInfo, Appearance, AppState, useColorScheme } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { api, configureSubmissionStore, DEMO, setDemoToken } from '../lib/api';
-import { DEFAULT_SPEED, demoLanguages, isRecording, type Language, type Preferences, type Recording } from '../lib/model';
+import { DEFAULT_SPEED, demoLanguages, isRecording, type Input, type Language, type Preferences, type Recording } from '../lib/model';
 import { HISTORY_SYNC_INTERVAL, mergeHistoryPage } from '../../../shared/history';
 import { providerOptions } from '../../../shared/voices';
 
@@ -39,6 +39,12 @@ function useStudioState() {
   // Tạo giọng đọc và Dịch và đọc giữ bản nháp riêng; bản nháp cũ trước khi tách thuộc về Tạo giọng đọc.
   const [draft, setDraft] = useState('');
   const [translationDraft, setTranslationDraft] = useState('');
+  const translationPreviews = useRef(new Map<string, string>());
+  const translationApproved = useRef(new Map<string, Input>());
+  const translationCompleted = useRef(new Set<string>());
+  useEffect(() => {
+    translationPreviews.current.clear(); translationApproved.current.clear(); translationCompleted.current.clear();
+  }, [translationDraft]);
   const [selection, setSelection] = useState({ lang: 'vi-VN', voice: 'Linh' });
   const selectedLanguage = languages.find(l => l.lang === selection.lang) ?? languages.find(l => l.lang === 'vi-VN') ?? languages[0];
   const lang = selectedLanguage?.lang ?? selection.lang;
@@ -169,6 +175,7 @@ function useStudioState() {
       patch = { ...patch, demoToken: patch.demoToken.trim() };
       setDemoToken(patch.demoToken!);
       if (patch.demoToken !== preferences.demoToken) {
+        translationPreviews.current.clear(); translationApproved.current.clear(); translationCompleted.current.clear();
         voiceRequest.current++; historyRequest.current++;
         voicesLoading.current = false; loading.current = false; connected.current = false;
         historyRef.current = []; cursorRef.current = null;
@@ -195,6 +202,7 @@ function useStudioState() {
     if (preferences.haptics) void Haptics.selectionAsync().catch(() => {});
   };
   return { colors, isDark, preferences, updatePreferences, reducedMotion, active, ready, history, languages, allLanguages: catalog, provider, providers, setProvider, draft, setDraft, translationDraft, setTranslationDraft,
+    translationPreviews, translationApproved, translationCompleted,
     lang, voice, speed, setSpeed, selectVoice, loadingVoices, voiceError, reloadVoices, saveRecording, removeRecording, refresh, refreshing, cursor,
     notice, setNotice, haptic };
 }

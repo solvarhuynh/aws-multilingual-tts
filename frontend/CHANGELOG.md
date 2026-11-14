@@ -6,6 +6,23 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 **Người phụ trách:** Nguyên Khang
 **Danh sách việc:** [README](README.md)
 
+## 2026-11-14 — Kiểm tra luồng chính tả theo nguồn giọng (local)
+
+- Sửa web `Tạo tất cả các phần` để tôn trọng công tắc Kiểm tra chính tả bằng AI; trước đó luồng này luôn gửi `/text/correct` kể cả khi tắt. Giữ trạng thái kiểm tra ngay dưới ô nhập sau khi tạo bản thu, vì toast cũ bị thông báo hoàn tất thay thế. Kiểm thử cho Azure và Gemini xác nhận công tắc tắt gửi nguyên văn, bật thì có đề xuất mới mở màn duyệt trước khi tạo job.
+- Xác nhận nút Dùng bản sửa đã thay nội dung ô nhập của Tạo giọng đọc trên web/app; thêm regression test web cho đổi nguồn, giọng và sắc thái sau khi chọn bản sửa, vẫn giữ văn bản đã duyệt và không gọi correction lần hai trong phiên.
+- Web UI tests 115/115, production build đạt; M5 tests 113/113. Chưa gọi provider thật trong lượt này; phát âm Gemini có thể nghe đúng lỗi gõ dù metadata job vẫn giữ văn bản gốc. Cần xem phản hồi `/text/correct` của câu lỗi thực tế để xác nhận model có đưa ra đề xuất sau khi khởi động lại backend.
+
+## 2026-11-14 — UI-FIX và TTS-PERFORMANCE-01 (local)
+
+- Web bỏ câu mô tả thừa trong Kiểm tra nội dung, giãn nhãn/textarea 22 px và 10 px, giữ hai khung bằng chiều cao trên desktop, đổi Dùng bản sửa sang primary và Dùng bản tự chỉnh sang secondary. Không đổi callback lựa chọn.
+- Web/app thêm Kiểm tra chính tả bằng AI mặc định tắt cho Tạo giọng đọc; bật thì vẫn duyệt gốc/đề xuất/tự chỉnh. Cho bỏ qua request đang chờ, bỏ kết quả muộn và nhớ nội dung đã duyệt trong phiên. Dịch và đọc vẫn duyệt Azure preview rồi kiểm typo trên văn bản đích; cảm xúc Auto giữ lựa chọn riêng.
+- Ghi thời gian tiền xử lý, correction, submit, quan sát PROCESSING/DONE và lúc audio phát được; polling job đầu nhanh hơn rồi giãn đến 3 giây, không đổi polling history. Log chỉ chứa stage/duration/provider/status. Kiểm local mock: web 112/112 tests và build; app 67/67 tests, typecheck, lint, Expo export iOS/Android. Chưa benchmark provider/AWS thật hoặc thử thiết bị; M4 review giao diện trước khi triển khai. Không commit/push/deploy.
+
+## 2026-11-13 — TTS-INTEGRATION-03: review bản dịch và chính tả trên web/app
+
+- Theo task M5, chỉnh tối thiểu luồng web/app: `Dịch và đọc` dùng Azure preview, đối chiếu bản gốc/bản dịch và tự chỉnh trước khi tạo MP3; sau xác nhận mới kiểm typo Gemini trên bản đích. `/synthesize` nhận văn bản đích với `translateTo=null`, vẫn giữ voice/provider/styleIntensity. Tài liệu nhiều phần duyệt lần lượt; preview trong phiên được dùng lại khi tiếp tục, kể cả app chuyển sang màn Bản thu rồi quay lại. Giao diện sửa chính tả thêm lựa chọn tự chỉnh, giữ gốc và đề xuất; lỗi/skipped hiện thông báo và tiếp tục dùng văn bản đã chọn.
+- Kiểm local với mock: web 109 UI tests + production build; app 66 tests, typecheck/lint và Expo export iOS/Android. Chưa kiểm trên thiết bị thật hoặc backend AWS/Translator/Gemini thật. M4 cần review các diff trong `frontend/web/`, `frontend/app/` và hợp đồng API trước khi deploy. Không commit/push/deploy trong lượt này.
+
 ## 2026-11-13 — Bàn giao Gemini TTS cho các nhánh thành viên
 
 - Người dùng yêu cầu commit **`thêm TTS gemini, thêm sắc thái, thêm nhiều giọng đọc và quốc gia hơn`**, push `main` cùng năm nhánh M1–M5. Fetch xác nhận sáu nhánh remote cùng nền `d6ebefa`; gói bàn giao gồm Gemini TTS web/app/backend, catalog/cảm xúc, đóng gói Lambda và hướng dẫn cấu hình, kèm thẻ sóng âm trang chủ app đã hoàn thiện trước đó.

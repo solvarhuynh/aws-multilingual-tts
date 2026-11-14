@@ -14,12 +14,12 @@ export const API_BASE = (process.env.EXPO_PUBLIC_API_BASE_URL ?? '').trim().repl
 export const DEMO = !API_BASE;
 let demoToken = '';
 export const setDemoToken = (token: string) => { demoToken = token.trim(); };
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit, timeout = 45000): Promise<T> {
   const controller = new AbortController();
   const abort = () => controller.abort();
   init?.signal?.addEventListener('abort', abort, { once: true });
   if (init?.signal?.aborted) abort();
-  const timer = setTimeout(() => controller.abort(), 45000);
+  const timer = setTimeout(() => controller.abort(), timeout);
   try {
     const response = await fetch(`${API_BASE}${path}`, { ...init, signal: controller.signal,
       headers: { ...(init?.body ? { 'Content-Type': 'application/json' } : {}),
@@ -58,11 +58,17 @@ export const api = {
       throw new ApiError(error instanceof Error ? error.message : 'Danh sách giọng đọc chưa hợp lệ.', 'INVALID_RESPONSE');
     }
   },
-  async correct(text: string, lang: string): Promise<Correction | null> {
-    const data = await request<Correction>('/text/correct', { method: 'POST', body: JSON.stringify({ text, lang }) });
-    if (!data || data.originalText !== text || typeof data.correctedText !== 'string' || !data.correctedText.trim() ||
-      data.correctedText.length > MAX_CHARS || typeof data.hasTypos !== 'boolean') return null;
-    return data.hasTypos && data.correctedText !== text ? data : null;
+  async correct(text: string, lang: string, signal?: AbortSignal): Promise<Correction> {
+    const data = await request<Correction>('/text/correct', { method: 'POST', body: JSON.stringify({ text, lang }), signal }, 12000);
+    if (!data || !['checked', 'skipped'].includes(data.status) || data.originalText !== text ||
+      typeof data.correctedText !== 'string' || !data.correctedText.trim() ||
+      data.correctedText.length > MAX_CHARS || typeof data.hasTypos !== 'boolean' || !Array.isArray(data.changes) ||
+      !data.changes.every(change => typeof change.from === 'string' && typeof change.to === 'string' &&
+        Number.isInteger(change.start) && Number.isInteger(change.end) && change.start >= 0 &&
+        change.end > change.start && change.end <= data.correctedText.length &&
+        data.correctedText.slice(change.start, change.end) === change.to))
+      throw new ApiError('Chưa kiểm tra được nội dung.', 'INVALID_RESPONSE');
+    return data;
   },
   async translate(text: string, sourceLang: string, targetLang: string, context = '') {
     if (DEMO) throw new ApiError('Hãy kết nối backend để dịch tài liệu trên app.', 'FEATURE_NOT_ENABLED');
@@ -71,6 +77,15 @@ export const api = {
     if (result?.sourceLang !== sourceLang || result.targetLang !== targetLang ||
         typeof result.translatedText !== 'string' || !result.translatedText.trim() || result.translatedText.length > 6000)
       throw new ApiError('Bản dịch trả về không hợp lệ.', 'INVALID_RESPONSE');
+    return result;
+  },
+  async previewTranslation(text: string, sourceLang: string, targetLang: string) {
+    if (DEMO) throw new ApiError('Cần kết nối backend để dùng Azure Translator.', 'TRANSLATION_NOT_CONFIGURED');
+    const result = await request<{ sourceLang: string; targetLang: string; translatedText: string }>(
+      '/text/preview-translation', { method: 'POST', body: JSON.stringify({ text, sourceLang, targetLang }) });
+    if (!result || result.sourceLang !== sourceLang || result.targetLang !== targetLang ||
+        typeof result.translatedText !== 'string' || !result.translatedText.trim() || result.translatedText.length > MAX_CHARS)
+      throw new ApiError('Bản dịch Azure trả về không hợp lệ.', 'INVALID_RESPONSE');
     return result;
   },
   async synthesize(input: Input, context = '') {

@@ -35,6 +35,19 @@ test('App dùng cùng API HTTPS cho giọng, tạo/phát, lịch sử và xóa; 
   setDemoToken('');
 });
 
+test('Azure preview gửi qua API CloudFront, không dùng Gemini translation', async () => {
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'https://tts.test/';
+  const { api } = await import('../src/lib/api');
+  const calls: { url: string; body: string }[] = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url: String(url), body: String(init?.body) });
+    return new Response(JSON.stringify({ sourceLang: 'vi-VN', targetLang: 'en-US', translatedText: 'Hello.' }));
+  };
+  assert.equal((await api.previewTranslation('Xin chào.', 'vi-VN', 'en-US')).translatedText, 'Hello.');
+  assert.equal(calls[0].url, 'https://tts.test/text/preview-translation');
+  assert.deepEqual(JSON.parse(calls[0].body), { text: 'Xin chào.', sourceLang: 'vi-VN', targetLang: 'en-US' });
+});
+
 test('Đọc ảnh dùng API chung và mã demo, không gọi Gemini trực tiếp hoặc tạo MP3', async () => {
   const { api, setDemoToken } = await import('../src/lib/api');
   const calls: string[] = [];
