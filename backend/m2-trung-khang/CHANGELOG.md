@@ -17,6 +17,11 @@ Các mục cũ giữ nguyên nội dung và lệnh theo cấu trúc tại thời
 
 ## NHẬT KÝ
 
+### 2026-11-14: TTS-PERFORMANCE-01 — thời gian worker (local)
+
+- Worker ghi duration từ tạo job đến claim PROCESSING đầu tiên, dịch/cảm xúc khi được chọn, gọi adapter provider, ghép MP3 và upload S3. Chỉ log jobId hợp lệ, provider, trạng thái và duration; không thay provider, quota, CAS hoặc EventInvokeConfig.
+- M2 tests 114/114 trong `.venv` Windows; chưa đo provider/AWS thật. M2 cần review phần log trước khi triển khai. Không commit/push/deploy.
+
 ### 2026-11-11: App, quét và nhập ảnh nhận dạng nhanh hơn
 
 - Bối cảnh: thử Quét tài liệu trên iPhone thấy đứng lâu ở "Đang mở tài liệu…".

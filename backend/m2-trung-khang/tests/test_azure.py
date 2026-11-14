@@ -270,14 +270,19 @@ class AzureRegistryTest(unittest.TestCase):
                     mock.patch.object(setup, "registry_matches", return_value=b"registry"), mock.patch.object(setup, "aws", side_effect=fake_aws):
                 setup.plan()
                 setup.plan(daily_char_limit=200000)
+                setup.plan(gemini_typo='true', gemini_parameter='/tts/dev/gemini', gemini_model='gemini-test')
             creation = next(options["payload"] for args, options in calls if args[:2] == ("cloudformation", "create-change-set"))
             parameters = {p["ParameterKey"]: p for p in creation["Parameters"]}
             self.assertTrue(parameters["DemoToken"]["UsePreviousValue"])
             self.assertTrue(parameters["AllowedOrigin"]["UsePreviousValue"])
             self.assertTrue(parameters["DailyCharLimit"]["UsePreviousValue"])
             plans = [options["payload"] for args, options in calls if args[:2] == ("cloudformation", "create-change-set")]
-            updated = {p["ParameterKey"]: p for p in plans[-1]["Parameters"]}
+            updated = {p["ParameterKey"]: p for p in plans[1]["Parameters"]}
             self.assertEqual(updated["DailyCharLimit"], {"ParameterKey": "DailyCharLimit", "ParameterValue": "200000"})
+            typo = {p["ParameterKey"]: p for p in plans[-1]["Parameters"]}
+            self.assertEqual(typo["GeminiTypoEnabled"]["ParameterValue"], "true")
+            self.assertEqual(typo["GeminiApiParameterName"]["ParameterValue"], "/tts/dev/gemini")
+            self.assertEqual(typo["GeminiModel"]["ParameterValue"], "gemini-test")
             self.assertEqual(parameters["TtsProvider"]["ParameterValue"], "azure")
             self.assertEqual(parameters["TtsApiParameterName"]["ParameterValue"], setup.PARAMETER)
             self.assertFalse(any(args[:2] == ("cloudformation", "execute-change-set") for args, _ in calls))

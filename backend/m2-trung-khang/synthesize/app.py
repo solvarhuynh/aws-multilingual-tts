@@ -7,6 +7,7 @@ job bằng CAS trước khi gọi provider. Module sở hữu: M2.
 
 import re
 import time
+from datetime import datetime, timezone
 
 from providers import get_provider
 from providers.base import PermanentProviderError, TransientProviderError
@@ -39,6 +40,19 @@ def _log(job_id, context, started, status, error_code=None, attempt=None):
         attempt=attempt,
         errorCode=error_code,
     )
+
+
+def _timed(job, operation, action):
+    started = time.monotonic()
+    try:
+        result = action()
+    except Exception:
+        log_json(module="M2", operation=operation, status="FAILED", jobId=job["jobId"],
+                 provider=job.get("provider"), durationMs=int((time.monotonic() - started) * 1000))
+        raise
+    log_json(module="M2", operation=operation, status="DONE", jobId=job["jobId"],
+             provider=job.get("provider"), durationMs=int((time.monotonic() - started) * 1000))
+    return result
 
 
 def _remaining_seconds(context) -> float:
@@ -97,7 +111,7 @@ def _produce_audio(job: dict, context, checkpoint) -> str:
         timeout = min(30, _remaining_seconds(context) - CLEANUP_SECONDS)
         if timeout <= 0:
             raise TransientProviderError("WORKER_TIMEOUT", "Không đủ thời gian dịch, hệ thống sẽ thử lại.")
-        translated = translate(job["text"], job["lang"], job["translateTo"], timeout=timeout)
+        translated = _timed(job, "azure_translation", lambda: translate(job["text"], job["lang"], job["translateTo"], timeout=timeout))
         if len(translated) > config.MAX_CHARS:
             raise PermanentProviderError("TRANSLATION_TOO_LONG", f"Bản dịch vượt {config.MAX_CHARS} ký tự. Hãy chia nhỏ nội dung gốc rồi dịch lại.")
         job = checkpoint(text=translated, sourceLang=job["lang"], translated=True,
@@ -111,7 +125,7 @@ def _produce_audio(job: dict, context, checkpoint) -> str:
         timeout = _remaining_seconds(context) - CLEANUP_SECONDS
         if timeout <= 0:
             raise TransientProviderError("WORKER_TIMEOUT", "Không đủ thời gian xử lý cảm xúc.")
-        resolved = detect_style(job["text"], styles, timeout)
+        resolved = _timed(job, "emotion_analysis", lambda: detect_style(job["text"], styles, timeout))
         stored = checkpoint(resolvedStyle=resolved).data
         job = {**stored, "lang": stored.get("translateTo") or stored["lang"]}
     chunk_size = job.get("chunkSize", 1000 if job.get("provider") == "gemini" else config.CHUNK_SIZE)
@@ -119,17 +133,19 @@ def _produce_audio(job: dict, context, checkpoint) -> str:
     if not chunks or len(chunks) > 100:
         raise PermanentProviderError("INVALID_INPUT", "Nội dung không hợp lệ hoặc quá dài.")
     if len(chunks) == 1:
-        return storage.put_audio(user_id, job_id, _synthesize(job, context))
+        data = _timed(job, "provider_audio", lambda: _synthesize(job, context))
+        return _timed(job, "s3_audio_upload", lambda: storage.put_audio(user_id, job_id, data))
     checkpoint(chunkCount=len(chunks), chunkSize=chunk_size)
     audio = []
     for index, chunk in enumerate(chunks):
         data = storage.read_part(user_id, job_id, index)
         if data is None:
-            data = _synthesize({**job, "text": chunk}, context)
-            storage.put_part(user_id, job_id, index, data)
+            data = _timed(job, "provider_audio", lambda: _synthesize({**job, "text": chunk}, context))
+            _timed(job, "s3_part_upload", lambda: storage.put_part(user_id, job_id, index, data))
         audio.append(data)
         checkpoint(chunksDone=index + 1)
-    return storage.put_audio(user_id, job_id, join_mp3(audio))
+    combined = _timed(job, "audio_join", lambda: join_mp3(audio))
+    return _timed(job, "s3_audio_upload", lambda: storage.put_audio(user_id, job_id, combined))
 
 
 def _process(stored, context, started, final_attempt=False):
@@ -188,6 +204,20 @@ def handler(event, context, *, final_attempt=False):
     """Nhận event IDs-only, claim job rồi tạo MP3."""
     started = time.monotonic()
     event = event if isinstance(event, dict) else {}
+    if event.get("operation") == "previewTranslation":
+        text, source, target = event.get("text"), event.get("sourceLang"), event.get("targetLang")
+        if not isinstance(text, str) or not text.strip() or len(text) > config.MAX_CHARS or not isinstance(source, str) or not isinstance(target, str) or source == target:
+            return {"error": {"code": "INVALID_INPUT", "message": "Nội dung hoặc ngôn ngữ dịch không hợp lệ."}}
+        timeout = min(15, _remaining_seconds(context) - CLEANUP_SECONDS)
+        if timeout <= 0:
+            return {"error": {"code": "TRANSLATION_BUSY", "message": "Không đủ thời gian để dịch. Hãy thử lại."}}
+        try:
+            result = translate(text, source, target, timeout=timeout)
+            if len(result) > config.MAX_CHARS:
+                return {"error": {"code": "TRANSLATION_TOO_LONG", "message": "Bản dịch quá dài. Hãy chia nhỏ nội dung."}}
+            return {"sourceLang": source, "targetLang": target, "translatedText": result}
+        except (PermanentProviderError, TransientProviderError) as error:
+            return {"error": {"code": error.code, "message": error.message}}
     user_id, job_id = event.get("userId"), event.get("jobId")
     if not are_valid_ids(user_id, job_id):
         _log(None, context, started, "IGNORED", "INVALID_EVENT")
@@ -199,4 +229,12 @@ def handler(event, context, *, final_attempt=False):
         # Worker khác có thể đã chết khi giữ lease; job kẹt do bước kiểm tra của M5 phát hiện.
         _log(job_id, context, started, "SKIPPED", claim.reason)
         return {"jobId": job_id, "status": "SKIPPED"}
+    if claim.job.data.get("attempt") == 1:
+        try:
+            created = datetime.fromisoformat(claim.job.data["createdAt"].replace("Z", "+00:00"))
+            delay_ms = max(0, int((datetime.now(timezone.utc) - created).total_seconds() * 1000))
+            log_json(module="M2", operation="pending_to_processing", status="PROCESSING",
+                     jobId=job_id, provider=claim.job.data.get("provider"), durationMs=delay_ms)
+        except (KeyError, ValueError, TypeError):
+            pass
     return _process(claim.job, context, started, final_attempt)
